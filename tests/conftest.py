@@ -17,7 +17,6 @@ from app.services.highlight_extractor import (
     get_highlight_extractor_service,
 )
 
-
 # Use an in-memory SQLite database for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

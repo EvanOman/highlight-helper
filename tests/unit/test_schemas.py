@@ -1,17 +1,18 @@
 """Unit tests for Pydantic schemas."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
 from app.api.schemas import (
     BookCreate,
-    BookUpdate,
     BookResponse,
-    HighlightCreate,
-    HighlightUpdate,
-    HighlightResponse,
+    BookUpdate,
     ExtractHighlightRequest,
+    HighlightCreate,
+    HighlightResponse,
+    HighlightUpdate,
 )
 
 
@@ -129,9 +130,7 @@ class TestExtractHighlightSchemas:
 
     def test_extract_request_valid(self):
         """Test valid ExtractHighlightRequest."""
-        request = ExtractHighlightRequest(
-            instructions="Extract the highlighted text"
-        )
+        request = ExtractHighlightRequest(instructions="Extract the highlighted text")
         assert request.instructions == "Extract the highlighted text"
 
     def test_extract_request_empty_instructions(self):

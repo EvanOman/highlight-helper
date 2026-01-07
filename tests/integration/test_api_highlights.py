@@ -1,7 +1,7 @@
 """Integration tests for the Highlights API."""
 
 import io
-import pytest
+
 from httpx import AsyncClient
 
 
@@ -24,9 +24,7 @@ class TestHighlightsAPI:
         response = await client.get("/api/highlights/book/99999")
         assert response.status_code == 404
 
-    async def test_list_all_highlights(
-        self, client: AsyncClient, sample_book, sample_highlight
-    ):
+    async def test_list_all_highlights(self, client: AsyncClient, sample_book, sample_highlight):
         """Test listing all highlights."""
         response = await client.get("/api/highlights")
         assert response.status_code == 200
@@ -155,9 +153,7 @@ class TestHighlightsAPI:
         assert data["confidence"] == "high"
         assert data["page_number"] == "42"
 
-    async def test_extract_highlight_invalid_file_type(
-        self, client: AsyncClient, sample_book
-    ):
+    async def test_extract_highlight_invalid_file_type(self, client: AsyncClient, sample_book):
         """Test extracting highlight with non-image file."""
         fake_file = io.BytesIO(b"not an image")
 

@@ -27,7 +27,10 @@ settings = get_settings()
 
 app = FastAPI(
     title="Highlight Helper",
-    description="A mobile-friendly web app for collecting book highlights using AI-powered image recognition",
+    description=(
+        "A mobile-friendly web app for collecting book highlights "
+        "using AI-powered image recognition"
+    ),
     version="0.1.0",
     lifespan=lifespan,
 )

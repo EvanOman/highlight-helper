@@ -90,7 +90,11 @@ async def list_all_highlights(
     ]
 
 
-@router.post("/book/{book_id}", response_model=HighlightResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/book/{book_id}",
+    response_model=HighlightResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_highlight(
     book_id: int,
     highlight_data: HighlightCreate,

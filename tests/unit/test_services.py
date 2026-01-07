@@ -1,10 +1,9 @@
 """Unit tests for services."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.book_lookup import BookInfo, BookLookupService
-from app.services.highlight_extractor import ExtractedHighlight, HighlightExtractorService
+from app.services.book_lookup import BookLookupService
+from app.services.highlight_extractor import HighlightExtractorService
 
 
 class TestBookLookupService:
@@ -22,12 +21,8 @@ class TestBookLookupService:
                     "volumeInfo": {
                         "title": "Test Book",
                         "authors": ["Test Author"],
-                        "industryIdentifiers": [
-                            {"type": "ISBN_13", "identifier": "9781234567890"}
-                        ],
-                        "imageLinks": {
-                            "thumbnail": "http://example.com/cover.jpg"
-                        },
+                        "industryIdentifiers": [{"type": "ISBN_13", "identifier": "9781234567890"}],
+                        "imageLinks": {"thumbnail": "http://example.com/cover.jpg"},
                         "description": "A test book description.",
                     }
                 }
@@ -149,6 +144,7 @@ class TestHighlightExtractorService:
         encoded = service._encode_image_bytes(test_bytes)
 
         import base64
+
         decoded = base64.b64decode(encoded)
         assert decoded == test_bytes
 
@@ -168,7 +164,9 @@ class TestHighlightExtractorService:
         service = HighlightExtractorService()
 
         mock_message = MagicMock()
-        mock_message.content = '{"text": "Extracted text", "confidence": "high", "page_number": "42"}'
+        mock_message.content = (
+            '{"text": "Extracted text", "confidence": "high", "page_number": "42"}'
+        )
 
         mock_choice = MagicMock()
         mock_choice.message = mock_message
@@ -176,7 +174,9 @@ class TestHighlightExtractorService:
         mock_response = MagicMock()
         mock_response.choices = [mock_choice]
 
-        with patch.object(service._client.chat.completions, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            service._client.chat.completions, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_create.return_value = mock_response
 
             result = await service.extract_highlight(
@@ -202,7 +202,9 @@ class TestHighlightExtractorService:
         mock_response = MagicMock()
         mock_response.choices = [mock_choice]
 
-        with patch.object(service._client.chat.completions, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            service._client.chat.completions, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_create.return_value = mock_response
 
             result = await service.extract_highlight(
@@ -227,7 +229,9 @@ class TestHighlightExtractorService:
         mock_response = MagicMock()
         mock_response.choices = [mock_choice]
 
-        with patch.object(service._client.chat.completions, "create", new_callable=AsyncMock) as mock_create:
+        with patch.object(
+            service._client.chat.completions, "create", new_callable=AsyncMock
+        ) as mock_create:
             mock_create.return_value = mock_response
 
             result = await service.extract_highlight(

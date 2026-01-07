@@ -1,11 +1,17 @@
 """Book model."""
 
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.highlight import Highlight
 
 
 class Book(Base):
@@ -25,7 +31,7 @@ class Book(Base):
     )
 
     # Relationships
-    highlights: Mapped[list["Highlight"]] = relationship(
+    highlights: Mapped[list[Highlight]] = relationship(
         "Highlight",
         back_populates="book",
         cascade="all, delete-orphan",

@@ -1,6 +1,6 @@
 """Web views for HTML pages."""
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select

@@ -1,6 +1,5 @@
 """Integration tests for the Books API."""
 
-import pytest
 from httpx import AsyncClient
 
 

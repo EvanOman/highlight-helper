@@ -1,7 +1,7 @@
 """Integration tests for HTML views."""
 
 import io
-import pytest
+
 from httpx import AsyncClient
 
 
@@ -172,9 +172,7 @@ class TestAllHighlightsView:
 class TestDeleteHighlightView:
     """Tests for highlight deletion."""
 
-    async def test_delete_highlight_form(
-        self, client: AsyncClient, sample_book, sample_highlight
-    ):
+    async def test_delete_highlight_form(self, client: AsyncClient, sample_book, sample_highlight):
         """Test deleting a highlight via form."""
         response = await client.post(
             f"/highlights/{sample_highlight.id}/delete",

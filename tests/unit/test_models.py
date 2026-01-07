@@ -1,8 +1,5 @@
 """Unit tests for database models."""
 
-import pytest
-from sqlalchemy import select
-
 from app.models.book import Book
 from app.models.highlight import Highlight
 

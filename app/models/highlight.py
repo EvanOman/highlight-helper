@@ -1,11 +1,17 @@
 """Highlight model."""
 
+from __future__ import annotations
+
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.book import Book
 
 
 class Highlight(Base):
@@ -25,7 +31,7 @@ class Highlight(Base):
     )
 
     # Relationships
-    book: Mapped["Book"] = relationship("Book", back_populates="highlights")
+    book: Mapped[Book] = relationship("Book", back_populates="highlights")
 
     def __repr__(self) -> str:
         return f"<Highlight(id={self.id}, book_id={self.book_id}, text='{self.text[:50]}...')>"

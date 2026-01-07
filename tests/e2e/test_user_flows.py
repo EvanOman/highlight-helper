@@ -1,9 +1,9 @@
 """End-to-end tests for user flows using Playwright."""
 
 import os
+import signal
 import subprocess
 import time
-import signal
 from pathlib import Path
 
 import pytest
@@ -206,30 +206,54 @@ class TestResponsiveDesign:
             {"width": 1024, "height": 768},  # Desktop
         ],
     )
-    def test_page_renders_at_various_viewports(self, server, browser_context, viewport):
+    def test_page_renders_at_various_viewports(self, server, viewport):
         """Test that pages render correctly at various viewport sizes."""
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
+        import importlib.util
+        import subprocess
+        import sys
+
+        if importlib.util.find_spec("playwright") is None:
             pytest.skip("Playwright not installed")
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(viewport=viewport)
-            page = context.new_page()
+        # Create a small script to run the viewport test
+        script = f'''
+import sys
+from playwright.sync_api import sync_playwright
 
-            page.goto(server)
-            page.wait_for_load_state("networkidle")
+viewport = {viewport}
+server = "{server}"
 
-            # Check that the page doesn't have horizontal scrolling
-            body_width = page.evaluate("document.body.scrollWidth")
-            assert body_width <= viewport["width"] + 20, f"Page too wide at {viewport}"
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    context = browser.new_context(viewport=viewport)
+    page = context.new_page()
 
-            # Check that header is visible
-            assert page.locator("header").is_visible()
+    page.goto(server)
+    page.wait_for_load_state("networkidle")
 
-            context.close()
-            browser.close()
+    # Check that the page doesn't have horizontal scrolling
+    body_width = page.evaluate("document.body.scrollWidth")
+    if body_width > viewport["width"] + 20:
+        print(f"FAIL: Page too wide at {{viewport}}")
+        sys.exit(1)
+
+    # Check that header is visible
+    if not page.locator("header").is_visible():
+        print("FAIL: Header not visible")
+        sys.exit(1)
+
+    context.close()
+    browser.close()
+    print("PASS")
+    sys.exit(0)
+'''
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f"Viewport test failed: {result.stderr}"
 
 
 class TestDeleteOperations:
@@ -239,35 +263,50 @@ class TestDeleteOperations:
         """Test deleting a highlight."""
         page = browser_context.new_page()
 
-        # Navigate to book with highlight
-        page.goto(server)
+        # First create a fresh book and highlight for this test
+        page.goto(f"{server}/books/add")
         page.wait_for_load_state("networkidle")
-        page.click("text=Test Manual Book")
+        page.fill('input[name="title"]', "Delete Test Book")
+        page.fill('input[name="author"]', "Delete Test Author")
+        page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
-        # Get initial highlight count
-        initial_content = page.text_content("body")
-        assert "This is a test highlight" in initial_content
+        # Add a highlight to delete
+        page.click("text=Add Highlight")
+        page.wait_for_load_state("networkidle")
+        page.fill('textarea[name="text"]', "Highlight to be deleted")
+        page.fill('input[name="page_number"]', "1")
+        page.click('button:has-text("Save Highlight")')
+        page.wait_for_load_state("networkidle")
+
+        # Verify highlight exists
+        assert page.locator("text=Highlight to be deleted").is_visible()
 
         # Accept the confirmation dialog
         page.on("dialog", lambda dialog: dialog.accept())
 
-        # Delete the highlight
-        page.click("text=Delete", timeout=5000)
-        page.wait_for_load_state("networkidle")
+        # Delete the highlight - be more specific with the selector
+        delete_buttons = page.locator("button:has-text('Delete'):not(:has-text('Book'))")
+        if delete_buttons.count() > 0:
+            delete_buttons.first.click()
+            page.wait_for_load_state("networkidle")
+            # Wait a bit for the page to update
+            page.wait_for_timeout(500)
 
-        # Highlight should be gone
-        assert page.locator("text=No highlights yet").is_visible()
+        # Highlight should be gone - check that the specific text is no longer there
+        assert not page.locator("text=Highlight to be deleted").is_visible()
         page.close()
 
     def test_delete_book(self, server, browser_context):
         """Test deleting a book."""
         page = browser_context.new_page()
 
-        # Navigate to book
-        page.goto(server)
+        # First create a fresh book for this test
+        page.goto(f"{server}/books/add")
         page.wait_for_load_state("networkidle")
-        page.click("text=Test Manual Book")
+        page.fill('input[name="title"]', "Book To Delete")
+        page.fill('input[name="author"]', "Author To Delete")
+        page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
         # Accept the confirmation dialog
@@ -277,7 +316,9 @@ class TestDeleteOperations:
         page.click("text=Delete Book")
         page.wait_for_load_state("networkidle")
 
-        # Should redirect to home and book should be gone
+        # Should redirect to home
         assert page.url.endswith("/") or ":8765" in page.url
-        assert page.locator("text=No books yet").is_visible()
+
+        # Book should be gone from home page
+        assert not page.locator("text=Book To Delete").is_visible()
         page.close()
