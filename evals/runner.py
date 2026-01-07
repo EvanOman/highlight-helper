@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -75,7 +76,7 @@ class EvalRunner:
 
     def load_dataset(self) -> None:
         """Load evaluation cases from the dataset file."""
-        with open(self.dataset_path) as f:
+        with open(self.dataset_path, encoding="utf-8") as f:
             data = json.load(f)
 
         self.cases = [
@@ -94,12 +95,12 @@ class EvalRunner:
     def load_cache(self) -> None:
         """Load cached results for offline mode."""
         if self.cache_path.exists():
-            with open(self.cache_path) as f:
+            with open(self.cache_path, encoding="utf-8") as f:
                 self._cache = json.load(f)
 
     def save_cache(self) -> None:
         """Save results to cache for future offline runs."""
-        with open(self.cache_path, "w") as f:
+        with open(self.cache_path, "w", encoding="utf-8") as f:
             json.dump(self._cache, f, indent=2)
 
     async def _run_extraction(
@@ -123,7 +124,11 @@ class EvalRunner:
                     cached.get("latency_ms", 0.0),
                 )
             else:
-                # Return empty result for uncached cases in offline mode
+                # Warn about missing cache key in offline mode
+                print(
+                    f"Warning: No cached result for '{case.id}' in offline mode",
+                    file=sys.stderr,
+                )
                 return "", None, "low", 0.0
 
         # Online mode - call the actual extractor

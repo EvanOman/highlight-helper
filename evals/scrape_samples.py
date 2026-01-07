@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
-"""Script to download sample book page images for evaluation."""
+"""Script to generate synthetic sample images for evaluation."""
 
 import json
-import urllib.request
 from pathlib import Path
-
-# Sample book page images from Internet Archive / public domain sources
-# These are direct links to public domain book page scans
-SAMPLE_IMAGES = [
-    {
-        "id": "sample_01",
-        "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Erta_ale_5-Trimmed.jpg/800px-Erta_ale_5-Trimmed.jpg",
-        "filename": "sample_01.jpg",
-        "description": "Test image - will be replaced with actual book page",
-    },
-]
-
-# For offline testing, we'll create synthetic test images with known text
-# These will be simple text-on-white images we can create programmatically
 
 
 def create_synthetic_samples(output_dir: Path) -> list[dict]:
@@ -111,25 +96,6 @@ def create_synthetic_samples(output_dir: Path) -> list[dict]:
     return samples
 
 
-def download_samples(output_dir: Path) -> list[dict]:
-    """Download sample images from the web."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    samples = []
-
-    for sample in SAMPLE_IMAGES:
-        filepath = output_dir / sample["filename"]
-        if not filepath.exists():
-            print(f"Downloading {sample['filename']}...")
-            try:
-                urllib.request.urlretrieve(sample["url"], filepath)
-            except Exception as e:
-                print(f"  Failed: {e}")
-                continue
-        samples.append(sample)
-
-    return samples
-
-
 def create_dataset(samples: list[dict], output_path: Path) -> None:
     """Create the dataset JSON file."""
     dataset = {
@@ -138,7 +104,7 @@ def create_dataset(samples: list[dict], output_path: Path) -> None:
         "cases": samples,
     }
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=2)
 
     print(f"\nCreated dataset with {len(samples)} cases at {output_path}")
@@ -170,7 +136,7 @@ def main():
         }
 
     cache_path = samples_dir / "cache.json"
-    with open(cache_path, "w") as f:
+    with open(cache_path, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
     print(f"Created cache file at {cache_path}")
 

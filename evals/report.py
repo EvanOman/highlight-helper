@@ -1,5 +1,6 @@
 """HTML report generator for evaluation results."""
 
+import html
 from pathlib import Path
 
 from evals.models import EvalReport
@@ -42,30 +43,32 @@ def generate_html_report(report: EvalReport, output_path: Path | str) -> None:
             row_class = "failed"
             status = "✗ Failed"
 
-        # Truncate long text
+        # Truncate and escape text for HTML safety
+        expected_escaped = html.escape(r.expected_text)
+        actual_escaped = html.escape(r.actual_text)
         if len(r.expected_text) > 100:
-            expected_display = r.expected_text[:100] + "..."
+            expected_display = html.escape(r.expected_text[:100]) + "..."
         else:
-            expected_display = r.expected_text
+            expected_display = expected_escaped
         if len(r.actual_text) > 100:
-            actual_display = r.actual_text[:100] + "..."
+            actual_display = html.escape(r.actual_text[:100]) + "..."
         else:
-            actual_display = r.actual_text
+            actual_display = actual_escaped
 
         result_rows.append(f"""
         <tr class="{row_class}">
-            <td>{r.case_id}</td>
+            <td>{html.escape(r.case_id)}</td>
             <td>{status}</td>
             <td>{r.char_accuracy:.1%}</td>
-            <td>{r.confidence}</td>
+            <td>{html.escape(r.confidence)}</td>
             <td>{r.latency_ms:.0f}ms</td>
-            <td title="{r.expected_text}">{expected_display}</td>
-            <td title="{r.actual_text}">{actual_display}</td>
-            <td>{r.error or ""}</td>
+            <td title="{expected_escaped}">{expected_display}</td>
+            <td title="{actual_escaped}">{actual_display}</td>
+            <td>{html.escape(r.error or "")}</td>
         </tr>
         """)
 
-    html = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -240,4 +243,4 @@ def generate_html_report(report: EvalReport, output_path: Path | str) -> None:
 </html>
 """
 
-    output_path.write_text(html)
+    output_path.write_text(html_content, encoding="utf-8")
