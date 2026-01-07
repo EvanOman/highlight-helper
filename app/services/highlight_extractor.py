@@ -70,38 +70,49 @@ class HighlightExtractorService:
         media_type = self._get_image_media_type(filename)
 
         system_prompt = """You are a precise text extraction assistant. Your job is to extract
-highlighted or marked text from book page images.
+specific text from book page images based on user instructions.
+
+You can handle TWO types of requests:
+
+1. HIGHLIGHTED TEXT: If the user asks for "highlighted", "underlined", "circled", or
+   "marked" text, look for visually marked passages and extract those.
+
+2. INSTRUCTION-BASED: If the user describes text without referring to visual marks,
+   find and extract the matching text. Examples:
+   - "grab the sentence about love" → find a sentence mentioning love
+   - "extract the first paragraph" → get the first paragraph on the page
+   - "get the quote starting with 'In the beginning'" → find that specific quote
+   - "the sentence containing 'freedom'" → find a sentence with that word
 
 Instructions:
-1. Look at the image carefully and identify any highlighted, underlined, circled, or
-   otherwise marked text
-2. Extract ONLY the text that appears to be highlighted or that the user specifically
-   asks for
-3. Preserve the exact wording from the book - do not paraphrase or modify
-4. If you can see a page number, include it
-5. Rate your confidence in the extraction as "high", "medium", or "low"
+1. Carefully read the user's instructions to understand what text they want
+2. If they mention highlights/marks, look for visually marked text
+3. If they describe text content, find the matching passage on the page
+4. Preserve the exact wording from the book - do not paraphrase or modify
+5. If you can see a page number, include it
+6. Rate your confidence as "high" (exact match found), "medium" (best guess), or "low"
 
 Respond in this exact JSON format:
 {
-    "text": "The extracted highlight text exactly as it appears in the book",
+    "text": "The extracted text exactly as it appears in the book",
     "confidence": "high|medium|low",
     "page_number": "123 or null if not visible"
 }
 
-If you cannot find any highlighted text or cannot read the image clearly, respond with:
+If you cannot find matching text or cannot read the image clearly, respond with:
 {
     "text": "",
     "confidence": "low",
     "page_number": null
 }"""
 
-        user_message = f"""Please extract the highlighted text from this book page image.
+        user_message = f"""Please extract text from this book page image.
 
 User instructions: {instructions}
 
 Remember to:
-- Extract the text exactly as written
-- Only include the highlighted/marked portions unless instructed otherwise
+- Extract the text exactly as written in the book
+- Follow the user's instructions to identify which text to extract
 - Include the page number if visible"""
 
         response = await self._client.chat.completions.create(
