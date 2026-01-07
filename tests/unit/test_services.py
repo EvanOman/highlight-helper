@@ -242,3 +242,48 @@ class TestHighlightExtractorService:
 
         assert result.text == "This is not JSON"
         assert result.confidence == "medium"
+
+    async def test_extract_highlight_instruction_based(self):
+        """Test instruction-based extraction without highlighted text."""
+        service = HighlightExtractorService()
+
+        mock_message = MagicMock()
+        mock_message.content = (
+            '{"text": "The sentence about love from the book", '
+            '"confidence": "high", "page_number": "123"}'
+        )
+
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        with patch.object(
+            service._client.chat.completions, "create", new_callable=AsyncMock
+        ) as mock_create:
+            mock_create.return_value = mock_response
+
+            result = await service.extract_highlight(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+                instructions="grab the sentence about love",
+            )
+
+        assert result.text == "The sentence about love from the book"
+        assert result.confidence == "high"
+        assert result.page_number == "123"
+
+        # Verify the API was called with appropriate messages
+        mock_create.assert_called_once()
+        call_args = mock_create.call_args
+        messages = call_args.kwargs["messages"]
+
+        # Check system prompt mentions instruction-based extraction
+        system_content = messages[0]["content"]
+        assert "INSTRUCTION-BASED" in system_content
+        assert "grab the sentence about" in system_content
+
+        # Check user message includes the instructions
+        user_content = messages[1]["content"][0]["text"]
+        assert "grab the sentence about love" in user_content
