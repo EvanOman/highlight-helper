@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "description": "Evaluation dataset for highlight extraction",
+  "cases": [
+    {
+      "id": "synthetic_01",
+      "image_path": "samples/synthetic_01.png",
+      "instruction": "Extract all the text",
+      "expected_text": "The only way to do great work is to love what you do.",
+      "expected_page_number": null,
+      "category": "simple",
+      "description": "Synthetic test: Extract all the text"
+    },
+    {
+      "id": "synthetic_02",
+      "image_path": "samples/synthetic_02.png",
+      "instruction": "Extract the text starting with 'In the beginning'",
+      "expected_text": "In the beginning, there was nothing. Then there was everything.",
+      "expected_page_number": null,
+      "category": "instruction-based",
+      "description": "Synthetic test: Extract the text starting with 'In the beginning'"
+    },
+    {
+      "id": "synthetic_03",
+      "image_path": "samples/synthetic_03.png",
+      "instruction": "Extract the quote",
+      "expected_text": "Page 42 To be or not to be, that is the question.",
+      "expected_page_number": "42",
+      "category": "with-page-number",
+      "description": "Synthetic test: Extract the quote"
+    },
+    {
+      "id": "synthetic_04",
+      "image_path": "samples/synthetic_04.png",
+      "instruction": "Get the sentence about the fox",
+      "expected_text": "The quick brown fox jumps over the lazy dog.",
+      "expected_page_number": null,
+      "category": "instruction-based",
+      "description": "Synthetic test: Get the sentence about the fox"
+    },
+    {
+      "id": "synthetic_05",
+      "image_path": "samples/synthetic_05.png",
+      "instruction": "Extract the second paragraph",
+      "expected_text": "Second paragraph with more content.",
+      "expected_page_number": null,
+      "category": "instruction-based",
+      "description": "Synthetic test: Extract the second paragraph"
+    }
+  ]
+}

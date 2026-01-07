@@ -1,0 +1,32 @@
+{
+  "synthetic_01:Extract all the text": {
+    "text": "The only way to do great work is to love what you do.",
+    "page_number": null,
+    "confidence": "high",
+    "latency_ms": 100.0
+  },
+  "synthetic_02:Extract the text starting with 'In the beginning'": {
+    "text": "In the beginning, there was nothing. Then there was everything.",
+    "page_number": null,
+    "confidence": "high",
+    "latency_ms": 100.0
+  },
+  "synthetic_03:Extract the quote": {
+    "text": "Page 42 To be or not to be, that is the question.",
+    "page_number": "42",
+    "confidence": "high",
+    "latency_ms": 100.0
+  },
+  "synthetic_04:Get the sentence about the fox": {
+    "text": "The quick brown fox jumps over the lazy dog.",
+    "page_number": null,
+    "confidence": "high",
+    "latency_ms": 100.0
+  },
+  "synthetic_05:Extract the second paragraph": {
+    "text": "Second paragraph with more content.",
+    "page_number": null,
+    "confidence": "high",
+    "latency_ms": 100.0
+  }
+}
