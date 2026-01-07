@@ -60,17 +60,20 @@ class HighlightExtractorModule(dspy.Module):
 class HighlightExtractorService:
     """Service for extracting highlights from images using DSPy."""
 
-    def __init__(self) -> None:
-        settings = get_settings()
+    def __init__(self, lm: dspy.LM | None = None) -> None:
+        """Initialize the service.
 
-        # Configure DSPy with OpenAI GPT-5.2 (latest multimodal model)
-        lm = dspy.LM(
-            "openai/gpt-5.2",
-            api_key=settings.openai_api_key,
-            max_tokens=2000,
-        )
-        dspy.configure(lm=lm)
-
+        Args:
+            lm: Optional DSPy language model. If not provided, creates one from settings.
+        """
+        if lm is None:
+            settings = get_settings()
+            lm = dspy.LM(
+                "openai/gpt-5.2",
+                api_key=settings.openai_api_key,
+                max_tokens=2000,
+            )
+        self._lm = lm
         self._extractor = HighlightExtractorModule()
 
     async def extract_highlight(
@@ -94,10 +97,12 @@ class HighlightExtractorService:
         image = dspy.Image(image_bytes)
 
         try:
-            # Use dspy.asyncify for async execution
-            async_extract = dspy.asyncify(self._extractor)
-            result = await async_extract(image=image, user_instructions=instructions)
-            return result
+            # Use dspy.context for thread-safe LM configuration
+            with dspy.context(lm=self._lm):
+                # Use dspy.asyncify for async execution
+                async_extract = dspy.asyncify(self._extractor)
+                result = await async_extract(image=image, user_instructions=instructions)
+                return result
         except Exception:
             # Fallback for errors
             return ExtractedHighlight(
@@ -107,10 +112,18 @@ class HighlightExtractorService:
             )
 
 
-# Global instance
-highlight_extractor_service = HighlightExtractorService()
+# Lazy initialization to avoid configuration issues at import time
+_highlight_extractor_service: HighlightExtractorService | None = None
+
+
+def _get_service() -> HighlightExtractorService:
+    """Get or create the singleton service instance."""
+    global _highlight_extractor_service
+    if _highlight_extractor_service is None:
+        _highlight_extractor_service = HighlightExtractorService()
+    return _highlight_extractor_service
 
 
 async def get_highlight_extractor_service() -> HighlightExtractorService:
     """Dependency that provides the highlight extractor service."""
-    return highlight_extractor_service
+    return _get_service()
