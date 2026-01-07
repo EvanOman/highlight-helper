@@ -1,0 +1,111 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ book.title }} - Highlight Helper{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="/" class="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Back to Books
+    </a>
+</div>
+
+<!-- Book header -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+    <div class="flex gap-4">
+        <!-- Cover -->
+        <div class="w-24 h-32 sm:w-32 sm:h-44 flex-shrink-0 bg-gray-200 rounded-lg overflow-hidden">
+            {% if book.cover_url %}
+            <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover">
+            {% else %}
+            <div class="w-full h-full flex items-center justify-center text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Info -->
+        <div class="flex-1 min-w-0">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-900">{{ book.title }}</h1>
+            <p class="text-gray-600 mb-2">{{ book.author }}</p>
+            {% if book.isbn %}
+            <p class="text-sm text-gray-500 mb-3">ISBN: {{ book.isbn }}</p>
+            {% endif %}
+
+            <div class="flex flex-wrap gap-2 mt-auto">
+                <a href="/books/{{ book.id }}/add-highlight"
+                   class="bg-primary-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition inline-flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                    Add Highlight
+                </a>
+                <form action="/books/{{ book.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this book and all its highlights?');">
+                    <button type="submit"
+                            class="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-200 transition">
+                        Delete Book
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Highlights -->
+<div class="mb-4 flex items-center justify-between">
+    <h2 class="text-lg font-semibold text-gray-900">
+        Highlights ({{ highlights|length }})
+    </h2>
+</div>
+
+{% if highlights %}
+<div class="space-y-4">
+    {% for highlight in highlights %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <blockquote class="highlight-text text-gray-800 border-l-4 border-primary-400 pl-4 mb-3">
+            "{{ highlight.text }}"
+        </blockquote>
+
+        {% if highlight.note %}
+        <p class="text-sm text-gray-600 italic mb-3">Note: {{ highlight.note }}</p>
+        {% endif %}
+
+        <div class="flex items-center justify-between text-sm text-gray-500">
+            <div class="flex items-center gap-3">
+                {% if highlight.page_number %}
+                <span>Page {{ highlight.page_number }}</span>
+                {% endif %}
+                <span>{{ highlight.created_at.strftime('%b %d, %Y') }}</span>
+            </div>
+            <form action="/highlights/{{ highlight.id }}/delete" method="post"
+                  onsubmit="return confirm('Delete this highlight?');">
+                <button type="submit" class="text-red-600 hover:text-red-700">
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">No highlights yet</h3>
+    <p class="text-gray-600 mb-4">Add your first highlight from this book.</p>
+    <a href="/books/{{ book.id }}/add-highlight"
+       class="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        Add Highlight
+    </a>
+</div>
+{% endif %}
+{% endblock %}

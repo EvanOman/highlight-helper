@@ -1,0 +1,329 @@
+"""Web views for HTML pages."""
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File, status
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.models.book import Book
+from app.models.highlight import Highlight
+from app.services.book_lookup import BookLookupService, get_book_lookup_service
+from app.services.highlight_extractor import (
+    HighlightExtractorService,
+    get_highlight_extractor_service,
+)
+
+router = APIRouter(tags=["views"])
+templates = Jinja2Templates(directory="app/templates")
+
+
+@router.get("/", response_class=HTMLResponse)
+async def home(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Home page showing all books."""
+    # Get books with highlight counts
+    highlight_count_subq = (
+        select(Highlight.book_id, func.count(Highlight.id).label("count"))
+        .group_by(Highlight.book_id)
+        .subquery()
+    )
+
+    query = (
+        select(Book, func.coalesce(highlight_count_subq.c.count, 0).label("highlight_count"))
+        .outerjoin(highlight_count_subq, Book.id == highlight_count_subq.c.book_id)
+        .order_by(Book.created_at.desc())
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    books = [
+        {
+            "id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "cover_url": book.cover_url,
+            "highlight_count": highlight_count,
+        }
+        for book, highlight_count in rows
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "home.html",
+        {"books": books},
+    )
+
+
+@router.get("/books/add", response_class=HTMLResponse)
+async def add_book_page(request: Request):
+    """Page for adding a new book."""
+    return templates.TemplateResponse(
+        request,
+        "add_book.html",
+        {"search_results": None, "query": ""},
+    )
+
+
+@router.post("/books/search", response_class=HTMLResponse)
+async def search_books_page(
+    request: Request,
+    query: str = Form(""),
+    book_lookup: BookLookupService = Depends(get_book_lookup_service),
+):
+    """Search for books and display results."""
+    search_results = []
+    if query and len(query) >= 2:
+        results = await book_lookup.search_books(query)
+        search_results = [
+            {
+                "title": r.title,
+                "author": r.author,
+                "isbn": r.isbn,
+                "cover_url": r.cover_url,
+            }
+            for r in results
+        ]
+
+    return templates.TemplateResponse(
+        request,
+        "add_book.html",
+        {"search_results": search_results, "query": query},
+    )
+
+
+@router.post("/books/create")
+async def create_book_form(
+    title: str = Form(...),
+    author: str = Form(...),
+    isbn: str = Form(""),
+    cover_url: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new book from form submission."""
+    book = Book(
+        title=title,
+        author=author,
+        isbn=isbn if isbn else None,
+        cover_url=cover_url if cover_url else None,
+    )
+    db.add(book)
+    await db.flush()
+    await db.refresh(book)
+
+    return RedirectResponse(url=f"/books/{book.id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/books/{book_id}", response_class=HTMLResponse)
+async def book_detail(
+    request: Request,
+    book_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Book detail page showing all highlights."""
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Get highlights
+    highlights_query = (
+        select(Highlight).where(Highlight.book_id == book_id).order_by(Highlight.created_at.desc())
+    )
+    highlights_result = await db.execute(highlights_query)
+    highlights = highlights_result.scalars().all()
+
+    return templates.TemplateResponse(
+        request,
+        "book_detail.html",
+        {
+            "book": book,
+            "highlights": highlights,
+        },
+    )
+
+
+@router.get("/books/{book_id}/add-highlight", response_class=HTMLResponse)
+async def add_highlight_page(
+    request: Request,
+    book_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Page for adding a new highlight to a book."""
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    return templates.TemplateResponse(
+        request,
+        "add_highlight.html",
+        {
+            "book": book,
+            "extracted_text": "",
+            "confidence": "",
+            "page_number": "",
+        },
+    )
+
+
+@router.post("/books/{book_id}/extract", response_class=HTMLResponse)
+async def extract_highlight_form(
+    request: Request,
+    book_id: int,
+    instructions: str = Form(...),
+    image: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
+):
+    """Extract highlight from uploaded image."""
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Validate file type
+    error_message = None
+    extracted_text = ""
+    confidence = ""
+    page_number = ""
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        error_message = "Please upload an image file"
+    else:
+        image_bytes = await image.read()
+        if len(image_bytes) > 20 * 1024 * 1024:
+            error_message = "Image file too large (max 20MB)"
+        else:
+            try:
+                result = await extractor.extract_highlight(
+                    image_bytes=image_bytes,
+                    filename=image.filename or "image.jpg",
+                    instructions=instructions,
+                )
+                extracted_text = result.text
+                confidence = result.confidence
+                page_number = result.page_number or ""
+            except Exception as e:
+                error_message = f"Error extracting text: {str(e)}"
+
+    return templates.TemplateResponse(
+        request,
+        "add_highlight.html",
+        {
+            "book": book,
+            "extracted_text": extracted_text,
+            "confidence": confidence,
+            "page_number": page_number,
+            "instructions": instructions,
+            "error_message": error_message,
+        },
+    )
+
+
+@router.post("/books/{book_id}/highlights/create")
+async def create_highlight_form(
+    book_id: int,
+    text: str = Form(...),
+    note: str = Form(""),
+    page_number: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new highlight from form submission."""
+    # Verify book exists
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    highlight = Highlight(
+        book_id=book_id,
+        text=text,
+        note=note if note else None,
+        page_number=page_number if page_number else None,
+    )
+    db.add(highlight)
+    await db.flush()
+
+    return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/books/{book_id}/delete")
+async def delete_book_form(
+    book_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a book."""
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    await db.delete(book)
+
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/highlights/{highlight_id}/delete")
+async def delete_highlight_form(
+    highlight_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a highlight."""
+    query = select(Highlight).where(Highlight.id == highlight_id)
+    result = await db.execute(query)
+    highlight = result.scalar_one_or_none()
+
+    if not highlight:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    book_id = highlight.book_id
+    await db.delete(highlight)
+
+    return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/highlights", response_class=HTMLResponse)
+async def all_highlights(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Page showing all highlights across all books."""
+    query = select(Highlight, Book).join(Book).order_by(Highlight.created_at.desc())
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    highlights = [
+        {
+            "id": highlight.id,
+            "text": highlight.text,
+            "note": highlight.note,
+            "page_number": highlight.page_number,
+            "created_at": highlight.created_at,
+            "book_id": book.id,
+            "book_title": book.title,
+            "book_author": book.author,
+        }
+        for highlight, book in rows
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "all_highlights.html",
+        {"highlights": highlights},
+    )

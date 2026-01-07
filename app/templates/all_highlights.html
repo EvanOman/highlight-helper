@@ -1,0 +1,62 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}All Highlights - Highlight Helper{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">All Highlights</h1>
+
+{% if highlights %}
+<div class="space-y-4">
+    {% for highlight in highlights %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <blockquote class="highlight-text text-gray-800 border-l-4 border-primary-400 pl-4 mb-3">
+            "{{ highlight.text }}"
+        </blockquote>
+
+        {% if highlight.note %}
+        <p class="text-sm text-gray-600 italic mb-3">Note: {{ highlight.note }}</p>
+        {% endif %}
+
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+            <a href="/books/{{ highlight.book_id }}"
+               class="text-primary-600 hover:text-primary-700 font-medium">
+                {{ highlight.book_title }}
+            </a>
+            <span class="text-gray-400">by</span>
+            <span class="text-gray-600">{{ highlight.book_author }}</span>
+        </div>
+
+        <div class="flex items-center justify-between text-sm text-gray-500 mt-2 pt-2 border-t border-gray-100">
+            <div class="flex items-center gap-3">
+                {% if highlight.page_number %}
+                <span>Page {{ highlight.page_number }}</span>
+                {% endif %}
+                <span>{{ highlight.created_at.strftime('%b %d, %Y') }}</span>
+            </div>
+            <form action="/highlights/{{ highlight.id }}/delete" method="post"
+                  onsubmit="return confirm('Delete this highlight?');">
+                <button type="submit" class="text-red-600 hover:text-red-700">
+                    Delete
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    <h2 class="text-xl font-semibold text-gray-900 mb-2">No highlights yet</h2>
+    <p class="text-gray-600 mb-4">Add a book and start collecting highlights.</p>
+    <a href="/books/add"
+       class="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        Add Your First Book
+    </a>
+</div>
+{% endif %}
+{% endblock %}
