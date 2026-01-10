@@ -44,14 +44,6 @@
                     </svg>
                     Add Highlight
                 </a>
-                <button id="sync-to-readwise-btn"
-                        onclick="syncBookToReadwise({{ book.id }})"
-                        class="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-200 transition inline-flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                    <span id="sync-btn-text">Sync to Readwise</span>
-                </button>
                 <form action="/books/{{ book.id }}/delete" method="post"
                       onsubmit="return confirm('Delete this book and all its highlights?');">
                     <button type="submit"
@@ -89,27 +81,32 @@
                 <span>Page {{ highlight.page_number }}</span>
                 {% endif %}
                 <span>{{ highlight.created_at.strftime('%b %d, %Y') }}</span>
+            </div>
+            <div class="flex items-center gap-3">
                 {% if highlight.synced_at %}
-                <span class="inline-flex items-center gap-1 text-green-600" title="Synced to Readwise on {{ highlight.synced_at.strftime('%b %d, %Y') }}">
+                <span class="inline-flex items-center gap-1 text-green-600 px-2 py-1 bg-green-50 rounded" title="Synced to Readwise on {{ highlight.synced_at.strftime('%b %d, %Y') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                     </svg>
                     Synced
                 </span>
                 {% else %}
-                <span class="inline-flex items-center gap-1 text-gray-400" title="Not synced to Readwise">
+                <button id="sync-btn-{{ highlight.id }}"
+                        onclick="syncHighlightToReadwise({{ highlight.id }})"
+                        class="inline-flex items-center gap-1 text-amber-700 px-2 py-1 bg-amber-50 rounded hover:bg-amber-100 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                     </svg>
-                </span>
-                {% endif %}
-            </div>
-            <form action="/highlights/{{ highlight.id }}/delete" method="post"
-                  onsubmit="return confirm('Delete this highlight?');">
-                <button type="submit" class="text-red-600 hover:text-red-700">
-                    Delete
+                    <span id="sync-btn-text-{{ highlight.id }}">Sync</span>
                 </button>
-            </form>
+                {% endif %}
+                <form action="/highlights/{{ highlight.id }}/delete" method="post"
+                      onsubmit="return confirm('Delete this highlight?');">
+                    <button type="submit" class="text-red-600 hover:text-red-700">
+                        Delete
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
     {% endfor %}
@@ -132,16 +129,15 @@
 {% endif %}
 
 <script>
-async function syncBookToReadwise(bookId) {
-    const btn = document.getElementById('sync-to-readwise-btn');
-    const btnText = document.getElementById('sync-btn-text');
-    const originalText = btnText.textContent;
+async function syncHighlightToReadwise(highlightId) {
+    const btn = document.getElementById(`sync-btn-${highlightId}`);
+    const btnText = document.getElementById(`sync-btn-text-${highlightId}`);
 
     btn.disabled = true;
     btnText.textContent = 'Syncing...';
 
     try {
-        const response = await fetch(`/api/readwise/sync/book/${bookId}`, {
+        const response = await fetch(`/api/readwise/sync/${highlightId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -150,24 +146,24 @@ async function syncBookToReadwise(bookId) {
 
         const data = await response.json();
 
-        if (response.ok) {
-            if (data.total === 0) {
-                btnText.textContent = 'All synced!';
-            } else {
-                btnText.textContent = `Synced ${data.synced}/${data.total}`;
-            }
-            // Reload page to show updated sync status
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+        if (response.ok && data.success) {
+            // Replace button with synced indicator
+            btn.outerHTML = `
+                <span class="inline-flex items-center gap-1 text-green-600 px-2 py-1 bg-green-50 rounded" title="Synced to Readwise">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    Synced
+                </span>
+            `;
         } else {
-            alert(data.detail || 'Failed to sync. Please configure your Readwise API token.');
-            btnText.textContent = originalText;
+            alert(data.detail || data.error || 'Failed to sync. Please configure your Readwise API token.');
+            btnText.textContent = 'Sync';
             btn.disabled = false;
         }
     } catch (error) {
         alert('Network error. Please try again.');
-        btnText.textContent = originalText;
+        btnText.textContent = 'Sync';
         btn.disabled = false;
     }
 }
