@@ -1,7 +1,7 @@
 """Readwise integration service for syncing highlights."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -277,3 +277,68 @@ def _get_service() -> ReadwiseService:
 async def get_readwise_service() -> ReadwiseService:
     """Dependency that provides the Readwise service."""
     return _get_service()
+
+
+async def sync_highlight_background(
+    highlight_id: int,
+    book_title: str,
+    book_author: str,
+    text: str,
+    note: str | None,
+    page_number: str | None,
+    created_at: datetime,
+) -> None:
+    """Background task to sync a highlight to Readwise.
+
+    This function is designed to be called from FastAPI's BackgroundTasks.
+    It creates its own database session since it runs after the response.
+
+    Args:
+        highlight_id: The local highlight ID to update after sync.
+        book_title: Book title for Readwise.
+        book_author: Book author for Readwise.
+        text: The highlight text.
+        note: Optional note/annotation.
+        page_number: Optional page number.
+        created_at: When the highlight was created.
+    """
+    import logging
+
+    from app.core.database import get_async_session
+    from app.models.highlight import Highlight
+
+    logger = logging.getLogger(__name__)
+
+    service = _get_service()
+    if not service.is_configured:
+        logger.debug("Readwise not configured, skipping auto-sync")
+        return
+
+    try:
+        result = await service.send_highlight(
+            text=text,
+            title=book_title,
+            author=book_author,
+            note=note,
+            page_number=page_number,
+            highlighted_at=created_at,
+        )
+
+        if result.success:
+            # Update highlight in database with sync info
+            async with get_async_session() as db:
+                from sqlalchemy import select
+
+                query = select(Highlight).where(Highlight.id == highlight_id)
+                db_result = await db.execute(query)
+                highlight = db_result.scalar_one_or_none()
+
+                if highlight:
+                    highlight.readwise_id = result.readwise_id
+                    highlight.synced_at = datetime.now(tz=timezone.utc)
+                    logger.info(f"Auto-synced highlight {highlight_id} to Readwise")
+        else:
+            logger.warning(f"Failed to auto-sync highlight {highlight_id}: {result.error}")
+
+    except Exception as e:
+        logger.error(f"Error during auto-sync of highlight {highlight_id}: {e}")

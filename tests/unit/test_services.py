@@ -10,7 +10,11 @@ from app.services.highlight_extractor import (
     ExtractedHighlight,
     HighlightExtractorService,
 )
-from app.services.readwise import ReadwiseService
+from app.services.readwise import (
+    ReadwiseService,
+    ReadwiseSyncResult,
+    sync_highlight_background,
+)
 
 
 class TestBookLookupService:
@@ -464,3 +468,104 @@ class TestReadwiseService:
         assert result.total == 1
         assert result.synced == 0
         assert result.failed == 1
+
+
+class TestSyncHighlightBackground:
+    """Tests for the sync_highlight_background function."""
+
+    async def test_sync_skipped_when_not_configured(self):
+        """Test that sync is skipped when Readwise is not configured."""
+        mock_service = MagicMock()
+        mock_service.is_configured = False
+
+        with patch("app.services.readwise._get_service", return_value=mock_service):
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note=None,
+                page_number=None,
+                created_at=datetime.now(tz=timezone.utc),
+            )
+
+        # send_highlight should not be called since service is not configured
+        mock_service.send_highlight.assert_not_called()
+
+    async def test_sync_success_updates_database(self):
+        """Test that successful sync updates the highlight in the database."""
+        mock_service = MagicMock()
+        mock_service.is_configured = True
+        mock_service.send_highlight = AsyncMock(
+            return_value=ReadwiseSyncResult(success=True, readwise_id="12345")
+        )
+
+        mock_highlight = MagicMock()
+        mock_highlight.readwise_id = None
+        mock_highlight.synced_at = None
+
+        mock_db_result = MagicMock()
+        mock_db_result.scalar_one_or_none.return_value = mock_highlight
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_db_result)
+
+        with (
+            patch("app.services.readwise._get_service", return_value=mock_service),
+            patch("app.core.database.get_async_session") as mock_get_session,
+        ):
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note="A note",
+                page_number="42",
+                created_at=datetime.now(tz=timezone.utc),
+            )
+
+        mock_service.send_highlight.assert_called_once()
+        assert mock_highlight.readwise_id == "12345"
+        assert mock_highlight.synced_at is not None
+
+    async def test_sync_failure_does_not_update_database(self):
+        """Test that failed sync does not update the highlight."""
+        mock_service = MagicMock()
+        mock_service.is_configured = True
+        mock_service.send_highlight = AsyncMock(
+            return_value=ReadwiseSyncResult(success=False, error="API error")
+        )
+
+        with patch("app.services.readwise._get_service", return_value=mock_service):
+            # Should not raise, just log warning
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note=None,
+                page_number=None,
+                created_at=datetime.now(tz=timezone.utc),
+            )
+
+        mock_service.send_highlight.assert_called_once()
+
+    async def test_sync_exception_is_logged(self):
+        """Test that exceptions during sync are caught and logged."""
+        mock_service = MagicMock()
+        mock_service.is_configured = True
+        mock_service.send_highlight = AsyncMock(side_effect=Exception("Network error"))
+
+        with patch("app.services.readwise._get_service", return_value=mock_service):
+            # Should not raise, should catch and log
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note=None,
+                page_number=None,
+                created_at=datetime.now(tz=timezone.utc),
+            )

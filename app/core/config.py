@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Readwise (optional)
     readwise_api_token: str | None = None
+    readwise_auto_sync: bool = False  # Auto-sync highlights on creation
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./highlight_helper.db"
