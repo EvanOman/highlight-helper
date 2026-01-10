@@ -86,7 +86,7 @@ async def sync_all_highlights(
 
     # Update synced highlights
     now = datetime.now(tz=timezone.utc)
-    for (highlight, _), sync_result in zip(rows, batch_result.results):
+    for (highlight, _), sync_result in zip(rows, batch_result.results, strict=False):
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
@@ -201,7 +201,7 @@ async def sync_book_highlights(
 
     # Update synced highlights
     now = datetime.now(tz=timezone.utc)
-    for i, (highlight, sync_result) in enumerate(zip(highlights, batch_result.results)):
+    for highlight, sync_result in zip(highlights, batch_result.results, strict=False):
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
