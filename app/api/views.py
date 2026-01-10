@@ -344,6 +344,7 @@ async def all_highlights(
             "note": highlight.note,
             "page_number": highlight.page_number,
             "created_at": highlight.created_at,
+            "synced_at": highlight.synced_at,
             "book_id": book.id,
             "book_title": book.title,
             "book_author": book.author,
