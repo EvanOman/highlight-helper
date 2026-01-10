@@ -19,6 +19,19 @@ ruff format --check app/ tests/
 
 All tests must pass before creating commits or pull requests.
 
+## Development Validation Requirements
+
+**IMPORTANT**: Significant UI/UX changes require loop-closed development validation.
+
+For any significant change (new features, UI modifications, workflow changes):
+
+1. **Start the dev server**: `uv run uvicorn app.main:app --host 0.0.0.0 --port 18742`
+2. **Manually validate** the change works as expected in a browser
+3. **Test on mobile viewport** if the change affects responsive design
+4. **Run e2e tests** to ensure no regressions: `python -m pytest tests/e2e -v`
+
+This ensures changes are validated end-to-end before committing.
+
 ## Project Structure
 
 - `app/` - Main application code (FastAPI)
@@ -47,6 +60,23 @@ Uses Google Books API for book search. Mock `_get_client()` in tests.
 2. **Use dependency injection**: Services accept optional dependencies for testing
 3. **Test public API**: Focus on testing the public interface, not implementation details
 4. **Run tests locally**: CI will fail if tests don't pass locally
+
+### E2E Tests (Playwright)
+
+The project includes selector-based Playwright e2e tests in `tests/e2e/`. These test full user flows:
+
+```bash
+# Run e2e tests (requires Playwright installed)
+python -m pytest tests/e2e -v
+
+# Skip e2e tests
+SKIP_E2E_TESTS=true python -m pytest tests/e2e -v
+```
+
+When adding new UI features:
+- Add corresponding e2e tests to validate the user flow
+- Use CSS selectors or text-based locators (e.g., `page.locator("text=Save Highlight")`)
+- Test at multiple viewport sizes for responsive design
 
 ## Pull Request Workflow
 
