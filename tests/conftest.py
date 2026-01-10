@@ -16,6 +16,11 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.isbn_extractor import (
+    ExtractedISBN,
+    ISBNExtractorService,
+    get_isbn_extractor_service,
+)
 from app.services.readwise import (
     ReadwiseBatchResult,
     ReadwiseService,
@@ -93,6 +98,20 @@ def mock_highlight_extractor_service():
 
 
 @pytest.fixture
+def mock_isbn_extractor_service():
+    """Create a mock ISBN extractor service."""
+    service = MagicMock(spec=ISBNExtractorService)
+    service.extract_isbn = AsyncMock(
+        return_value=ExtractedISBN(
+            isbn="9781234567890",
+            confidence="high",
+            source="barcode",
+        )
+    )
+    return service
+
+
+@pytest.fixture
 def mock_readwise_service():
     """Create a mock Readwise service."""
     service = MagicMock(spec=ReadwiseService)
@@ -129,6 +148,7 @@ async def client(
     override_get_db,
     mock_book_lookup_service,
     mock_highlight_extractor_service,
+    mock_isbn_extractor_service,
     mock_readwise_service,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
@@ -137,6 +157,7 @@ async def client(
     app.dependency_overrides[get_highlight_extractor_service] = (
         lambda: mock_highlight_extractor_service
     )
+    app.dependency_overrides[get_isbn_extractor_service] = lambda: mock_isbn_extractor_service
     app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service
 
     transport = ASGITransport(app=app)
@@ -151,6 +172,7 @@ async def client_readwise_unconfigured(
     override_get_db,
     mock_book_lookup_service,
     mock_highlight_extractor_service,
+    mock_isbn_extractor_service,
     mock_readwise_service_unconfigured,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client with Readwise not configured."""
@@ -159,6 +181,7 @@ async def client_readwise_unconfigured(
     app.dependency_overrides[get_highlight_extractor_service] = (
         lambda: mock_highlight_extractor_service
     )
+    app.dependency_overrides[get_isbn_extractor_service] = lambda: mock_isbn_extractor_service
     app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service_unconfigured
 
     transport = ASGITransport(app=app)
