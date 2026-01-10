@@ -50,6 +50,9 @@ htmlcov/
 *.sqlite
 *.sqlite3
 
+# SSL Certificates (local development)
+certs/
+
 # Uploads (temporary)
 uploads/
 

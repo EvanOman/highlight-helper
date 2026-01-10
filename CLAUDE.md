@@ -78,6 +78,35 @@ When adding new UI features:
 - Use CSS selectors or text-based locators (e.g., `page.locator("text=Save Highlight")`)
 - Test at multiple viewport sizes for responsive design
 
+## HTTPS Setup
+
+For local development or accessing over Tailscale, you may need HTTPS to avoid browser security warnings on form submissions.
+
+### Using Self-Signed Certificates
+
+1. **Generate certificates**:
+   ```bash
+   just gen-cert localhost
+   # Or for Tailscale access:
+   just gen-cert your-machine.tailnet-name.ts.net
+   ```
+
+2. **Start the server with HTTPS**:
+   ```bash
+   just dev-https
+   # Or for production:
+   just serve-https
+   ```
+
+3. **Accept the certificate** in your browser (self-signed certificates will show a warning).
+
+### Alternative: Tailscale HTTPS
+
+If using Tailscale, you can use Tailscale's built-in HTTPS feature:
+1. Enable HTTPS in your Tailscale admin console
+2. Access via `https://your-machine.tailnet-name.ts.net`
+3. Tailscale will handle certificate provisioning automatically
+
 ## Pull Request Workflow
 
 1. Create a feature branch from main

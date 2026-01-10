@@ -45,10 +45,32 @@ ci: lint format-check type test
 install:
     uv sync --dev
 
-# Start development server
+# Start development server (HTTP)
 dev:
     uv run uvicorn app.main:app --host 0.0.0.0 --port 18742 --reload
+
+# Start development server with HTTPS (requires certs)
+dev-https:
+    @if [ ! -f certs/cert.pem ] || [ ! -f certs/key.pem ]; then \
+        echo "Error: SSL certificates not found."; \
+        echo "Run 'just gen-cert' to generate self-signed certificates."; \
+        exit 1; \
+    fi
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 18742 --reload --ssl-keyfile=certs/key.pem --ssl-certfile=certs/cert.pem
+
+# Generate self-signed SSL certificates for local HTTPS
+gen-cert domain="localhost":
+    ./scripts/generate_cert.sh {{domain}}
 
 # Start production server
 serve:
     uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Start production server with HTTPS
+serve-https:
+    @if [ ! -f certs/cert.pem ] || [ ! -f certs/key.pem ]; then \
+        echo "Error: SSL certificates not found."; \
+        echo "Run 'just gen-cert' to generate certificates."; \
+        exit 1; \
+    fi
+    uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile=certs/key.pem --ssl-certfile=certs/cert.pem
