@@ -124,6 +124,22 @@ class TestAddHighlightView:
         assert "Extracting..." in response.text
         assert "animate-spin" in response.text
 
+    async def test_add_highlight_page_has_collapsible_sections(
+        self, client: AsyncClient, sample_book
+    ):
+        """Test add highlight page has collapsible accordion sections."""
+        response = await client.get(f"/books/{sample_book.id}/add-highlight")
+        assert response.status_code == 200
+        # Check for collapsible section elements
+        assert "toggleSection" in response.text
+        assert "extract-section" in response.text
+        assert "extract-chevron" in response.text
+        assert "manual-section" in response.text
+        assert "manual-chevron" in response.text
+        # Check for section headers
+        assert "Extract from Image" in response.text
+        assert "Enter Manually" in response.text
+
     async def test_add_highlight_page_not_found(self, client: AsyncClient):
         """Test add highlight page for non-existent book."""
         response = await client.get("/books/99999/add-highlight")
