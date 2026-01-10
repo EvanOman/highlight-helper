@@ -10,6 +10,10 @@ from app.services.highlight_extractor import (
     ExtractedHighlight,
     HighlightExtractorService,
 )
+from app.services.isbn_extractor import (
+    ExtractedISBN,
+    ISBNExtractorService,
+)
 from app.services.readwise import (
     ReadwiseService,
     ReadwiseSyncResult,
@@ -270,6 +274,112 @@ class TestHighlightExtractorService:
         assert result.text == "The sentence about love from the book"
         assert result.confidence == "high"
         assert result.page_number == "123"
+
+
+class TestISBNExtractorService:
+    """Tests for the ISBNExtractorService."""
+
+    def test_service_initialization_with_mock_lm(self):
+        """Test that service can be initialized with a mock LM."""
+        mock_lm = MagicMock()
+        service = ISBNExtractorService(lm=mock_lm)
+        assert service._lm == mock_lm
+        assert service._extractor is not None
+
+    async def test_extract_isbn_success(self):
+        """Test successful ISBN extraction."""
+        mock_lm = MagicMock()
+        service = ISBNExtractorService(lm=mock_lm)
+
+        mock_result = ExtractedISBN(
+            isbn="9781234567890",
+            confidence="high",
+            source="barcode",
+        )
+
+        async def mock_async_extract(*args, **kwargs):
+            return mock_result
+
+        with patch("app.services.isbn_extractor.dspy.Image"):
+            with patch(
+                "app.services.isbn_extractor.dspy.asyncify",
+                return_value=mock_async_extract,
+            ):
+                with patch("app.services.isbn_extractor.dspy.context"):
+                    result = await service.extract_isbn(
+                        image_bytes=b"fake image data",
+                        filename="test.jpg",
+                    )
+
+        assert result.isbn == "9781234567890"
+        assert result.confidence == "high"
+        assert result.source == "barcode"
+
+    async def test_extract_isbn_cleans_non_digits(self):
+        """Test that extracted ISBN is cleaned of non-digit characters."""
+        mock_lm = MagicMock()
+        service = ISBNExtractorService(lm=mock_lm)
+
+        # ISBN with hyphens should be cleaned
+        mock_result = ExtractedISBN(
+            isbn="978-1-234-56789-0",
+            confidence="high",
+            source="text",
+        )
+
+        async def mock_async_extract(*args, **kwargs):
+            return mock_result
+
+        with patch("app.services.isbn_extractor.dspy.Image"):
+            with patch(
+                "app.services.isbn_extractor.dspy.asyncify",
+                return_value=mock_async_extract,
+            ):
+                with patch("app.services.isbn_extractor.dspy.context"):
+                    result = await service.extract_isbn(
+                        image_bytes=b"fake image data",
+                        filename="test.jpg",
+                    )
+
+        assert result.isbn == "9781234567890"
+
+    async def test_extract_isbn_error_fallback(self):
+        """Test that errors during extraction return fallback response."""
+        mock_lm = MagicMock()
+        service = ISBNExtractorService(lm=mock_lm)
+
+        with patch("app.services.isbn_extractor.dspy.Image"):
+            with patch(
+                "app.services.isbn_extractor.dspy.asyncify",
+                side_effect=Exception("API Error"),
+            ):
+                with patch("app.services.isbn_extractor.dspy.context"):
+                    result = await service.extract_isbn(
+                        image_bytes=b"fake image data",
+                        filename="test.jpg",
+                    )
+
+        assert result.isbn == ""
+        assert result.confidence == "low"
+        assert result.source == "unknown"
+
+    def test_extracted_isbn_model(self):
+        """Test ExtractedISBN Pydantic model."""
+        # Test with all fields
+        isbn = ExtractedISBN(
+            isbn="9781234567890",
+            confidence="high",
+            source="barcode",
+        )
+        assert isbn.isbn == "9781234567890"
+        assert isbn.confidence == "high"
+        assert isbn.source == "barcode"
+
+        # Test with defaults
+        isbn_default = ExtractedISBN()
+        assert isbn_default.isbn == ""
+        assert isbn_default.confidence == "low"
+        assert isbn_default.source == "unknown"
 
 
 class TestReadwiseService:

@@ -21,7 +21,7 @@ lint-fix:
 
 # Run type checker
 type:
-    uv run ty check . --exclude "app/services/highlight_extractor.py" --exclude "tests/"
+    uv run ty check . --exclude "app/services/highlight_extractor.py" --exclude "app/services/isbn_extractor.py" --exclude "tests/"
 
 # Run unit and integration tests
 test:

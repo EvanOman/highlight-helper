@@ -31,7 +31,51 @@ class TestAddBookView:
         response = await client.get("/books/add")
         assert response.status_code == 200
         assert "Add a Book" in response.text
-        assert "Search for a book" in response.text
+        assert "Search for a Book" in response.text
+
+    async def test_add_book_page_has_scan_section(self, client: AsyncClient):
+        """Test add book page has collapsible scan section."""
+        response = await client.get("/books/add")
+        assert response.status_code == 200
+        # Check for scan section elements
+        assert "scan-section" in response.text
+        assert "scan-chevron" in response.text
+        assert "Scan Cover or Barcode" in response.text
+        assert "scan-spinner" in response.text
+
+    async def test_add_book_page_has_collapsible_sections(self, client: AsyncClient):
+        """Test add book page has collapsible sections."""
+        response = await client.get("/books/add")
+        assert response.status_code == 200
+        assert "toggleSection" in response.text
+        assert "scan-section" in response.text
+        assert "search-section" in response.text
+        assert "manual-section" in response.text
+
+    async def test_scan_isbn_form(
+        self, client: AsyncClient, mock_isbn_extractor_service, mock_book_lookup_service
+    ):
+        """Test scanning ISBN from image."""
+        from app.services.book_lookup import BookInfo
+
+        mock_book_lookup_service.search_by_isbn.return_value = BookInfo(
+            title="Scanned Book",
+            author="Scanned Author",
+            isbn="9781234567890",
+            cover_url="https://example.com/cover.jpg",
+            description=None,
+        )
+
+        fake_image = io.BytesIO(b"fake image data")
+
+        response = await client.post(
+            "/books/scan-isbn",
+            files={"image": ("test.jpg", fake_image, "image/jpeg")},
+        )
+        assert response.status_code == 200
+        assert "9781234567890" in response.text
+        assert "Scanned Book" in response.text
+        assert "Scanned Author" in response.text
 
     async def test_search_books_page(self, client: AsyncClient, mock_book_lookup_service):
         """Test book search on add book page."""

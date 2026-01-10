@@ -98,8 +98,8 @@ class TestBookManagementFlow:
         page.wait_for_load_state("networkidle")
 
         assert page.title() == "Add Book - Highlight Helper"
-        assert page.locator("text=Search for a book").is_visible()
-        assert page.locator("text=Or add manually").is_visible()
+        assert page.locator("text=Search for a Book").is_visible()
+        assert page.locator("text=Add Manually").is_visible()
         page.close()
 
     def test_manual_book_creation(self, server, browser_context):
@@ -107,6 +107,10 @@ class TestBookManagementFlow:
         page = browser_context.new_page()
         page.goto(f"{server}/books/add")
         page.wait_for_load_state("networkidle")
+
+        # Expand the manual entry section (it's collapsed by default)
+        page.click("text=Add Manually")
+        page.wait_for_timeout(300)  # Wait for animation
 
         # Fill in manual form
         page.fill('input[name="title"]', "Test Manual Book")
@@ -266,6 +270,11 @@ class TestDeleteOperations:
         # First create a fresh book and highlight for this test
         page.goto(f"{server}/books/add")
         page.wait_for_load_state("networkidle")
+
+        # Expand the manual entry section (it's collapsed by default)
+        page.click("text=Add Manually")
+        page.wait_for_timeout(300)  # Wait for animation
+
         page.fill('input[name="title"]', "Delete Test Book")
         page.fill('input[name="author"]', "Delete Test Author")
         page.click('button:has-text("Add Book")')
@@ -304,6 +313,11 @@ class TestDeleteOperations:
         # First create a fresh book for this test
         page.goto(f"{server}/books/add")
         page.wait_for_load_state("networkidle")
+
+        # Expand the manual entry section (it's collapsed by default)
+        page.click("text=Add Manually")
+        page.wait_for_timeout(300)  # Wait for animation
+
         page.fill('input[name="title"]', "Book To Delete")
         page.fill('input[name="author"]', "Author To Delete")
         page.click('button:has-text("Add Book")')

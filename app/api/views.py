@@ -25,6 +25,10 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.isbn_extractor import (
+    ISBNExtractorService,
+    get_isbn_extractor_service,
+)
 
 router = APIRouter(tags=["views"])
 templates = Jinja2Templates(directory="app/templates")
@@ -104,6 +108,83 @@ async def search_books_page(
         request,
         "add_book.html",
         {"search_results": search_results, "query": query},
+    )
+
+
+@router.post("/books/scan-isbn", response_class=HTMLResponse)
+async def scan_isbn_page(
+    request: Request,
+    image: UploadFile = File(...),
+    isbn_extractor: ISBNExtractorService = Depends(get_isbn_extractor_service),
+    book_lookup: BookLookupService = Depends(get_book_lookup_service),
+):
+    """Extract ISBN from image and search for the book."""
+    error_message = None
+    search_results = []
+    extracted_isbn = ""
+    confidence = ""
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        error_message = "Please upload an image file"
+    else:
+        image_bytes = await image.read()
+        if len(image_bytes) > 20 * 1024 * 1024:
+            error_message = "Image file too large (max 20MB)"
+        else:
+            try:
+                result = await isbn_extractor.extract_isbn(
+                    image_bytes=image_bytes,
+                    filename=image.filename or "image.jpg",
+                )
+                extracted_isbn = result.isbn
+                confidence = result.confidence
+
+                # If we got an ISBN, search for the book
+                if extracted_isbn:
+                    book_result = await book_lookup.search_by_isbn(extracted_isbn)
+                    if book_result:
+                        search_results = [
+                            {
+                                "title": book_result.title,
+                                "author": book_result.author,
+                                "isbn": book_result.isbn,
+                                "cover_url": book_result.cover_url,
+                            }
+                        ]
+                    else:
+                        # Try searching with the ISBN as query
+                        results = await book_lookup.search_books(extracted_isbn)
+                        search_results = [
+                            {
+                                "title": r.title,
+                                "author": r.author,
+                                "isbn": r.isbn,
+                                "cover_url": r.cover_url,
+                            }
+                            for r in results
+                        ]
+                        if not search_results:
+                            error_message = (
+                                f"Found ISBN {extracted_isbn} but couldn't find book info. "
+                                "Try searching manually."
+                            )
+                else:
+                    error_message = (
+                        "Could not extract ISBN from image. Try a clearer photo of the barcode."
+                    )
+            except Exception as e:
+                error_message = f"Error extracting ISBN: {str(e)}"
+
+    return templates.TemplateResponse(
+        request,
+        "add_book.html",
+        {
+            "search_results": search_results if search_results else None,
+            "query": extracted_isbn,
+            "extracted_isbn": extracted_isbn,
+            "isbn_confidence": confidence,
+            "error_message": error_message,
+        },
     )
 
 
