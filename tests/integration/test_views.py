@@ -115,6 +115,15 @@ class TestAddHighlightView:
         assert "Add Highlight" in response.text
         assert sample_book.title in response.text
 
+    async def test_add_highlight_page_has_loading_animation(self, client: AsyncClient, sample_book):
+        """Test add highlight page has loading animation for extraction."""
+        response = await client.get(f"/books/{sample_book.id}/add-highlight")
+        assert response.status_code == 200
+        # Check for loading animation elements
+        assert "extract-spinner" in response.text
+        assert "Extracting..." in response.text
+        assert "animate-spin" in response.text
+
     async def test_add_highlight_page_not_found(self, client: AsyncClient):
         """Test add highlight page for non-existent book."""
         response = await client.get("/books/99999/add-highlight")
