@@ -1,6 +1,15 @@
 """Highlight API routes."""
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +20,7 @@ from app.api.schemas import (
     HighlightUpdate,
     HighlightWithBookResponse,
 )
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.book import Book
 from app.models.highlight import Highlight
@@ -52,6 +62,8 @@ async def list_highlights_for_book(
             note=h.note,
             page_number=h.page_number,
             created_at=h.created_at,
+            readwise_id=h.readwise_id,
+            synced_at=h.synced_at,
         )
         for h in highlights
     ]
@@ -83,6 +95,8 @@ async def list_all_highlights(
             note=highlight.note,
             page_number=highlight.page_number,
             created_at=highlight.created_at,
+            readwise_id=highlight.readwise_id,
+            synced_at=highlight.synced_at,
             book_title=book.title,
             book_author=book.author,
         )
@@ -98,13 +112,15 @@ async def list_all_highlights(
 async def create_highlight(
     book_id: int,
     highlight_data: HighlightCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> HighlightResponse:
     """Create a new highlight for a book."""
     # Verify book exists
     book_query = select(Book).where(Book.id == book_id)
     book_result = await db.execute(book_query)
-    if not book_result.scalar_one_or_none():
+    book = book_result.scalar_one_or_none()
+    if not book:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Book not found",
@@ -120,6 +136,22 @@ async def create_highlight(
     await db.flush()
     await db.refresh(highlight)
 
+    # Schedule auto-sync to Readwise if enabled
+    settings = get_settings()
+    if settings.readwise_auto_sync and settings.readwise_api_token:
+        from app.services.readwise import sync_highlight_background
+
+        background_tasks.add_task(
+            sync_highlight_background,
+            highlight_id=highlight.id,
+            book_title=book.title,
+            book_author=book.author,
+            text=highlight.text,
+            note=highlight.note,
+            page_number=highlight.page_number,
+            created_at=highlight.created_at,
+        )
+
     return HighlightResponse(
         id=highlight.id,
         book_id=highlight.book_id,
@@ -127,6 +159,8 @@ async def create_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        readwise_id=highlight.readwise_id,
+        synced_at=highlight.synced_at,
     )
 
 
@@ -209,6 +243,8 @@ async def get_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        readwise_id=highlight.readwise_id,
+        synced_at=highlight.synced_at,
     )
 
 
@@ -243,6 +279,8 @@ async def update_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        readwise_id=highlight.readwise_id,
+        synced_at=highlight.synced_at,
     )
 
 

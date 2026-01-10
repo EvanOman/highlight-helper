@@ -1,11 +1,22 @@
 """Web views for HTML pages."""
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.book import Book
 from app.models.highlight import Highlight
@@ -234,6 +245,7 @@ async def extract_highlight_form(
 @router.post("/books/{book_id}/highlights/create")
 async def create_highlight_form(
     book_id: int,
+    background_tasks: BackgroundTasks,
     text: str = Form(...),
     note: str = Form(""),
     page_number: str = Form(""),
@@ -256,6 +268,23 @@ async def create_highlight_form(
     )
     db.add(highlight)
     await db.flush()
+    await db.refresh(highlight)
+
+    # Schedule auto-sync to Readwise if enabled
+    settings = get_settings()
+    if settings.readwise_auto_sync and settings.readwise_api_token:
+        from app.services.readwise import sync_highlight_background
+
+        background_tasks.add_task(
+            sync_highlight_background,
+            highlight_id=highlight.id,
+            book_title=book.title,
+            book_author=book.author,
+            text=highlight.text,
+            note=highlight.note,
+            page_number=highlight.page_number,
+            created_at=highlight.created_at,
+        )
 
     return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
 

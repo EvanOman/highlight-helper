@@ -1,11 +1,19 @@
 """Unit tests for services."""
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 
 from app.services.book_lookup import BookLookupService
 from app.services.highlight_extractor import (
     ExtractedHighlight,
     HighlightExtractorService,
+)
+from app.services.readwise import (
+    ReadwiseService,
+    ReadwiseSyncResult,
+    sync_highlight_background,
 )
 
 
@@ -262,3 +270,302 @@ class TestHighlightExtractorService:
         assert result.text == "The sentence about love from the book"
         assert result.confidence == "high"
         assert result.page_number == "123"
+
+
+class TestReadwiseService:
+    """Tests for the ReadwiseService."""
+
+    def test_is_configured_without_token(self):
+        """Test is_configured returns False without token."""
+        service = ReadwiseService(api_token=None)
+        assert service.is_configured is False
+
+    def test_is_configured_with_token(self):
+        """Test is_configured returns True with token."""
+        service = ReadwiseService(api_token="test_token")
+        assert service.is_configured is True
+
+    async def test_validate_token_success(self):
+        """Test successful token validation."""
+        service = ReadwiseService(api_token="valid_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 204
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.validate_token()
+
+        assert result is True
+
+    async def test_validate_token_invalid(self):
+        """Test token validation with invalid token."""
+        service = ReadwiseService(api_token="invalid_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.validate_token()
+
+        assert result is False
+
+    async def test_validate_token_no_token(self):
+        """Test token validation without token configured."""
+        service = ReadwiseService(api_token=None)
+        result = await service.validate_token()
+        assert result is False
+
+    async def test_send_highlight_success(self):
+        """Test successful highlight send."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "id": 12345,
+                "title": "Test Book",
+                "modified_highlights": [67890],
+            }
+        ]
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.send_highlight(
+                text="Test highlight text",
+                title="Test Book",
+                author="Test Author",
+                note="My note",
+                page_number="42",
+                highlighted_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            )
+
+        assert result.success is True
+        assert result.readwise_id == "67890"
+        assert result.error is None
+
+    async def test_send_highlight_no_token(self):
+        """Test send_highlight without token configured."""
+        service = ReadwiseService(api_token=None)
+
+        result = await service.send_highlight(
+            text="Test highlight",
+            title="Test Book",
+            author="Test Author",
+        )
+
+        assert result.success is False
+        assert "not configured" in result.error
+
+    async def test_send_highlight_api_error(self):
+        """Test send_highlight with API error."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Internal Server Error"
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.send_highlight(
+                text="Test highlight",
+                title="Test Book",
+                author="Test Author",
+            )
+
+        assert result.success is False
+        assert "500" in result.error
+
+    async def test_send_highlight_network_error(self):
+        """Test send_highlight with network error."""
+        service = ReadwiseService(api_token="test_token")
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(side_effect=httpx.RequestError("Connection failed"))
+            mock_get_client.return_value = mock_client
+
+            result = await service.send_highlight(
+                text="Test highlight",
+                title="Test Book",
+                author="Test Author",
+            )
+
+        assert result.success is False
+        assert "Network error" in result.error
+
+    async def test_send_highlights_batch_success(self):
+        """Test successful batch highlight send."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {
+                "id": 12345,
+                "title": "Test Book",
+                "modified_highlights": [111, 222],
+            }
+        ]
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.send_highlights(
+                [
+                    {
+                        "text": "Highlight 1",
+                        "title": "Test Book",
+                        "author": "Test Author",
+                    },
+                    {
+                        "text": "Highlight 2",
+                        "title": "Test Book",
+                        "author": "Test Author",
+                    },
+                ]
+            )
+
+        assert result.total == 2
+        assert result.synced == 2
+        assert result.failed == 0
+        assert len(result.results) == 2
+
+    async def test_send_highlights_empty_list(self):
+        """Test send_highlights with empty list."""
+        service = ReadwiseService(api_token="test_token")
+
+        result = await service.send_highlights([])
+
+        assert result.total == 0
+        assert result.synced == 0
+        assert result.failed == 0
+
+    async def test_send_highlights_no_token(self):
+        """Test send_highlights without token configured."""
+        service = ReadwiseService(api_token=None)
+
+        result = await service.send_highlights(
+            [{"text": "Test", "title": "Book", "author": "Author"}]
+        )
+
+        assert result.total == 1
+        assert result.synced == 0
+        assert result.failed == 1
+
+
+class TestSyncHighlightBackground:
+    """Tests for the sync_highlight_background function."""
+
+    async def test_sync_skipped_when_not_configured(self):
+        """Test that sync is skipped when Readwise is not configured."""
+        mock_service = MagicMock()
+        mock_service.is_configured = False
+
+        with patch("app.services.readwise._get_service", return_value=mock_service):
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note=None,
+                page_number=None,
+                created_at=datetime.now(tz=timezone.utc),
+            )
+
+        # send_highlight should not be called since service is not configured
+        mock_service.send_highlight.assert_not_called()
+
+    async def test_sync_success_updates_database(self):
+        """Test that successful sync updates the highlight in the database."""
+        mock_service = MagicMock()
+        mock_service.is_configured = True
+        mock_service.send_highlight = AsyncMock(
+            return_value=ReadwiseSyncResult(success=True, readwise_id="12345")
+        )
+
+        mock_highlight = MagicMock()
+        mock_highlight.readwise_id = None
+        mock_highlight.synced_at = None
+
+        mock_db_result = MagicMock()
+        mock_db_result.scalar_one_or_none.return_value = mock_highlight
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_db_result)
+
+        with (
+            patch("app.services.readwise._get_service", return_value=mock_service),
+            patch("app.core.database.get_async_session") as mock_get_session,
+        ):
+            mock_get_session.return_value.__aenter__.return_value = mock_session
+
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note="A note",
+                page_number="42",
+                created_at=datetime.now(tz=timezone.utc),
+            )
+
+        mock_service.send_highlight.assert_called_once()
+        assert mock_highlight.readwise_id == "12345"
+        assert mock_highlight.synced_at is not None
+
+    async def test_sync_failure_does_not_update_database(self):
+        """Test that failed sync does not update the highlight."""
+        mock_service = MagicMock()
+        mock_service.is_configured = True
+        mock_service.send_highlight = AsyncMock(
+            return_value=ReadwiseSyncResult(success=False, error="API error")
+        )
+
+        with patch("app.services.readwise._get_service", return_value=mock_service):
+            # Should not raise, just log warning
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note=None,
+                page_number=None,
+                created_at=datetime.now(tz=timezone.utc),
+            )
+
+        mock_service.send_highlight.assert_called_once()
+
+    async def test_sync_exception_is_logged(self):
+        """Test that exceptions during sync are caught and logged."""
+        mock_service = MagicMock()
+        mock_service.is_configured = True
+        mock_service.send_highlight = AsyncMock(side_effect=Exception("Network error"))
+
+        with patch("app.services.readwise._get_service", return_value=mock_service):
+            # Should not raise, should catch and log
+            await sync_highlight_background(
+                highlight_id=1,
+                book_title="Test Book",
+                book_author="Test Author",
+                text="Test text",
+                note=None,
+                page_number=None,
+                created_at=datetime.now(tz=timezone.utc),
+            )
