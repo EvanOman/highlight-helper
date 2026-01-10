@@ -16,6 +16,12 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.readwise import (
+    ReadwiseBatchResult,
+    ReadwiseService,
+    ReadwiseSyncResult,
+    get_readwise_service,
+)
 
 # Use an in-memory SQLite database for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -87,10 +93,43 @@ def mock_highlight_extractor_service():
 
 
 @pytest.fixture
+def mock_readwise_service():
+    """Create a mock Readwise service."""
+    service = MagicMock(spec=ReadwiseService)
+    service.is_configured = True
+    service.validate_token = AsyncMock(return_value=True)
+    service.send_highlight = AsyncMock(
+        return_value=ReadwiseSyncResult(
+            success=True,
+            readwise_id="12345",
+        )
+    )
+    service.send_highlights = AsyncMock(
+        return_value=ReadwiseBatchResult(
+            total=1,
+            synced=1,
+            failed=0,
+            results=[ReadwiseSyncResult(success=True, readwise_id="12345")],
+        )
+    )
+    return service
+
+
+@pytest.fixture
+def mock_readwise_service_unconfigured():
+    """Create a mock Readwise service that is not configured."""
+    service = MagicMock(spec=ReadwiseService)
+    service.is_configured = False
+    service.validate_token = AsyncMock(return_value=False)
+    return service
+
+
+@pytest.fixture
 async def client(
     override_get_db,
     mock_book_lookup_service,
     mock_highlight_extractor_service,
+    mock_readwise_service,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
     app.dependency_overrides[get_db] = override_get_db
@@ -98,6 +137,29 @@ async def client(
     app.dependency_overrides[get_highlight_extractor_service] = (
         lambda: mock_highlight_extractor_service
     )
+    app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def client_readwise_unconfigured(
+    override_get_db,
+    mock_book_lookup_service,
+    mock_highlight_extractor_service,
+    mock_readwise_service_unconfigured,
+) -> AsyncGenerator[AsyncClient, None]:
+    """Create an async test client with Readwise not configured."""
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_book_lookup_service] = lambda: mock_book_lookup_service
+    app.dependency_overrides[get_highlight_extractor_service] = (
+        lambda: mock_highlight_extractor_service
+    )
+    app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service_unconfigured
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

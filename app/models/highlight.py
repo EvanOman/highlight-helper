@@ -30,6 +30,13 @@ class Highlight(Base):
         nullable=False,
     )
 
+    # Readwise sync fields
+    readwise_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Relationships
     book: Mapped[Book] = relationship("Book", back_populates="highlights")
 

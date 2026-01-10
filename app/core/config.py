@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = ""
 
+    # Readwise (optional)
+    readwise_api_token: str | None = None
+
     # Database
     database_url: str = "sqlite+aiosqlite:///./highlight_helper.db"
 

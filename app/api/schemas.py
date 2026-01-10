@@ -73,6 +73,8 @@ class HighlightResponse(BaseModel):
     note: str | None
     page_number: str | None
     created_at: datetime
+    readwise_id: str | None = None
+    synced_at: datetime | None = None
 
 
 class HighlightWithBookResponse(HighlightResponse):
@@ -116,3 +118,27 @@ class ExtractHighlightResponse(BaseModel):
     text: str
     confidence: str
     page_number: str | None
+
+
+# Readwise schemas
+class ReadwiseStatusResponse(BaseModel):
+    """Schema for Readwise integration status."""
+
+    configured: bool
+    token_valid: bool | None = None
+
+
+class ReadwiseSyncResponse(BaseModel):
+    """Schema for single highlight sync response."""
+
+    success: bool
+    readwise_id: str | None = None
+    error: str | None = None
+
+
+class ReadwiseBatchSyncResponse(BaseModel):
+    """Schema for batch sync response."""
+
+    total: int
+    synced: int
+    failed: int

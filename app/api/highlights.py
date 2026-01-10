@@ -52,6 +52,8 @@ async def list_highlights_for_book(
             note=h.note,
             page_number=h.page_number,
             created_at=h.created_at,
+            readwise_id=h.readwise_id,
+            synced_at=h.synced_at,
         )
         for h in highlights
     ]
@@ -83,6 +85,8 @@ async def list_all_highlights(
             note=highlight.note,
             page_number=highlight.page_number,
             created_at=highlight.created_at,
+            readwise_id=highlight.readwise_id,
+            synced_at=highlight.synced_at,
             book_title=book.title,
             book_author=book.author,
         )
@@ -127,6 +131,8 @@ async def create_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        readwise_id=highlight.readwise_id,
+        synced_at=highlight.synced_at,
     )
 
 
@@ -209,6 +215,8 @@ async def get_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        readwise_id=highlight.readwise_id,
+        synced_at=highlight.synced_at,
     )
 
 
@@ -243,6 +251,8 @@ async def update_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        readwise_id=highlight.readwise_id,
+        synced_at=highlight.synced_at,
     )
 
 
