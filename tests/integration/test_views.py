@@ -168,6 +168,16 @@ class TestAllHighlightsView:
         assert sample_highlight.text in response.text
         assert sample_book.title in response.text
 
+    async def test_all_highlights_shows_sync_button(
+        self, client: AsyncClient, sample_book, sample_highlight
+    ):
+        """Test that sync button appears for unsynced highlights."""
+        response = await client.get("/highlights")
+        assert response.status_code == 200
+        # Check for sync button (unsynced highlight)
+        assert f"sync-btn-{sample_highlight.id}" in response.text
+        assert "syncHighlightToReadwise" in response.text
+
 
 class TestDeleteHighlightView:
     """Tests for highlight deletion."""
