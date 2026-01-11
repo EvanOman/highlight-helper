@@ -1,12 +1,17 @@
 """Highlight extraction service using DSPy with OpenAI Vision API."""
 
 import io
+import logging
 
 import dspy
 from PIL import Image
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.models.api_usage import APIUsage, calculate_cost
+
+logger = logging.getLogger(__name__)
 
 
 def convert_to_jpeg(image_bytes: bytes) -> bytes:
@@ -31,6 +36,16 @@ def convert_to_jpeg(image_bytes: bytes) -> bytes:
         return image_bytes
 
 
+class TokenUsage(BaseModel):
+    """Token usage information from an API call."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+    model: str = ""
+
+
 class ExtractedHighlight(BaseModel):
     """Extracted highlight from an image."""
 
@@ -39,6 +54,7 @@ class ExtractedHighlight(BaseModel):
         default="low", description="Confidence level: 'high', 'medium', or 'low'"
     )
     page_number: str | None = Field(default=None, description="Page number if visible in the image")
+    usage: TokenUsage | None = Field(default=None, description="Token usage for this extraction")
 
 
 class HighlightExtractionSignature(dspy.Signature):
@@ -85,6 +101,8 @@ class HighlightExtractorModule(dspy.Module):
 class HighlightExtractorService:
     """Service for extracting highlights from images using DSPy."""
 
+    MODEL_NAME = "openai/gpt-5.2"
+
     def __init__(self, lm: dspy.LM | None = None) -> None:
         """Initialize the service.
 
@@ -94,18 +112,57 @@ class HighlightExtractorService:
         if lm is None:
             settings = get_settings()
             lm = dspy.LM(
-                "openai/gpt-5.2",
+                self.MODEL_NAME,
                 api_key=settings.openai_api_key,
                 max_tokens=2000,
             )
         self._lm = lm
         self._extractor = HighlightExtractorModule()
 
+    def _extract_usage_from_history(self) -> TokenUsage | None:
+        """Extract token usage from the LM's history.
+
+        Returns:
+            TokenUsage object if usage info found, None otherwise.
+        """
+        try:
+            if not self._lm.history:
+                return None
+
+            # Get the most recent entry
+            last_entry = self._lm.history[-1]
+            usage_data = last_entry.get("usage", {})
+
+            if not usage_data:
+                return None
+
+            input_tokens = usage_data.get("prompt_tokens", 0) or usage_data.get("input_tokens", 0)
+            output_tokens = usage_data.get("completion_tokens", 0) or usage_data.get(
+                "output_tokens", 0
+            )
+            total_tokens = usage_data.get("total_tokens", 0) or (input_tokens + output_tokens)
+
+            # Calculate cost
+            cost = calculate_cost(self.MODEL_NAME, input_tokens, output_tokens)
+
+            return TokenUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                cost_usd=cost,
+                model=self.MODEL_NAME,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to extract usage from history: {e}")
+            return None
+
     async def extract_highlight(
         self,
         image_bytes: bytes,
         filename: str,
         instructions: str,
+        db: AsyncSession | None = None,
+        highlight_id: int | None = None,
     ) -> ExtractedHighlight:
         """
         Extract highlighted text from an image.
@@ -114,22 +171,48 @@ class HighlightExtractorService:
             image_bytes: Raw image bytes
             filename: Original filename (for reference)
             instructions: User instructions describing what to extract
+            db: Optional database session for storing usage data
+            highlight_id: Optional highlight ID to associate with usage
 
         Returns:
-            ExtractedHighlight containing the extracted text
+            ExtractedHighlight containing the extracted text and usage info
         """
         # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
         jpeg_bytes = convert_to_jpeg(image_bytes)
         image = dspy.Image(jpeg_bytes)
 
         try:
-            # Use dspy.context for thread-safe LM configuration
-            with dspy.context(lm=self._lm):
+            # Use dspy.context for thread-safe LM configuration with usage tracking
+            with dspy.context(lm=self._lm, track_usage=True):
                 # Use dspy.asyncify for async execution
                 async_extract = dspy.asyncify(self._extractor)
                 result = await async_extract(image=image, user_instructions=instructions)
+
+                # Extract usage info
+                usage = self._extract_usage_from_history()
+                if usage:
+                    result.usage = usage
+                    logger.info(
+                        f"Extraction used {usage.total_tokens} tokens (${usage.cost_usd:.6f})"
+                    )
+
+                    # Store usage in database if session provided
+                    if db is not None:
+                        api_usage = APIUsage(
+                            model=usage.model,
+                            operation="highlight_extraction",
+                            input_tokens=usage.input_tokens,
+                            output_tokens=usage.output_tokens,
+                            total_tokens=usage.total_tokens,
+                            cost_usd=usage.cost_usd,
+                            highlight_id=highlight_id,
+                        )
+                        db.add(api_usage)
+                        await db.commit()
+
                 return result
-        except Exception:
+        except Exception as e:
+            logger.error(f"Extraction failed: {e}")
             # Fallback for errors
             return ExtractedHighlight(
                 text="",
