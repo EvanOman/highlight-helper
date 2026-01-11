@@ -223,3 +223,24 @@ async def sample_highlight(test_session: AsyncSession, sample_book):
     await test_session.flush()
     await test_session.refresh(highlight)
     return highlight
+
+
+@pytest.fixture
+async def synced_highlight(test_session: AsyncSession, sample_book):
+    """Create a sample highlight that has been synced to Readwise."""
+    from datetime import datetime, timezone
+
+    from app.models.highlight import Highlight
+
+    highlight = Highlight(
+        book_id=sample_book.id,
+        text="This is a synced highlight.",
+        note="Synced note",
+        page_number="100",
+        readwise_id="12345",
+        synced_at=datetime.now(tz=timezone.utc),
+    )
+    test_session.add(highlight)
+    await test_session.flush()
+    await test_session.refresh(highlight)
+    return highlight

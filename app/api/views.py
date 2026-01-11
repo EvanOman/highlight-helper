@@ -407,6 +407,113 @@ async def delete_highlight_form(
     return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.get("/books/{book_id}/highlights/{highlight_id}/edit", response_class=HTMLResponse)
+async def edit_highlight_page(
+    request: Request,
+    book_id: int,
+    highlight_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Page for editing an existing highlight."""
+    # Get the book
+    book_query = select(Book).where(Book.id == book_id)
+    book_result = await db.execute(book_query)
+    book = book_result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Get the highlight
+    highlight_query = select(Highlight).where(
+        Highlight.id == highlight_id, Highlight.book_id == book_id
+    )
+    highlight_result = await db.execute(highlight_query)
+    highlight = highlight_result.scalar_one_or_none()
+
+    if not highlight:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    # Check if Readwise is configured
+    settings = get_settings()
+    readwise_configured = bool(settings.readwise_api_token)
+
+    return templates.TemplateResponse(
+        request,
+        "edit_highlight.html",
+        {
+            "book": book,
+            "highlight": highlight,
+            "readwise_configured": readwise_configured,
+        },
+    )
+
+
+@router.post("/books/{book_id}/highlights/{highlight_id}/update")
+async def update_highlight_form(
+    book_id: int,
+    highlight_id: int,
+    text: str = Form(...),
+    note: str = Form(""),
+    page_number: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing highlight from form submission."""
+    from datetime import datetime, timezone
+
+    from app.services.readwise import ReadwiseService
+
+    # Verify book exists
+    book_query = select(Book).where(Book.id == book_id)
+    book_result = await db.execute(book_query)
+    book = book_result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Get the highlight
+    highlight_query = select(Highlight).where(
+        Highlight.id == highlight_id, Highlight.book_id == book_id
+    )
+    highlight_result = await db.execute(highlight_query)
+    highlight = highlight_result.scalar_one_or_none()
+
+    if not highlight:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    # Update local fields
+    highlight.text = text
+    highlight.note = note if note else None
+    highlight.page_number = page_number if page_number else None
+
+    # If highlight was previously synced, try to update on Readwise
+    if highlight.readwise_id:
+        settings = get_settings()
+        if settings.readwise_api_token:
+            service = ReadwiseService(settings.readwise_api_token)
+            try:
+                result = await service.update_highlight(
+                    readwise_id=highlight.readwise_id,
+                    text=text,
+                    note=note if note else None,
+                    page_number=page_number if page_number else None,
+                )
+                if result.success:
+                    highlight.synced_at = datetime.now(tz=timezone.utc)
+                else:
+                    # Readwise update failed, mark as needing re-sync
+                    highlight.synced_at = None
+            except Exception:
+                # On error, mark as needing re-sync
+                highlight.synced_at = None
+            finally:
+                await service.close()
+        else:
+            # No token configured, mark as needing re-sync
+            highlight.synced_at = None
+
+    return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.get("/highlights", response_class=HTMLResponse)
 async def all_highlights(
     request: Request,
@@ -426,6 +533,7 @@ async def all_highlights(
             "page_number": highlight.page_number,
             "created_at": highlight.created_at,
             "synced_at": highlight.synced_at,
+            "readwise_id": highlight.readwise_id,
             "book_id": book.id,
             "book_title": book.title,
             "book_author": book.author,

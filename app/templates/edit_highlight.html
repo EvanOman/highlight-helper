@@ -1,0 +1,86 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Edit Highlight - {{ book.title }} - Highlight Helper{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="/books/{{ book.id }}" class="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        Back to {{ book.title }}
+    </a>
+</div>
+
+<h1 class="text-2xl font-bold text-gray-900 mb-2">Edit Highlight</h1>
+<p class="text-gray-600 mb-6">{{ book.title }} by {{ book.author }}</p>
+
+{% if error_message %}
+<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+    {{ error_message }}
+</div>
+{% endif %}
+
+{% if highlight.readwise_id %}
+<div class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6 flex items-start gap-3">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+    </svg>
+    <div>
+        <p class="font-medium">This highlight is synced to Readwise</p>
+        <p class="text-sm mt-1">
+            {% if readwise_configured %}
+            Changes will be automatically pushed to Readwise when you save.
+            {% else %}
+            Your Readwise API token is not configured. Changes will be saved locally and you can re-sync later from the book page once the token is set up.
+            {% endif %}
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Edit highlight form -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div class="p-4">
+        <h2 class="font-semibold text-gray-900 mb-4">Highlight Details</h2>
+        <form action="/books/{{ book.id }}/highlights/{{ highlight.id }}/update" method="post" class="space-y-4">
+            <div>
+                <label for="text" class="block text-sm font-medium text-gray-700 mb-1">Highlight text *</label>
+                <textarea id="text"
+                          name="text"
+                          rows="5"
+                          required
+                          placeholder="Type or paste the highlight text..."
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none">{{ highlight.text }}</textarea>
+            </div>
+            <div>
+                <label for="page_number" class="block text-sm font-medium text-gray-700 mb-1">Page number (optional)</label>
+                <input type="text"
+                       id="page_number"
+                       name="page_number"
+                       value="{{ highlight.page_number or '' }}"
+                       placeholder="e.g., 42 or 42-43"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none">
+            </div>
+            <div>
+                <label for="note" class="block text-sm font-medium text-gray-700 mb-1">Your note (optional)</label>
+                <textarea id="note"
+                          name="note"
+                          rows="2"
+                          placeholder="Add your thoughts about this highlight..."
+                          class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none">{{ highlight.note or '' }}</textarea>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit"
+                        class="flex-1 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
+                    Save Changes
+                </button>
+                <a href="/books/{{ book.id }}"
+                   class="px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -248,6 +248,93 @@ class TestAllHighlightsView:
         assert "syncHighlightToReadwise" in response.text
 
 
+class TestEditHighlightView:
+    """Tests for the edit highlight page."""
+
+    async def test_edit_highlight_page(self, client: AsyncClient, sample_book, sample_highlight):
+        """Test edit highlight page renders with current values."""
+        response = await client.get(
+            f"/books/{sample_book.id}/highlights/{sample_highlight.id}/edit"
+        )
+        assert response.status_code == 200
+        assert "Edit Highlight" in response.text
+        assert sample_book.title in response.text
+        assert sample_highlight.text in response.text
+
+    async def test_edit_highlight_page_shows_sync_info_for_synced(
+        self, client: AsyncClient, sample_book, synced_highlight
+    ):
+        """Test edit page shows sync info for synced highlight."""
+        response = await client.get(
+            f"/books/{sample_book.id}/highlights/{synced_highlight.id}/edit"
+        )
+        assert response.status_code == 200
+        assert "This highlight is synced to Readwise" in response.text
+
+    async def test_edit_highlight_page_book_not_found(self, client: AsyncClient):
+        """Test edit highlight page for non-existent book."""
+        response = await client.get("/books/99999/highlights/1/edit")
+        assert response.status_code == 404
+
+    async def test_edit_highlight_page_highlight_not_found(self, client: AsyncClient, sample_book):
+        """Test edit highlight page for non-existent highlight."""
+        response = await client.get(f"/books/{sample_book.id}/highlights/99999/edit")
+        assert response.status_code == 404
+
+    async def test_update_highlight_form(self, client: AsyncClient, sample_book, sample_highlight):
+        """Test updating a highlight via form."""
+        response = await client.post(
+            f"/books/{sample_book.id}/highlights/{sample_highlight.id}/update",
+            data={
+                "text": "Updated text via form",
+                "note": "Updated note",
+                "page_number": "99",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert f"/books/{sample_book.id}" in response.headers["location"]
+
+        # Verify the update
+        detail_response = await client.get(f"/books/{sample_book.id}")
+        assert "Updated text via form" in detail_response.text
+
+    async def test_update_highlight_form_clears_optional_fields(
+        self, client: AsyncClient, sample_book, sample_highlight
+    ):
+        """Test updating a highlight can clear optional fields."""
+        response = await client.post(
+            f"/books/{sample_book.id}/highlights/{sample_highlight.id}/update",
+            data={
+                "text": "Only text remains",
+                "note": "",
+                "page_number": "",
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+    async def test_update_highlight_form_book_not_found(self, client: AsyncClient):
+        """Test update form for non-existent book."""
+        response = await client.post(
+            "/books/99999/highlights/1/update",
+            data={"text": "Updated text"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 404
+
+    async def test_update_highlight_form_highlight_not_found(
+        self, client: AsyncClient, sample_book
+    ):
+        """Test update form for non-existent highlight."""
+        response = await client.post(
+            f"/books/{sample_book.id}/highlights/99999/update",
+            data={"text": "Updated text"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 404
+
+
 class TestDeleteHighlightView:
     """Tests for highlight deletion."""
 
