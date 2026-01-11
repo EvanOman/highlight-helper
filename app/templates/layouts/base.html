@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>{% block title %}Highlight Helper{% endblock %}</title>
     <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -28,6 +30,39 @@
             }
         }
     </script>
+    <script>
+        // Dark mode initialization - runs before page renders to prevent flash
+        (function() {
+            function getThemePreference() {
+                // Check localStorage first
+                const stored = localStorage.getItem('theme');
+                if (stored === 'dark' || stored === 'light') {
+                    return stored;
+                }
+                // Fall back to system preference
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }
+
+            // Apply theme immediately to prevent flash
+            applyTheme(getThemePreference());
+
+            // Listen for system preference changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                // Only auto-switch if user hasn't manually set a preference
+                if (!localStorage.getItem('theme')) {
+                    applyTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+        })();
+    </script>
     <style>
         /* Custom styles for better mobile experience */
         .highlight-text {
@@ -36,16 +71,37 @@
         .book-card:active {
             transform: scale(0.98);
         }
+        /* Smooth theme transitions */
+        html.transitioning,
+        html.transitioning *,
+        html.transitioning *::before,
+        html.transitioning *::after {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors">
     <!-- Header -->
-    <header class="bg-primary-600 text-white sticky top-0 z-50 shadow-md">
+    <header class="bg-primary-600 dark:bg-gray-800 text-white sticky top-0 z-50 shadow-md">
         <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
             <a href="/" class="text-xl font-bold">Highlight Helper</a>
-            <nav class="flex gap-4">
-                <a href="/" class="hover:text-primary-200 transition">Books</a>
-                <a href="/highlights" class="hover:text-primary-200 transition">All Highlights</a>
+            <nav class="flex items-center gap-4">
+                <a href="/" class="hover:text-primary-200 dark:hover:text-primary-400 transition">Books</a>
+                <a href="/highlights" class="hover:text-primary-200 dark:hover:text-primary-400 transition">All Highlights</a>
+                <!-- Dark mode toggle -->
+                <button id="theme-toggle" type="button"
+                        class="p-2 rounded-lg hover:bg-primary-700 dark:hover:bg-gray-700 transition"
+                        title="Toggle dark mode"
+                        aria-label="Toggle dark mode">
+                    <!-- Sun icon (shown in dark mode) -->
+                    <svg id="theme-icon-light" class="hidden dark:block w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+                    </svg>
+                    <!-- Moon icon (shown in light mode) -->
+                    <svg id="theme-icon-dark" class="block dark:hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+                    </svg>
+                </button>
             </nav>
         </div>
     </header>
@@ -56,11 +112,38 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-gray-100 border-t mt-auto py-4 text-center text-gray-600 text-sm">
+    <footer class="bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto py-4 text-center text-gray-600 dark:text-gray-400 text-sm">
         <div class="max-w-4xl mx-auto px-4">
             Highlight Helper - Collect and organize your book highlights
         </div>
     </footer>
+
+    <script>
+        // Theme toggle functionality
+        document.getElementById('theme-toggle').addEventListener('click', function() {
+            // Add transition class for smooth animation
+            document.documentElement.classList.add('transitioning');
+
+            // Toggle theme
+            const isDark = document.documentElement.classList.contains('dark');
+            const newTheme = isDark ? 'light' : 'dark';
+
+            // Update class
+            if (newTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+
+            // Save preference
+            localStorage.setItem('theme', newTheme);
+
+            // Remove transition class after animation completes
+            setTimeout(function() {
+                document.documentElement.classList.remove('transitioning');
+            }, 300);
+        });
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>
