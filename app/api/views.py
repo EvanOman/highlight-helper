@@ -29,6 +29,7 @@ from app.services.isbn_extractor import (
     ISBNExtractorService,
     get_isbn_extractor_service,
 )
+from app.services.settings import get_settings_service
 
 router = APIRouter(tags=["views"])
 templates = Jinja2Templates(directory="app/templates")
@@ -351,13 +352,16 @@ async def create_highlight_form(
     await db.flush()
     await db.refresh(highlight)
 
-    # Schedule auto-sync to Readwise if enabled
-    settings = get_settings()
-    if settings.readwise_auto_sync and settings.readwise_api_token:
-        from app.services.readwise import sync_highlight_background
+    # Schedule auto-sync to Readwise if enabled (check app settings)
+    app_settings = await get_settings_service(db)
+    auto_sync = await app_settings.get_readwise_auto_sync()
+    token = await app_settings.get_readwise_token()
+
+    if auto_sync and token:
+        from app.services.readwise import sync_highlight_background_with_token
 
         background_tasks.add_task(
-            sync_highlight_background,
+            sync_highlight_background_with_token,
             highlight_id=highlight.id,
             book_title=book.title,
             book_author=book.author,
@@ -365,6 +369,7 @@ async def create_highlight_form(
             note=highlight.note,
             page_number=highlight.page_number,
             created_at=highlight.created_at,
+            api_token=token,
         )
 
     return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -545,4 +550,25 @@ async def all_highlights(
         request,
         "all_highlights.html",
         {"highlights": highlights},
+    )
+
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Settings page for configuring the application."""
+    settings = await get_settings_service(db)
+
+    token = await settings.get_readwise_token()
+    auto_sync = await settings.get_readwise_auto_sync()
+
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "token_configured": bool(token),
+            "auto_sync": auto_sync,
+        },
     )

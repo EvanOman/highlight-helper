@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.book import Book
+
+
+class SyncStatus(str, Enum):
+    """Sync status for highlights."""
+
+    PENDING = "pending"  # Not yet synced
+    SYNCED = "synced"  # Successfully synced to Readwise
+    REMOVED_EXTERNALLY = "removed_externally"  # Synced but removed by user in Readwise
 
 
 class Highlight(Base):
@@ -35,6 +45,12 @@ class Highlight(Base):
     synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+    sync_status: Mapped[SyncStatus] = mapped_column(
+        SQLEnum(SyncStatus),
+        default=SyncStatus.PENDING,
+        server_default=SyncStatus.PENDING.value,
+        nullable=False,
     )
 
     # Relationships

@@ -3,6 +3,7 @@
 import os
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -23,9 +24,9 @@ def server():
     if db_path.exists():
         db_path.unlink()
 
-    # Start the server
+    # Start the server using the current Python interpreter
     server_process = subprocess.Popen(
-        ["python", "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8765"],
+        [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8765"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

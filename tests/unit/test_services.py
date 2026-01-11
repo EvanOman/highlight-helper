@@ -387,8 +387,11 @@ class TestReadwiseService:
 
     def test_is_configured_without_token(self):
         """Test is_configured returns False without token."""
-        service = ReadwiseService(api_token=None)
-        assert service.is_configured is False
+        mock_settings = MagicMock()
+        mock_settings.readwise_api_token = None
+        with patch("app.services.readwise.get_settings", return_value=mock_settings):
+            service = ReadwiseService(api_token=None)
+            assert service.is_configured is False
 
     def test_is_configured_with_token(self):
         """Test is_configured returns True with token."""
@@ -429,9 +432,12 @@ class TestReadwiseService:
 
     async def test_validate_token_no_token(self):
         """Test token validation without token configured."""
-        service = ReadwiseService(api_token=None)
-        result = await service.validate_token()
-        assert result is False
+        mock_settings = MagicMock()
+        mock_settings.readwise_api_token = None
+        with patch("app.services.readwise.get_settings", return_value=mock_settings):
+            service = ReadwiseService(api_token=None)
+            result = await service.validate_token()
+            assert result is False
 
     async def test_send_highlight_success(self):
         """Test successful highlight send."""
@@ -467,16 +473,19 @@ class TestReadwiseService:
 
     async def test_send_highlight_no_token(self):
         """Test send_highlight without token configured."""
-        service = ReadwiseService(api_token=None)
+        mock_settings = MagicMock()
+        mock_settings.readwise_api_token = None
+        with patch("app.services.readwise.get_settings", return_value=mock_settings):
+            service = ReadwiseService(api_token=None)
 
-        result = await service.send_highlight(
-            text="Test highlight",
-            title="Test Book",
-            author="Test Author",
-        )
+            result = await service.send_highlight(
+                text="Test highlight",
+                title="Test Book",
+                author="Test Author",
+            )
 
-        assert result.success is False
-        assert "not configured" in result.error
+            assert result.success is False
+            assert "not configured" in result.error
 
     async def test_send_highlight_api_error(self):
         """Test send_highlight with API error."""
@@ -569,15 +578,18 @@ class TestReadwiseService:
 
     async def test_send_highlights_no_token(self):
         """Test send_highlights without token configured."""
-        service = ReadwiseService(api_token=None)
+        mock_settings = MagicMock()
+        mock_settings.readwise_api_token = None
+        with patch("app.services.readwise.get_settings", return_value=mock_settings):
+            service = ReadwiseService(api_token=None)
 
-        result = await service.send_highlights(
-            [{"text": "Test", "title": "Book", "author": "Author"}]
-        )
+            result = await service.send_highlights(
+                [{"text": "Test", "title": "Book", "author": "Author"}]
+            )
 
-        assert result.total == 1
-        assert result.synced == 0
-        assert result.failed == 1
+            assert result.total == 1
+            assert result.synced == 0
+            assert result.failed == 1
 
     async def test_update_highlight_success(self):
         """Test successful highlight update."""
@@ -642,15 +654,18 @@ class TestReadwiseService:
 
     async def test_update_highlight_no_token(self):
         """Test update_highlight without token configured."""
-        service = ReadwiseService(api_token=None)
+        mock_settings = MagicMock()
+        mock_settings.readwise_api_token = None
+        with patch("app.services.readwise.get_settings", return_value=mock_settings):
+            service = ReadwiseService(api_token=None)
 
-        result = await service.update_highlight(
-            readwise_id="67890",
-            text="Test text",
-        )
+            result = await service.update_highlight(
+                readwise_id="67890",
+                text="Test text",
+            )
 
-        assert result.success is False
-        assert "not configured" in result.error
+            assert result.success is False
+            assert "not configured" in result.error
 
     async def test_update_highlight_no_fields(self):
         """Test update_highlight with no fields to update."""

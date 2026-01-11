@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.books import router as books_router
 from app.api.highlights import router as highlights_router
 from app.api.readwise import router as readwise_router
+from app.api.settings import router as settings_router
 from app.api.views import router as views_router
 from app.core.config import get_settings
 from app.core.database import init_db
@@ -44,6 +45,7 @@ app.include_router(views_router)
 app.include_router(books_router)
 app.include_router(highlights_router)
 app.include_router(readwise_router)
+app.include_router(settings_router)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,265 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Settings - Highlight Helper{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Settings</h1>
+
+<!-- Readwise Integration -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Readwise Integration</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        Connect your Readwise account to automatically sync highlights.
+        <a href="https://readwise.io/access_token" target="_blank" rel="noopener" class="text-primary-600 dark:text-primary-400 hover:underline">Get your API token</a>
+    </p>
+
+    <form id="settings-form" class="space-y-6">
+        <!-- API Token -->
+        <div>
+            <label for="readwise-token" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Readwise API Token
+            </label>
+            <div class="flex gap-2">
+                <input type="password"
+                       id="readwise-token"
+                       name="readwise_token"
+                       placeholder="{{ '••••••••' if token_configured else 'Paste your token here' }}"
+                       class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
+                <button type="button"
+                        id="validate-token-btn"
+                        class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                    Validate
+                </button>
+            </div>
+            <p id="token-status" class="text-sm mt-1 hidden"></p>
+        </div>
+
+        <!-- Auto-sync Toggle -->
+        <div class="flex items-center justify-between">
+            <div>
+                <label for="auto-sync" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Auto-sync highlights
+                </label>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Automatically sync new highlights to Readwise when created
+                </p>
+            </div>
+            <button type="button"
+                    id="auto-sync"
+                    role="switch"
+                    aria-checked="{{ 'true' if auto_sync else 'false' }}"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 {{ 'bg-primary-600' if auto_sync else 'bg-gray-200 dark:bg-gray-600' }}"
+                    onclick="toggleAutoSync()">
+                <span class="sr-only">Auto-sync highlights</span>
+                <span aria-hidden="true"
+                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ 'translate-x-5' if auto_sync else 'translate-x-0' }}"></span>
+            </button>
+        </div>
+
+        <!-- Save Button -->
+        <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button type="submit"
+                    id="save-btn"
+                    class="w-full bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
+                Save Settings
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Sync All Section -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sync Highlights</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Sync all unsynced highlights to Readwise. This will send any highlights that haven't been synced yet.
+    </p>
+
+    <div id="sync-status" class="mb-4 hidden">
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <p class="text-sm text-gray-600 dark:text-gray-300" id="sync-status-text"></p>
+        </div>
+    </div>
+
+    <button type="button"
+            id="sync-all-btn"
+            onclick="syncAllHighlights()"
+            class="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+        </svg>
+        <span id="sync-all-btn-text">Sync All Unsynced Highlights</span>
+    </button>
+</div>
+
+<script>
+let autoSyncEnabled = {{ 'true' if auto_sync else 'false' }};
+
+function toggleAutoSync() {
+    autoSyncEnabled = !autoSyncEnabled;
+    const btn = document.getElementById('auto-sync');
+    const thumb = btn.querySelector('span[aria-hidden="true"]');
+
+    if (autoSyncEnabled) {
+        btn.classList.remove('bg-gray-200', 'dark:bg-gray-600');
+        btn.classList.add('bg-primary-600');
+        thumb.classList.remove('translate-x-0');
+        thumb.classList.add('translate-x-5');
+        btn.setAttribute('aria-checked', 'true');
+    } else {
+        btn.classList.remove('bg-primary-600');
+        btn.classList.add('bg-gray-200', 'dark:bg-gray-600');
+        thumb.classList.remove('translate-x-5');
+        thumb.classList.add('translate-x-0');
+        btn.setAttribute('aria-checked', 'false');
+    }
+}
+
+document.getElementById('validate-token-btn').addEventListener('click', async function() {
+    const tokenInput = document.getElementById('readwise-token');
+    const statusEl = document.getElementById('token-status');
+    const btn = this;
+
+    // If there's a new token, save it first
+    const newToken = tokenInput.value.trim();
+    if (newToken) {
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ readwise_token: newToken })
+        });
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Validating...';
+    statusEl.classList.add('hidden');
+
+    try {
+        const response = await fetch('/api/settings/readwise/validate', { method: 'POST' });
+        const data = await response.json();
+
+        statusEl.classList.remove('hidden');
+        if (data.valid) {
+            statusEl.textContent = 'Token is valid!';
+            statusEl.className = 'text-sm mt-1 text-green-600 dark:text-green-400';
+            tokenInput.placeholder = '••••••••';
+            tokenInput.value = '';
+        } else {
+            statusEl.textContent = data.error || 'Token is invalid';
+            statusEl.className = 'text-sm mt-1 text-red-600 dark:text-red-400';
+        }
+    } catch (error) {
+        statusEl.classList.remove('hidden');
+        statusEl.textContent = 'Error validating token';
+        statusEl.className = 'text-sm mt-1 text-red-600 dark:text-red-400';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Validate';
+    }
+});
+
+document.getElementById('settings-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const btn = document.getElementById('save-btn');
+    const tokenInput = document.getElementById('readwise-token');
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const payload = {
+        readwise_auto_sync: autoSyncEnabled
+    };
+
+    const newToken = tokenInput.value.trim();
+    if (newToken) {
+        payload.readwise_token = newToken;
+    }
+
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            btn.textContent = 'Saved!';
+            btn.classList.remove('bg-primary-600', 'hover:bg-primary-700');
+            btn.classList.add('bg-green-600');
+
+            if (newToken) {
+                tokenInput.value = '';
+                tokenInput.placeholder = '••••••••';
+            }
+
+            // If auto-sync was just enabled, offer to sync all
+            if (autoSyncEnabled) {
+                const syncStatus = document.getElementById('sync-status');
+                const syncText = document.getElementById('sync-status-text');
+                syncStatus.classList.remove('hidden');
+                syncText.textContent = 'Auto-sync enabled! Click below to sync existing highlights.';
+            }
+
+            setTimeout(() => {
+                btn.textContent = 'Save Settings';
+                btn.classList.remove('bg-green-600');
+                btn.classList.add('bg-primary-600', 'hover:bg-primary-700');
+                btn.disabled = false;
+            }, 2000);
+        } else {
+            throw new Error('Failed to save');
+        }
+    } catch (error) {
+        btn.textContent = 'Error saving';
+        btn.classList.remove('bg-primary-600', 'hover:bg-primary-700');
+        btn.classList.add('bg-red-600');
+
+        setTimeout(() => {
+            btn.textContent = 'Save Settings';
+            btn.classList.remove('bg-red-600');
+            btn.classList.add('bg-primary-600', 'hover:bg-primary-700');
+            btn.disabled = false;
+        }, 2000);
+    }
+});
+
+async function syncAllHighlights() {
+    const btn = document.getElementById('sync-all-btn');
+    const btnText = document.getElementById('sync-all-btn-text');
+    const syncStatus = document.getElementById('sync-status');
+    const syncText = document.getElementById('sync-status-text');
+
+    btn.disabled = true;
+    btnText.textContent = 'Syncing...';
+
+    try {
+        const response = await fetch('/api/settings/readwise/sync-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+
+        syncStatus.classList.remove('hidden');
+        if (data.synced > 0 || data.already_synced > 0) {
+            syncText.textContent = `Synced ${data.synced} highlight(s). ${data.already_synced} already synced. ${data.failed} failed.`;
+            syncText.parentElement.classList.remove('bg-red-50', 'dark:bg-red-900/30');
+            syncText.parentElement.classList.add('bg-green-50', 'dark:bg-green-900/30');
+        } else if (data.total === 0) {
+            syncText.textContent = 'All highlights are already synced!';
+            syncText.parentElement.classList.add('bg-green-50', 'dark:bg-green-900/30');
+        } else {
+            syncText.textContent = `Failed to sync ${data.failed} highlight(s). Check your API token.`;
+            syncText.parentElement.classList.add('bg-red-50', 'dark:bg-red-900/30');
+        }
+    } catch (error) {
+        syncStatus.classList.remove('hidden');
+        syncText.textContent = 'Error syncing highlights. Please try again.';
+        syncText.parentElement.classList.add('bg-red-50', 'dark:bg-red-900/30');
+    } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Sync All Unsynced Highlights';
+    }
+}
+</script>
+{% endblock %}
