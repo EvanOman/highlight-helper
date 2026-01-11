@@ -579,6 +579,153 @@ class TestReadwiseService:
         assert result.synced == 0
         assert result.failed == 1
 
+    async def test_update_highlight_success(self):
+        """Test successful highlight update."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": 67890,
+            "text": "Updated text",
+            "note": "Updated note",
+        }
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.update_highlight(
+                readwise_id="67890",
+                text="Updated text",
+                note="Updated note",
+                page_number="50",
+            )
+
+        assert result.success is True
+        assert result.readwise_id == "67890"
+        assert result.error is None
+
+        # Verify the correct endpoint and payload were used
+        mock_client.patch.assert_called_once()
+        call_args = mock_client.patch.call_args
+        assert "67890" in call_args[0][0]  # URL contains the ID
+
+    async def test_update_highlight_partial_update(self):
+        """Test update_highlight with only some fields."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": 67890}
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            # Only update text, leave note and page_number as None
+            result = await service.update_highlight(
+                readwise_id="67890",
+                text="Only text updated",
+            )
+
+        assert result.success is True
+
+        # Verify payload only contains text
+        call_args = mock_client.patch.call_args
+        payload = call_args[1]["json"]
+        assert "text" in payload
+        assert "note" not in payload
+        assert "location" not in payload
+
+    async def test_update_highlight_no_token(self):
+        """Test update_highlight without token configured."""
+        service = ReadwiseService(api_token=None)
+
+        result = await service.update_highlight(
+            readwise_id="67890",
+            text="Test text",
+        )
+
+        assert result.success is False
+        assert "not configured" in result.error
+
+    async def test_update_highlight_no_fields(self):
+        """Test update_highlight with no fields to update."""
+        service = ReadwiseService(api_token="test_token")
+
+        result = await service.update_highlight(
+            readwise_id="67890",
+        )
+
+        assert result.success is False
+        assert "No fields to update" in result.error
+
+    async def test_update_highlight_api_error(self):
+        """Test update_highlight with API error."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.text = "Highlight not found"
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.update_highlight(
+                readwise_id="99999",
+                text="Test text",
+            )
+
+        assert result.success is False
+        assert "404" in result.error
+
+    async def test_update_highlight_network_error(self):
+        """Test update_highlight with network error."""
+        service = ReadwiseService(api_token="test_token")
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(side_effect=httpx.RequestError("Connection failed"))
+            mock_get_client.return_value = mock_client
+
+            result = await service.update_highlight(
+                readwise_id="67890",
+                text="Test text",
+            )
+
+        assert result.success is False
+        assert "Network error" in result.error
+
+    async def test_update_highlight_clears_note(self):
+        """Test update_highlight can clear a note by setting empty string."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": 67890}
+
+        with patch.object(service, "_get_client") as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.patch = AsyncMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            result = await service.update_highlight(
+                readwise_id="67890",
+                note="",  # Empty string to clear note
+            )
+
+        assert result.success is True
+
+        # Verify payload contains empty note
+        call_args = mock_client.patch.call_args
+        payload = call_args[1]["json"]
+        assert payload["note"] == ""
+
 
 class TestSyncHighlightBackground:
     """Tests for the sync_highlight_background function."""

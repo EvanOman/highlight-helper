@@ -106,7 +106,11 @@ async def sync_highlight(
     db: AsyncSession = Depends(get_db),
     readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseSyncResponse:
-    """Sync a single highlight to Readwise."""
+    """Sync a single highlight to Readwise.
+
+    If the highlight was previously synced (has readwise_id), uses PATCH to update.
+    Otherwise, uses POST to create a new highlight on Readwise.
+    """
     if not readwise.is_configured:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -126,25 +130,36 @@ async def sync_highlight(
 
     highlight, book = row
 
-    # Send to Readwise
-    sync_result = await readwise.send_highlight(
-        text=highlight.text,
-        title=book.title,
-        author=book.author,
-        note=highlight.note,
-        page_number=highlight.page_number,
-        highlighted_at=highlight.created_at,
-    )
+    # Use PATCH if highlight was previously synced, otherwise POST
+    if highlight.readwise_id:
+        # Update existing highlight on Readwise
+        sync_result = await readwise.update_highlight(
+            readwise_id=highlight.readwise_id,
+            text=highlight.text,
+            note=highlight.note,
+            page_number=highlight.page_number,
+        )
+    else:
+        # Create new highlight on Readwise
+        sync_result = await readwise.send_highlight(
+            text=highlight.text,
+            title=book.title,
+            author=book.author,
+            note=highlight.note,
+            page_number=highlight.page_number,
+            highlighted_at=highlight.created_at,
+        )
 
     if sync_result.success:
         # Update highlight with sync info
-        highlight.readwise_id = sync_result.readwise_id
+        if sync_result.readwise_id:
+            highlight.readwise_id = sync_result.readwise_id
         highlight.synced_at = datetime.now(tz=timezone.utc)
         await db.flush()
 
     return ReadwiseSyncResponse(
         success=sync_result.success,
-        readwise_id=sync_result.readwise_id,
+        readwise_id=sync_result.readwise_id or highlight.readwise_id,
         error=sync_result.error,
     )
 

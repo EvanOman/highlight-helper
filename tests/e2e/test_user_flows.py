@@ -260,6 +260,119 @@ with sync_playwright() as p:
         assert result.returncode == 0, f"Viewport test failed: {result.stderr}"
 
 
+class TestEditHighlightFlow:
+    """Tests for edit highlight functionality."""
+
+    def test_edit_button_visible_on_book_detail(self, server, browser_context):
+        """Test that edit button appears on book detail page."""
+        page = browser_context.new_page()
+
+        # First create a book with a highlight
+        page.goto(f"{server}/books/add")
+        page.wait_for_load_state("networkidle")
+
+        page.click("text=Add Manually")
+        page.wait_for_timeout(300)
+
+        page.fill('input[name="title"]', "Edit Test Book")
+        page.fill('input[name="author"]', "Edit Test Author")
+        page.click('button:has-text("Add Book")')
+        page.wait_for_load_state("networkidle")
+
+        # Add a highlight
+        page.click("text=Add Highlight")
+        page.wait_for_load_state("networkidle")
+        page.fill('textarea[name="text"]', "Original highlight text")
+        page.fill('input[name="page_number"]', "10")
+        page.click('button:has-text("Save Highlight")')
+        page.wait_for_load_state("networkidle")
+
+        # Verify edit link is visible
+        assert page.locator('a:has-text("Edit")').is_visible()
+        page.close()
+
+    def test_edit_highlight_page_loads(self, server, browser_context):
+        """Test that edit highlight page loads with current values."""
+        page = browser_context.new_page()
+
+        # Navigate to the test book
+        page.goto(server)
+        page.wait_for_load_state("networkidle")
+        page.click("text=Edit Test Book")
+        page.wait_for_load_state("networkidle")
+
+        # Click Edit link
+        page.click('a:has-text("Edit")')
+        page.wait_for_load_state("networkidle")
+
+        # Verify edit page loaded with correct content
+        assert "Edit Highlight" in page.title() or "edit" in page.url.lower()
+        assert page.locator('textarea[name="text"]').input_value() == "Original highlight text"
+        assert page.locator('input[name="page_number"]').input_value() == "10"
+        page.close()
+
+    def test_update_highlight_via_edit_form(self, server, browser_context):
+        """Test updating a highlight via the edit form."""
+        page = browser_context.new_page()
+
+        # Navigate to the test book
+        page.goto(server)
+        page.wait_for_load_state("networkidle")
+        page.click("text=Edit Test Book")
+        page.wait_for_load_state("networkidle")
+
+        # Click Edit link
+        page.click('a:has-text("Edit")')
+        page.wait_for_load_state("networkidle")
+
+        # Update the highlight
+        page.fill('textarea[name="text"]', "Updated highlight text via E2E test")
+        page.fill('input[name="page_number"]', "99")
+        page.fill('textarea[name="note"]', "Updated note")
+
+        # Submit
+        page.click('button:has-text("Save Changes")')
+        page.wait_for_load_state("networkidle")
+
+        # Should redirect to book detail with updated highlight
+        assert "Updated highlight text via E2E test" in page.content()
+        assert page.locator("text=Page 99").is_visible()
+        page.close()
+
+    def test_edit_button_visible_on_all_highlights(self, server, browser_context):
+        """Test that edit button appears on all highlights page."""
+        page = browser_context.new_page()
+        page.goto(f"{server}/highlights")
+        page.wait_for_load_state("networkidle")
+
+        # Verify edit link is visible for the test highlight
+        assert page.locator('a:has-text("Edit")').first.is_visible()
+        page.close()
+
+    def test_cancel_edit_returns_to_book(self, server, browser_context):
+        """Test that cancel button returns to book detail."""
+        page = browser_context.new_page()
+
+        # Navigate to the test book
+        page.goto(server)
+        page.wait_for_load_state("networkidle")
+        page.click("text=Edit Test Book")
+        page.wait_for_load_state("networkidle")
+
+        # Click Edit link
+        page.click('a:has-text("Edit")')
+        page.wait_for_load_state("networkidle")
+
+        # Click Cancel
+        page.click('a:has-text("Cancel")')
+        page.wait_for_load_state("networkidle")
+
+        # Should be back on book detail page
+        assert "Edit Test Book" in page.content()
+        assert "edit" not in page.url.lower()
+        page.close()
+
+
 class TestDeleteOperations:
     """Tests for delete functionality."""
 

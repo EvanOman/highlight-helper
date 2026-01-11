@@ -159,6 +159,71 @@ class ReadwiseService:
                 error=f"Network error: {str(e)}",
             )
 
+    async def update_highlight(
+        self,
+        readwise_id: str,
+        text: str | None = None,
+        note: str | None = None,
+        page_number: str | None = None,
+    ) -> ReadwiseSyncResult:
+        """Update an existing highlight on Readwise.
+
+        Uses PATCH /api/v2/highlights/{id}/ to update the highlight.
+
+        Args:
+            readwise_id: The Readwise highlight ID to update.
+            text: Updated highlight text (optional).
+            note: Updated note/annotation (optional).
+            page_number: Updated page number (optional).
+
+        Returns:
+            ReadwiseSyncResult with success status.
+        """
+        if not self._api_token:
+            return ReadwiseSyncResult(
+                success=False,
+                error="Readwise API token not configured",
+            )
+
+        # Build payload with only provided fields
+        payload: dict = {}
+        if text is not None:
+            payload["text"] = text[:8191]  # Readwise max length
+        if note is not None:
+            payload["note"] = note[:8191] if note else ""
+        if page_number is not None:
+            payload["location"] = page_number
+            payload["location_type"] = "page"
+
+        if not payload:
+            return ReadwiseSyncResult(
+                success=False,
+                error="No fields to update",
+            )
+
+        try:
+            client = await self._get_client()
+            response = await client.patch(
+                f"{self.BASE_URL}/highlights/{readwise_id}/",
+                json=payload,
+            )
+
+            if response.status_code == 200:
+                return ReadwiseSyncResult(
+                    success=True,
+                    readwise_id=readwise_id,
+                )
+            else:
+                return ReadwiseSyncResult(
+                    success=False,
+                    error=f"Readwise API error: {response.status_code} - {response.text}",
+                )
+        except httpx.RequestError as e:
+            return ReadwiseSyncResult(
+                success=False,
+                error=f"Network error: {str(e)}",
+            )
+
     async def send_highlights(
         self,
         highlights: list[dict],
