@@ -171,7 +171,7 @@ When the app is running, visit:
 - [ ] Full-text search across all highlights
 - [ ] Tags and categories for organizing highlights
 - [ ] Share highlights with others
-- [ ] Dark mode support
+- [x] Dark mode support (with system preference detection)
 - [ ] PWA support for offline access
 - [ ] Sync across devices
 
