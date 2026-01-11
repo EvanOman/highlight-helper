@@ -1,9 +1,34 @@
 """ISBN extraction service using DSPy with OpenAI Vision API."""
 
+import io
+
 import dspy
+from PIL import Image
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+
+
+def convert_to_jpeg(image_bytes: bytes) -> bytes:
+    """Convert image bytes to JPEG format for compatibility.
+
+    Handles formats like MPO, HEIC, etc. that may not be recognized by dspy.Image.
+    """
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        # Convert to RGB if necessary (handles RGBA, P mode, etc.)
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+
+        # Save as JPEG
+        output = io.BytesIO()
+        img.save(output, format="JPEG", quality=95)
+        return output.getvalue()
+    except Exception:
+        # If conversion fails, return original bytes and let dspy handle it
+        return image_bytes
 
 
 class ExtractedISBN(BaseModel):
@@ -93,8 +118,9 @@ class ISBNExtractorService:
         Returns:
             ExtractedISBN containing the extracted ISBN
         """
-        # Create dspy.Image from bytes
-        image = dspy.Image(image_bytes)
+        # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
+        jpeg_bytes = convert_to_jpeg(image_bytes)
+        image = dspy.Image(jpeg_bytes)
 
         try:
             # Use dspy.context for thread-safe LM configuration
