@@ -3,10 +3,15 @@
 import io
 
 import dspy
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 from PIL import Image
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+
+# Get tracer for this module
+tracer = trace.get_tracer(__name__)
 
 
 def convert_to_jpeg(image_bytes: bytes) -> bytes:
@@ -118,29 +123,46 @@ class ISBNExtractorService:
         Returns:
             ExtractedISBN containing the extracted ISBN
         """
-        # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
-        jpeg_bytes = convert_to_jpeg(image_bytes)
-        image = dspy.Image(jpeg_bytes)
+        with tracer.start_as_current_span("isbn_extractor.extract_isbn") as span:
+            # Add input attributes
+            span.set_attribute("extraction.filename", filename)
+            span.set_attribute("extraction.image_size_bytes", len(image_bytes))
 
-        try:
-            # Use dspy.context for thread-safe LM configuration
-            with dspy.context(lm=self._lm):
-                # Use dspy.asyncify for async execution
-                async_extract = dspy.asyncify(self._extractor)
-                result = await async_extract(image=image)
+            # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
+            jpeg_bytes = convert_to_jpeg(image_bytes)
+            image = dspy.Image(jpeg_bytes)
 
-                # Clean the ISBN (remove any remaining non-digits)
-                if result.isbn:
-                    result.isbn = "".join(c for c in result.isbn if c.isdigit())
+            try:
+                # Use dspy.context for thread-safe LM configuration
+                with dspy.context(lm=self._lm):
+                    # Use dspy.asyncify for async execution
+                    async_extract = dspy.asyncify(self._extractor)
+                    result = await async_extract(image=image)
 
-                return result
-        except Exception:
-            # Fallback for errors
-            return ExtractedISBN(
-                isbn="",
-                confidence="low",
-                source="unknown",
-            )
+                    # Clean the ISBN (remove any remaining non-digits)
+                    if result.isbn:
+                        result.isbn = "".join(c for c in result.isbn if c.isdigit())
+
+                    # Add result attributes
+                    span.set_attribute("extraction.confidence", result.confidence)
+                    span.set_attribute("extraction.source", result.source)
+                    span.set_attribute("extraction.isbn_length", len(result.isbn))
+                    span.set_status(Status(StatusCode.OK))
+
+                    return result
+            except Exception as e:
+                # Record exception and set error status
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.set_attribute("extraction.confidence", "low")
+                span.set_attribute("extraction.error", True)
+
+                # Fallback for errors
+                return ExtractedISBN(
+                    isbn="",
+                    confidence="low",
+                    source="unknown",
+                )
 
 
 # Lazy initialization to avoid configuration issues at import time

@@ -11,6 +11,7 @@ from app.api.readwise import router as readwise_router
 from app.api.views import router as views_router
 from app.core.config import get_settings
 from app.core.database import init_db
+from app.core.tracing import setup_tracing, shutdown_tracing
 from app.services.book_lookup import book_lookup_service
 
 
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     await book_lookup_service.close()
+    shutdown_tracing()
 
 
 settings = get_settings()
@@ -35,6 +37,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Setup OpenTelemetry tracing (must be done before adding routes)
+setup_tracing(app)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

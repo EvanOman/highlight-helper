@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # OpenTelemetry tracing
+    otel_enabled: bool = False
+    otel_service_name: str = "highlight-helper"
+    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_exporter_otlp_protocol: str = "grpc"  # "grpc" or "http/protobuf"
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

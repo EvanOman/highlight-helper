@@ -3,6 +3,11 @@
 from dataclasses import dataclass
 
 import httpx
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+# Get tracer for this module
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -47,52 +52,64 @@ class BookLookupService:
         Returns:
             List of BookInfo objects
         """
-        client = await self._get_client()
+        with tracer.start_as_current_span("book_lookup.search_books") as span:
+            span.set_attribute("book_lookup.query", query)
+            span.set_attribute("book_lookup.max_results", max_results)
 
-        params = {
-            "q": query,
-            "maxResults": min(max_results, 40),
-            "printType": "books",
-        }
+            try:
+                client = await self._get_client()
 
-        response = await client.get(self.BASE_URL, params=params)
-        response.raise_for_status()
+                params = {
+                    "q": query,
+                    "maxResults": min(max_results, 40),
+                    "printType": "books",
+                }
 
-        data = response.json()
-        books: list[BookInfo] = []
+                response = await client.get(self.BASE_URL, params=params)
+                response.raise_for_status()
 
-        for item in data.get("items", []):
-            volume_info = item.get("volumeInfo", {})
+                data = response.json()
+                books: list[BookInfo] = []
 
-            # Get ISBN
-            isbn = None
-            for identifier in volume_info.get("industryIdentifiers", []):
-                if identifier.get("type") in ("ISBN_13", "ISBN_10"):
-                    isbn = identifier.get("identifier")
-                    break
+                for item in data.get("items", []):
+                    volume_info = item.get("volumeInfo", {})
 
-            # Get cover image URL (prefer larger thumbnail)
-            image_links = volume_info.get("imageLinks", {})
-            cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
-            # Convert to HTTPS if available
-            if cover_url and cover_url.startswith("http://"):
-                cover_url = cover_url.replace("http://", "https://")
+                    # Get ISBN
+                    isbn = None
+                    for identifier in volume_info.get("industryIdentifiers", []):
+                        if identifier.get("type") in ("ISBN_13", "ISBN_10"):
+                            isbn = identifier.get("identifier")
+                            break
 
-            # Get authors (join multiple authors)
-            authors = volume_info.get("authors", ["Unknown Author"])
-            author = ", ".join(authors)
+                    # Get cover image URL (prefer larger thumbnail)
+                    image_links = volume_info.get("imageLinks", {})
+                    cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
+                    # Convert to HTTPS if available
+                    if cover_url and cover_url.startswith("http://"):
+                        cover_url = cover_url.replace("http://", "https://")
 
-            books.append(
-                BookInfo(
-                    title=volume_info.get("title", "Unknown Title"),
-                    author=author,
-                    isbn=isbn,
-                    cover_url=cover_url,
-                    description=volume_info.get("description"),
-                )
-            )
+                    # Get authors (join multiple authors)
+                    authors = volume_info.get("authors", ["Unknown Author"])
+                    author = ", ".join(authors)
 
-        return books
+                    books.append(
+                        BookInfo(
+                            title=volume_info.get("title", "Unknown Title"),
+                            author=author,
+                            isbn=isbn,
+                            cover_url=cover_url,
+                            description=volume_info.get("description"),
+                        )
+                    )
+
+                span.set_attribute("book_lookup.results_count", len(books))
+                span.set_status(Status(StatusCode.OK))
+                return books
+
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                raise
 
     async def search_by_isbn(self, isbn: str) -> BookInfo | None:
         """
@@ -104,44 +121,60 @@ class BookLookupService:
         Returns:
             BookInfo if found, None otherwise
         """
-        client = await self._get_client()
+        with tracer.start_as_current_span("book_lookup.search_by_isbn") as span:
+            span.set_attribute("book_lookup.isbn", isbn)
 
-        params = {
-            "q": f"isbn:{isbn}",
-            "maxResults": 1,
-        }
+            try:
+                client = await self._get_client()
 
-        response = await client.get(self.BASE_URL, params=params)
-        response.raise_for_status()
+                params = {
+                    "q": f"isbn:{isbn}",
+                    "maxResults": 1,
+                }
 
-        data = response.json()
+                response = await client.get(self.BASE_URL, params=params)
+                response.raise_for_status()
 
-        if data.get("totalItems", 0) == 0:
-            return None
+                data = response.json()
 
-        items = data.get("items", [])
-        if not items:
-            return None
+                if data.get("totalItems", 0) == 0:
+                    span.set_attribute("book_lookup.found", False)
+                    span.set_status(Status(StatusCode.OK))
+                    return None
 
-        volume_info = items[0].get("volumeInfo", {})
+                items = data.get("items", [])
+                if not items:
+                    span.set_attribute("book_lookup.found", False)
+                    span.set_status(Status(StatusCode.OK))
+                    return None
 
-        # Get authors
-        authors = volume_info.get("authors", ["Unknown Author"])
-        author = ", ".join(authors)
+                volume_info = items[0].get("volumeInfo", {})
 
-        # Get cover URL
-        image_links = volume_info.get("imageLinks", {})
-        cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
-        if cover_url and cover_url.startswith("http://"):
-            cover_url = cover_url.replace("http://", "https://")
+                # Get authors
+                authors = volume_info.get("authors", ["Unknown Author"])
+                author = ", ".join(authors)
 
-        return BookInfo(
-            title=volume_info.get("title", "Unknown Title"),
-            author=author,
-            isbn=isbn,
-            cover_url=cover_url,
-            description=volume_info.get("description"),
-        )
+                # Get cover URL
+                image_links = volume_info.get("imageLinks", {})
+                cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
+                if cover_url and cover_url.startswith("http://"):
+                    cover_url = cover_url.replace("http://", "https://")
+
+                span.set_attribute("book_lookup.found", True)
+                span.set_status(Status(StatusCode.OK))
+
+                return BookInfo(
+                    title=volume_info.get("title", "Unknown Title"),
+                    author=author,
+                    isbn=isbn,
+                    cover_url=cover_url,
+                    description=volume_info.get("description"),
+                )
+
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                raise
 
 
 # Global instance for dependency injection
