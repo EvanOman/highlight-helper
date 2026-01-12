@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.core.telemetry import add_span_attributes, create_span, set_span_status
+
 
 @dataclass
 class BookInfo:
@@ -47,52 +49,61 @@ class BookLookupService:
         Returns:
             List of BookInfo objects
         """
-        client = await self._get_client()
+        with create_span(
+            "book_search",
+            {
+                "book_search.query": query,
+                "book_search.max_results": max_results,
+            },
+        ):
+            client = await self._get_client()
 
-        params = {
-            "q": query,
-            "maxResults": min(max_results, 40),
-            "printType": "books",
-        }
+            params = {
+                "q": query,
+                "maxResults": min(max_results, 40),
+                "printType": "books",
+            }
 
-        response = await client.get(self.BASE_URL, params=params)
-        response.raise_for_status()
+            response = await client.get(self.BASE_URL, params=params)
+            response.raise_for_status()
 
-        data = response.json()
-        books: list[BookInfo] = []
+            data = response.json()
+            books: list[BookInfo] = []
 
-        for item in data.get("items", []):
-            volume_info = item.get("volumeInfo", {})
+            for item in data.get("items", []):
+                volume_info = item.get("volumeInfo", {})
 
-            # Get ISBN
-            isbn = None
-            for identifier in volume_info.get("industryIdentifiers", []):
-                if identifier.get("type") in ("ISBN_13", "ISBN_10"):
-                    isbn = identifier.get("identifier")
-                    break
+                # Get ISBN
+                isbn = None
+                for identifier in volume_info.get("industryIdentifiers", []):
+                    if identifier.get("type") in ("ISBN_13", "ISBN_10"):
+                        isbn = identifier.get("identifier")
+                        break
 
-            # Get cover image URL (prefer larger thumbnail)
-            image_links = volume_info.get("imageLinks", {})
-            cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
-            # Convert to HTTPS if available
-            if cover_url and cover_url.startswith("http://"):
-                cover_url = cover_url.replace("http://", "https://")
+                # Get cover image URL (prefer larger thumbnail)
+                image_links = volume_info.get("imageLinks", {})
+                cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
+                # Convert to HTTPS if available
+                if cover_url and cover_url.startswith("http://"):
+                    cover_url = cover_url.replace("http://", "https://")
 
-            # Get authors (join multiple authors)
-            authors = volume_info.get("authors", ["Unknown Author"])
-            author = ", ".join(authors)
+                # Get authors (join multiple authors)
+                authors = volume_info.get("authors", ["Unknown Author"])
+                author = ", ".join(authors)
 
-            books.append(
-                BookInfo(
-                    title=volume_info.get("title", "Unknown Title"),
-                    author=author,
-                    isbn=isbn,
-                    cover_url=cover_url,
-                    description=volume_info.get("description"),
+                books.append(
+                    BookInfo(
+                        title=volume_info.get("title", "Unknown Title"),
+                        author=author,
+                        isbn=isbn,
+                        cover_url=cover_url,
+                        description=volume_info.get("description"),
+                    )
                 )
-            )
 
-        return books
+            add_span_attributes(book_search_results_count=len(books))
+            set_span_status(True)
+            return books
 
     async def search_by_isbn(self, isbn: str) -> BookInfo | None:
         """
@@ -104,44 +115,59 @@ class BookLookupService:
         Returns:
             BookInfo if found, None otherwise
         """
-        client = await self._get_client()
+        with create_span(
+            "book_lookup_by_isbn",
+            {"book_lookup.isbn": isbn},
+        ):
+            client = await self._get_client()
 
-        params = {
-            "q": f"isbn:{isbn}",
-            "maxResults": 1,
-        }
+            params = {
+                "q": f"isbn:{isbn}",
+                "maxResults": 1,
+            }
 
-        response = await client.get(self.BASE_URL, params=params)
-        response.raise_for_status()
+            response = await client.get(self.BASE_URL, params=params)
+            response.raise_for_status()
 
-        data = response.json()
+            data = response.json()
 
-        if data.get("totalItems", 0) == 0:
-            return None
+            if data.get("totalItems", 0) == 0:
+                add_span_attributes(book_lookup_found=False)
+                set_span_status(True)
+                return None
 
-        items = data.get("items", [])
-        if not items:
-            return None
+            items = data.get("items", [])
+            if not items:
+                add_span_attributes(book_lookup_found=False)
+                set_span_status(True)
+                return None
 
-        volume_info = items[0].get("volumeInfo", {})
+            volume_info = items[0].get("volumeInfo", {})
 
-        # Get authors
-        authors = volume_info.get("authors", ["Unknown Author"])
-        author = ", ".join(authors)
+            # Get authors
+            authors = volume_info.get("authors", ["Unknown Author"])
+            author = ", ".join(authors)
 
-        # Get cover URL
-        image_links = volume_info.get("imageLinks", {})
-        cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
-        if cover_url and cover_url.startswith("http://"):
-            cover_url = cover_url.replace("http://", "https://")
+            # Get cover URL
+            image_links = volume_info.get("imageLinks", {})
+            cover_url = image_links.get("thumbnail") or image_links.get("smallThumbnail")
+            if cover_url and cover_url.startswith("http://"):
+                cover_url = cover_url.replace("http://", "https://")
 
-        return BookInfo(
-            title=volume_info.get("title", "Unknown Title"),
-            author=author,
-            isbn=isbn,
-            cover_url=cover_url,
-            description=volume_info.get("description"),
-        )
+            book = BookInfo(
+                title=volume_info.get("title", "Unknown Title"),
+                author=author,
+                isbn=isbn,
+                cover_url=cover_url,
+                description=volume_info.get("description"),
+            )
+
+            add_span_attributes(
+                book_lookup_found=True,
+                book_lookup_title=book.title,
+            )
+            set_span_status(True)
+            return book
 
 
 # Global instance for dependency injection

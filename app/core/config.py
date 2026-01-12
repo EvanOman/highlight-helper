@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # OpenTelemetry
+    otel_enabled: bool = False
+    otel_service_name: str = "highlight-helper"
+    otel_exporter: str = "otlp"  # "otlp", "jaeger", "console", "none"
+    otel_endpoint: str = "http://localhost:4317"  # OTLP gRPC endpoint (Jaeger, Datadog, etc.)
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

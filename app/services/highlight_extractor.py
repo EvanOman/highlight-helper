@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.telemetry import add_span_attributes, create_span, set_span_status
 from app.models.api_usage import APIUsage, calculate_cost
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,12 @@ class ExtractedHighlight(BaseModel):
     confidence: str = Field(
         default="low", description="Confidence level: 'high', 'medium', or 'low'"
     )
-    page_number: str | None = Field(default=None, description="Page number if visible in the image")
-    usage: TokenUsage | None = Field(default=None, description="Token usage for this extraction")
+    page_number: str | None = Field(
+        default=None, description="Page number if visible in the image"
+    )
+    usage: TokenUsage | None = Field(
+        default=None, description="Token usage for this extraction"
+    )
 
 
 class HighlightExtractionSignature(dspy.Signature):
@@ -136,7 +141,9 @@ class HighlightExtractorService:
             if not usage_data:
                 return None
 
-            input_tokens = usage_data.get("prompt_tokens", 0) or usage_data.get("input_tokens", 0)
+            input_tokens = usage_data.get("prompt_tokens", 0) or usage_data.get(
+                "input_tokens", 0
+            )
             output_tokens = usage_data.get("completion_tokens", 0) or usage_data.get(
                 "output_tokens", 0
             )
@@ -177,48 +184,75 @@ class HighlightExtractorService:
         Returns:
             ExtractedHighlight containing the extracted text and usage info
         """
-        # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
-        jpeg_bytes = convert_to_jpeg(image_bytes)
-        image = dspy.Image(jpeg_bytes)
+        with create_span(
+            "highlight_extraction",
+            {
+                "extraction.filename": filename,
+                "extraction.image_size_bytes": len(image_bytes),
+                "extraction.instructions_length": len(instructions),
+            },
+        ) as span:
+            # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
+            jpeg_bytes = convert_to_jpeg(image_bytes)
+            image = dspy.Image(jpeg_bytes)
 
-        try:
-            # Use dspy.context for thread-safe LM configuration with usage tracking
-            with dspy.context(lm=self._lm, track_usage=True):
-                # Use dspy.asyncify for async execution
-                async_extract = dspy.asyncify(self._extractor)
-                result = await async_extract(image=image, user_instructions=instructions)
+            add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
 
-                # Extract usage info
-                usage = self._extract_usage_from_history()
-                if usage:
-                    result.usage = usage
-                    logger.info(
-                        f"Extraction used {usage.total_tokens} tokens (${usage.cost_usd:.6f})"
-                    )
+            try:
+                # Use dspy.context for thread-safe LM configuration with usage tracking
+                with dspy.context(lm=self._lm, track_usage=True):
+                    # Use dspy.asyncify for async execution
+                    async_extract = dspy.asyncify(self._extractor)
+                    result = await async_extract(image=image, user_instructions=instructions)
 
-                    # Store usage in database if session provided
-                    if db is not None:
-                        api_usage = APIUsage(
-                            model=usage.model,
-                            operation="highlight_extraction",
-                            input_tokens=usage.input_tokens,
-                            output_tokens=usage.output_tokens,
-                            total_tokens=usage.total_tokens,
-                            cost_usd=usage.cost_usd,
-                            highlight_id=highlight_id,
+                    # Extract usage info
+                    usage = self._extract_usage_from_history()
+                    if usage:
+                        result.usage = usage
+                        logger.info(
+                            f"Extraction used {usage.total_tokens} tokens (${usage.cost_usd:.6f})"
                         )
-                        db.add(api_usage)
-                        await db.flush()  # Let request handler manage commit
 
-                return result
-        except Exception as e:
-            logger.error(f"Extraction failed: {e}")
-            # Fallback for errors
-            return ExtractedHighlight(
-                text="",
-                confidence="low",
-                page_number=None,
-            )
+                        # Add usage to span attributes
+                        add_span_attributes(
+                            extraction_input_tokens=usage.input_tokens,
+                            extraction_output_tokens=usage.output_tokens,
+                            extraction_total_tokens=usage.total_tokens,
+                            extraction_cost_usd=float(usage.cost_usd),
+                        )
+
+                        # Store usage in database if session provided
+                        if db is not None:
+                            api_usage = APIUsage(
+                                model=usage.model,
+                                operation="highlight_extraction",
+                                input_tokens=usage.input_tokens,
+                                output_tokens=usage.output_tokens,
+                                total_tokens=usage.total_tokens,
+                                cost_usd=usage.cost_usd,
+                                highlight_id=highlight_id,
+                            )
+                            db.add(api_usage)
+                            await db.flush()  # Let request handler manage commit
+
+                    # Add result attributes to span
+                    add_span_attributes(
+                        extraction_confidence=result.confidence,
+                        extraction_text_length=len(result.text),
+                        extraction_has_page_number=result.page_number is not None,
+                    )
+                    set_span_status(True)
+                    return result
+            except Exception as e:
+                logger.error(f"Extraction failed: {e}")
+                span.record_exception(e)
+                set_span_status(False, str(e))
+                # Fallback for errors
+                return ExtractedHighlight(
+                    text="",
+                    confidence="low",
+                    page_number=None,
+                )
 
 
 # Lazy initialization to avoid configuration issues at import time
