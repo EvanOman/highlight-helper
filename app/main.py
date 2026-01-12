@@ -12,6 +12,7 @@ from app.api.settings import router as settings_router
 from app.api.views import router as views_router
 from app.core.config import get_settings
 from app.core.database import init_db
+from app.core.telemetry import instrument_fastapi, instrument_httpx, setup_telemetry
 from app.services.book_lookup import book_lookup_service
 
 
@@ -19,6 +20,8 @@ from app.services.book_lookup import book_lookup_service
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
+    setup_telemetry()
+    instrument_httpx()
     await init_db()
     yield
     # Shutdown
@@ -36,6 +39,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Instrument FastAPI for tracing
+instrument_fastapi(app)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
