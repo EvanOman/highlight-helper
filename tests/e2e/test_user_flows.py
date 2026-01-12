@@ -87,8 +87,8 @@ class TestHomePageFlow:
         page.goto(server)
         page.wait_for_load_state("networkidle")
 
-        # Navigate to All Highlights
-        page.click("text=All Highlights")
+        # Navigate to Highlights
+        page.click("text=Highlights")
         page.wait_for_load_state("networkidle")
         assert "/highlights" in page.url
 
@@ -417,15 +417,23 @@ class TestDeleteOperations:
         assert page.locator("text=Highlight to be deleted").is_visible()
 
         # Find the delete button for the highlight (not the book delete button)
-        delete_button = page.locator("button:has-text('Delete'):not(:has-text('Book'))").first
+        delete_button = page.locator("form[action*='/delete'] button:has-text('Delete')").first
 
-        # Set up dialog handler and click in one operation
-        page.once("dialog", lambda dialog: dialog.accept())
-        delete_button.click()
+        # Set up dialog handler before triggering the click
+        def handle_dialog(dialog):
+            dialog.accept()
 
-        # Wait for page to reload after delete
+        page.on("dialog", handle_dialog)
+
+        # Click and wait for navigation using expect_navigation
+        with page.expect_navigation(timeout=10000):
+            delete_button.click()
+
+        # Remove the handler
+        page.remove_listener("dialog", handle_dialog)
+
+        # Wait for page to stabilize
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(500)
 
         # Highlight should be gone - check that the specific text is no longer there
         assert not page.locator("text=Highlight to be deleted").is_visible()
@@ -448,13 +456,21 @@ class TestDeleteOperations:
         page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
-        # Set up dialog handler and click in one operation
-        page.once("dialog", lambda dialog: dialog.accept())
-        page.click("text=Delete Book")
+        # Set up dialog handler before triggering the click
+        def handle_dialog(dialog):
+            dialog.accept()
 
-        # Wait for redirect to home
+        page.on("dialog", handle_dialog)
+
+        # Click and wait for navigation
+        with page.expect_navigation(timeout=10000):
+            page.click("text=Delete Book")
+
+        # Remove the handler
+        page.remove_listener("dialog", handle_dialog)
+
+        # Wait for page to stabilize
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(500)
 
         # Should redirect to home
         assert page.url.endswith("/") or ":8765" in page.url
