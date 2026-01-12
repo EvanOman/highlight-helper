@@ -208,7 +208,7 @@ class HighlightExtractorService:
                             highlight_id=highlight_id,
                         )
                         db.add(api_usage)
-                        await db.commit()
+                        await db.flush()  # Let request handler manage commit
 
                 return result
         except Exception as e:

@@ -303,6 +303,7 @@ async def extract_highlight_form(
                     image_bytes=image_bytes,
                     filename=image.filename or "image.jpg",
                     instructions=instructions,
+                    db=db,
                 )
                 extracted_text = result.text
                 confidence = result.confidence
