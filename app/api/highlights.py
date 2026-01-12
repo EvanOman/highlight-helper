@@ -206,11 +206,12 @@ async def extract_highlight_from_image(
             detail="Image file too large (max 20MB)",
         )
 
-    # Extract highlight
+    # Extract highlight (pass db for usage tracking)
     result = await extractor.extract_highlight(
         image_bytes=image_bytes,
         filename=image.filename or "image.jpg",
         instructions=instructions,
+        db=db,
     )
 
     return ExtractHighlightResponse(

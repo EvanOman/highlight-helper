@@ -243,6 +243,7 @@ class TestHighlightExtractorService:
             "text": "Test text",
             "confidence": "medium",
             "page_number": "42",
+            "usage": None,
         }
 
     async def test_extract_highlight_with_instruction_based_request(self):

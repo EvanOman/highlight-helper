@@ -1,9 +1,23 @@
 """Settings service for managing application settings."""
 
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.api_usage import APIUsage
 from app.models.settings import AppSetting
+
+
+class APIUsageMetrics(BaseModel):
+    """Metrics for API usage and costs."""
+
+    total_extractions: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_tokens: int = 0
+    total_cost_usd: float = 0.0
+    average_cost_per_extraction: float = 0.0
+
 
 # Setting keys
 READWISE_API_TOKEN = "readwise_api_token"
@@ -61,6 +75,38 @@ class SettingsService:
     async def set_readwise_auto_sync(self, enabled: bool) -> None:
         """Set the Readwise auto-sync setting."""
         await self.set_bool(READWISE_AUTO_SYNC, enabled)
+
+    async def get_api_usage_metrics(self) -> APIUsageMetrics:
+        """Get aggregated API usage metrics.
+
+        Returns:
+            APIUsageMetrics with totals and averages for all API usage.
+        """
+        # Query aggregate stats from api_usage table
+        result = await self.db.execute(
+            select(
+                func.count(APIUsage.id).label("total_extractions"),
+                func.coalesce(func.sum(APIUsage.input_tokens), 0).label("total_input_tokens"),
+                func.coalesce(func.sum(APIUsage.output_tokens), 0).label("total_output_tokens"),
+                func.coalesce(func.sum(APIUsage.total_tokens), 0).label("total_tokens"),
+                func.coalesce(func.sum(APIUsage.cost_usd), 0.0).label("total_cost_usd"),
+            ).where(APIUsage.operation == "highlight_extraction")
+        )
+        row = result.one()
+
+        total_extractions = row.total_extractions or 0
+        total_cost = row.total_cost_usd or 0.0
+
+        avg_cost = total_cost / total_extractions if total_extractions > 0 else 0.0
+
+        return APIUsageMetrics(
+            total_extractions=total_extractions,
+            total_input_tokens=row.total_input_tokens or 0,
+            total_output_tokens=row.total_output_tokens or 0,
+            total_tokens=row.total_tokens or 0,
+            total_cost_usd=total_cost,
+            average_cost_per_extraction=avg_cost,
+        )
 
 
 async def get_settings_service(db: AsyncSession) -> SettingsService:

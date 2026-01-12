@@ -303,6 +303,7 @@ async def extract_highlight_form(
                     image_bytes=image_bytes,
                     filename=image.filename or "image.jpg",
                     instructions=instructions,
+                    db=db,
                 )
                 extracted_text = result.text
                 confidence = result.confidence
@@ -563,6 +564,7 @@ async def settings_page(
 
     token = await settings.get_readwise_token()
     auto_sync = await settings.get_readwise_auto_sync()
+    api_metrics = await settings.get_api_usage_metrics()
 
     return templates.TemplateResponse(
         request,
@@ -570,5 +572,6 @@ async def settings_page(
         {
             "token_configured": bool(token),
             "auto_sync": auto_sync,
+            "api_metrics": api_metrics,
         },
     )
