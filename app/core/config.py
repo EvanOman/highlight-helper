@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # OpenTelemetry
     otel_enabled: bool = False
     otel_service_name: str = "highlight-helper"
-    otel_exporter: str = "otlp"  # "otlp", "jaeger", "console", "none"
+    otel_exporter: str = "otlp"  # "otlp", "console", "none"
     otel_endpoint: str = "http://localhost:4317"  # OTLP gRPC endpoint (Jaeger, Datadog, etc.)
 
     @property

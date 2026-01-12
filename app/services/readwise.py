@@ -293,64 +293,81 @@ class ReadwiseService:
                 set_span_status(True)
                 return ReadwiseBatchResult(total=0, synced=0, failed=0, results=[])
 
-        # Build payload
-        readwise_highlights = []
-        for h in highlights:
-            highlight_data: dict = {
-                "text": h["text"][:8191],
-                "title": h["title"][:511],
-                "author": h["author"][:1024],
-                "category": "books",
-                "source_type": "highlight_helper",
-            }
-            if h.get("note"):
-                highlight_data["note"] = h["note"][:8191]
-            if h.get("page_number"):
-                highlight_data["location"] = h["page_number"]
-                highlight_data["location_type"] = "page"
-            if h.get("highlighted_at"):
-                highlight_data["highlighted_at"] = h["highlighted_at"].isoformat()
+            # Build payload
+            readwise_highlights = []
+            for h in highlights:
+                highlight_data: dict = {
+                    "text": h["text"][:8191],
+                    "title": h["title"][:511],
+                    "author": h["author"][:1024],
+                    "category": "books",
+                    "source_type": "highlight_helper",
+                }
+                if h.get("note"):
+                    highlight_data["note"] = h["note"][:8191]
+                if h.get("page_number"):
+                    highlight_data["location"] = h["page_number"]
+                    highlight_data["location_type"] = "page"
+                if h.get("highlighted_at"):
+                    highlight_data["highlighted_at"] = h["highlighted_at"].isoformat()
 
-            readwise_highlights.append(highlight_data)
+                readwise_highlights.append(highlight_data)
 
-        try:
-            client = await self._get_client()
-            response = await client.post(
-                f"{self.BASE_URL}/highlights/",
-                json={"highlights": readwise_highlights},
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                # Count all modified highlights across all returned books
-                total_synced = 0
-                all_ids = []
-                for book_result in data:
-                    modified = book_result.get("modified_highlights", [])
-                    total_synced += len(modified)
-                    all_ids.extend(modified)
-
-                results = []
-                for i, rid in enumerate(all_ids + [None] * (len(highlights) - len(all_ids))):
-                    readwise_id = str(rid) if i < len(all_ids) else None
-                    results.append(ReadwiseSyncResult(success=True, readwise_id=readwise_id))
-                # Pad results if we got fewer IDs back
-                while len(results) < len(highlights):
-                    results.append(ReadwiseSyncResult(success=True))
-
-                add_span_attributes(
-                    readwise_synced_count=len(highlights),
-                    readwise_failed_count=0,
+            try:
+                client = await self._get_client()
+                response = await client.post(
+                    f"{self.BASE_URL}/highlights/",
+                    json={"highlights": readwise_highlights},
                 )
-                set_span_status(True)
-                return ReadwiseBatchResult(
-                    total=len(highlights),
-                    synced=len(highlights),  # Readwise dedupes, so we assume all sent = synced
-                    failed=0,
-                    results=results[: len(highlights)],
-                )
-            else:
-                error_msg = f"Readwise API error: {response.status_code}"
+
+                if response.status_code == 200:
+                    data = response.json()
+                    # Count all modified highlights across all returned books
+                    total_synced = 0
+                    all_ids = []
+                    for book_result in data:
+                        modified = book_result.get("modified_highlights", [])
+                        total_synced += len(modified)
+                        all_ids.extend(modified)
+
+                    results = []
+                    for i, rid in enumerate(all_ids + [None] * (len(highlights) - len(all_ids))):
+                        readwise_id = str(rid) if i < len(all_ids) else None
+                        results.append(ReadwiseSyncResult(success=True, readwise_id=readwise_id))
+                    # Pad results if we got fewer IDs back
+                    while len(results) < len(highlights):
+                        results.append(ReadwiseSyncResult(success=True))
+
+                    add_span_attributes(
+                        readwise_synced_count=len(highlights),
+                        readwise_failed_count=0,
+                    )
+                    set_span_status(True)
+                    return ReadwiseBatchResult(
+                        total=len(highlights),
+                        synced=len(highlights),  # Readwise dedupes, so we assume all sent = synced
+                        failed=0,
+                        results=results[: len(highlights)],
+                    )
+                else:
+                    error_msg = f"Readwise API error: {response.status_code}"
+                    results = [
+                        ReadwiseSyncResult(success=False, error=error_msg) for _ in highlights
+                    ]
+                    add_span_attributes(
+                        readwise_error=error_msg,
+                        readwise_synced_count=0,
+                        readwise_failed_count=len(highlights),
+                    )
+                    set_span_status(False, error_msg)
+                    return ReadwiseBatchResult(
+                        total=len(highlights),
+                        synced=0,
+                        failed=len(highlights),
+                        results=results,
+                    )
+            except httpx.RequestError as e:
+                error_msg = f"Network error: {str(e)}"
                 results = [ReadwiseSyncResult(success=False, error=error_msg) for _ in highlights]
                 add_span_attributes(
                     readwise_error=error_msg,
@@ -364,21 +381,6 @@ class ReadwiseService:
                     failed=len(highlights),
                     results=results,
                 )
-        except httpx.RequestError as e:
-            error_msg = f"Network error: {str(e)}"
-            results = [ReadwiseSyncResult(success=False, error=error_msg) for _ in highlights]
-            add_span_attributes(
-                readwise_error=error_msg,
-                readwise_synced_count=0,
-                readwise_failed_count=len(highlights),
-            )
-            set_span_status(False, error_msg)
-            return ReadwiseBatchResult(
-                total=len(highlights),
-                synced=0,
-                failed=len(highlights),
-                results=results,
-            )
 
 
 # Lazy initialization for optional service
