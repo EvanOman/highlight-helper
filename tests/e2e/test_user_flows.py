@@ -36,9 +36,20 @@ def server():
 
     yield "http://127.0.0.1:8765"
 
-    # Stop the server
-    server_process.send_signal(signal.SIGTERM)
-    server_process.wait(timeout=5)
+    # Stop the server gracefully with fallback to force kill
+    try:
+        server_process.send_signal(signal.SIGTERM)
+        server_process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        # Force kill if graceful shutdown fails
+        server_process.kill()
+        server_process.wait(timeout=2)
+    except Exception:
+        # Ensure process is terminated
+        try:
+            server_process.kill()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="module")
@@ -405,16 +416,16 @@ class TestDeleteOperations:
         # Verify highlight exists
         assert page.locator("text=Highlight to be deleted").is_visible()
 
-        # Accept the confirmation dialog
-        page.on("dialog", lambda dialog: dialog.accept())
+        # Find the delete button for the highlight (not the book delete button)
+        delete_button = page.locator("button:has-text('Delete'):not(:has-text('Book'))").first
 
-        # Delete the highlight - be more specific with the selector
-        delete_buttons = page.locator("button:has-text('Delete'):not(:has-text('Book'))")
-        if delete_buttons.count() > 0:
-            delete_buttons.first.click()
-            page.wait_for_load_state("networkidle")
-            # Wait a bit for the page to update
-            page.wait_for_timeout(500)
+        # Set up dialog handler and click in one operation
+        page.once("dialog", lambda dialog: dialog.accept())
+        delete_button.click()
+
+        # Wait for page to reload after delete
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(500)
 
         # Highlight should be gone - check that the specific text is no longer there
         assert not page.locator("text=Highlight to be deleted").is_visible()
@@ -437,12 +448,13 @@ class TestDeleteOperations:
         page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
-        # Accept the confirmation dialog
-        page.on("dialog", lambda dialog: dialog.accept())
-
-        # Delete the book
+        # Set up dialog handler and click in one operation
+        page.once("dialog", lambda dialog: dialog.accept())
         page.click("text=Delete Book")
-        page.wait_for_load_state("networkidle")
+
+        # Wait for redirect to home
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(500)
 
         # Should redirect to home
         assert page.url.endswith("/") or ":8765" in page.url
