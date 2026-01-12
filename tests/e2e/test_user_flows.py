@@ -417,26 +417,18 @@ class TestDeleteOperations:
         assert page.locator("text=Highlight to be deleted").is_visible()
 
         # Find the delete button for the highlight (not the book delete button)
-        delete_button = page.locator("form[action*='/delete'] button:has-text('Delete')").first
+        # The highlight delete is in a form with action /highlights/{id}/delete
+        delete_button = page.locator("form[action*='/highlights/'] button:has-text('Delete')").first
 
         # Set up dialog handler before triggering the click
-        def handle_dialog(dialog):
-            dialog.accept()
+        page.on("dialog", lambda d: d.accept())
 
-        page.on("dialog", handle_dialog)
+        # Click without waiting for navigation (dialog blocks default wait)
+        delete_button.click(no_wait_after=True)
 
-        # Click and wait for navigation using expect_navigation
-        with page.expect_navigation(timeout=10000):
-            delete_button.click()
+        # Wait for the highlight text to disappear (indicates delete succeeded)
+        page.wait_for_selector("text=Highlight to be deleted", state="hidden", timeout=10000)
 
-        # Remove the handler
-        page.remove_listener("dialog", handle_dialog)
-
-        # Wait for page to stabilize
-        page.wait_for_load_state("domcontentloaded")
-
-        # Highlight should be gone - check that the specific text is no longer there
-        assert not page.locator("text=Highlight to be deleted").is_visible()
         page.close()
 
     def test_delete_book(self, server, browser_context):
@@ -457,23 +449,13 @@ class TestDeleteOperations:
         page.wait_for_load_state("networkidle")
 
         # Set up dialog handler before triggering the click
-        def handle_dialog(dialog):
-            dialog.accept()
+        page.on("dialog", lambda d: d.accept())
 
-        page.on("dialog", handle_dialog)
+        # Click without waiting for navigation (dialog blocks default wait)
+        page.click("text=Delete Book", no_wait_after=True)
 
-        # Click and wait for navigation
-        with page.expect_navigation(timeout=10000):
-            page.click("text=Delete Book")
-
-        # Remove the handler
-        page.remove_listener("dialog", handle_dialog)
-
-        # Wait for page to stabilize
-        page.wait_for_load_state("domcontentloaded")
-
-        # Should redirect to home
-        assert page.url.endswith("/") or ":8765" in page.url
+        # Wait for redirect to home - check for home page content
+        page.wait_for_url("**/", timeout=10000)
 
         # Book should be gone from home page
         assert not page.locator("text=Book To Delete").is_visible()
