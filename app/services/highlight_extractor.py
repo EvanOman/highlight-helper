@@ -54,12 +54,8 @@ class ExtractedHighlight(BaseModel):
     confidence: str = Field(
         default="low", description="Confidence level: 'high', 'medium', or 'low'"
     )
-    page_number: str | None = Field(
-        default=None, description="Page number if visible in the image"
-    )
-    usage: TokenUsage | None = Field(
-        default=None, description="Token usage for this extraction"
-    )
+    page_number: str | None = Field(default=None, description="Page number if visible in the image")
+    usage: TokenUsage | None = Field(default=None, description="Token usage for this extraction")
 
 
 class HighlightExtractionSignature(dspy.Signature):
@@ -141,9 +137,7 @@ class HighlightExtractorService:
             if not usage_data:
                 return None
 
-            input_tokens = usage_data.get("prompt_tokens", 0) or usage_data.get(
-                "input_tokens", 0
-            )
+            input_tokens = usage_data.get("prompt_tokens", 0) or usage_data.get("input_tokens", 0)
             output_tokens = usage_data.get("completion_tokens", 0) or usage_data.get(
                 "output_tokens", 0
             )
