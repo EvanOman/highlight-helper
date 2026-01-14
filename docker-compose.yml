@@ -1,0 +1,53 @@
+# Docker Compose configuration for Highlight Helper
+# Production-ready with restart policies, health checks, and logging
+
+services:
+  highlight-helper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: highlight-helper
+
+    # Port mapping: host:container
+    # Default production port is 18742 for consistency
+    ports:
+      - "18742:8000"
+
+    # Volume mounts for persistent data
+    volumes:
+      # Database persistence
+      - ./data:/app/data
+      # SSL certificates (optional, for HTTPS)
+      - ./certs:/app/certs:ro
+
+    # Environment variables
+    env_file:
+      - .env
+
+    # Override database path for container
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/highlight_helper.db
+      - ENVIRONMENT=production
+
+    # Restart policy: always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+    # Logging configuration: send to journald for centralized logging
+    logging:
+      driver: journald
+      options:
+        tag: highlight-helper
+
+# Named volumes (alternative to bind mounts if preferred)
+# Uncomment to use Docker-managed volumes instead of bind mounts
+# volumes:
+#   highlight-data:
+#   highlight-certs:

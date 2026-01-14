@@ -1,0 +1,23 @@
+# Docker Compose overrides for local development
+# This file is automatically merged with docker-compose.yml
+# To run production config only: docker compose -f docker-compose.yml up
+
+services:
+  highlight-helper:
+    # Mount source code for live reloading during development
+    volumes:
+      - ./app:/app/app:ro
+      - ./static:/app/static:ro
+      - ./data:/app/data
+      - ./certs:/app/certs:ro
+
+    # Development environment
+    environment:
+      - ENVIRONMENT=development
+
+    # Use local logging for development (easier to read)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
