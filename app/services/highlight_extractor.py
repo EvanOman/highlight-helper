@@ -186,13 +186,12 @@ class HighlightExtractorService:
                 "extraction.instructions_length": len(instructions),
             },
         ) as span:
-            # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
-            jpeg_bytes = convert_to_jpeg(image_bytes)
-            image = dspy.Image(jpeg_bytes)
-
-            add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
-
             try:
+                # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
+                jpeg_bytes = convert_to_jpeg(image_bytes)
+                image = dspy.Image(jpeg_bytes)
+
+                add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
                 # Use dspy.context for thread-safe LM configuration with usage tracking
                 with dspy.context(lm=self._lm, track_usage=True):
                     # Use dspy.asyncify for async execution
