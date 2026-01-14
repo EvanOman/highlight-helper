@@ -390,6 +390,32 @@ class TestISBNExtractorService:
         assert result.confidence == "low"
         assert result.source == "unknown"
 
+    async def test_extract_isbn_image_parsing_error_fallback(self):
+        """Test that dspy.Image parsing errors return fallback response.
+
+        This test verifies the fix for the bug where dspy.Image() was called
+        outside the try/except block, causing unhandled exceptions when
+        image parsing failed. This is the same bug that was fixed in
+        highlight_extractor.py.
+        """
+        mock_lm = MagicMock()
+        service = ISBNExtractorService(lm=mock_lm)
+
+        # Make dspy.Image raise an exception (simulates invalid image data)
+        with patch(
+            "app.services.isbn_extractor.dspy.Image",
+            side_effect=Exception("Invalid image data"),
+        ):
+            result = await service.extract_isbn(
+                image_bytes=b"invalid image data",
+                filename="test.jpg",
+            )
+
+        # Should return fallback response, not raise an exception
+        assert result.isbn == ""
+        assert result.confidence == "low"
+        assert result.source == "unknown"
+
     def test_extracted_isbn_model(self):
         """Test ExtractedISBN Pydantic model."""
         # Test with all fields

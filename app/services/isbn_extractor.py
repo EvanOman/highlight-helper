@@ -118,11 +118,10 @@ class ISBNExtractorService:
         Returns:
             ExtractedISBN containing the extracted ISBN
         """
-        # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
-        jpeg_bytes = convert_to_jpeg(image_bytes)
-        image = dspy.Image(jpeg_bytes)
-
         try:
+            # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
+            jpeg_bytes = convert_to_jpeg(image_bytes)
+            image = dspy.Image(jpeg_bytes)
             # Use dspy.context for thread-safe LM configuration
             with dspy.context(lm=self._lm):
                 # Use dspy.asyncify for async execution
