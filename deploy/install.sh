@@ -82,9 +82,9 @@ install_service() {
     cd "${PROJECT_DIR}"
     docker compose build
 
-    # Copy service file
+    # Copy service file with project directory substituted
     log_info "Installing systemd service..."
-    cp "${SCRIPT_DIR}/${SERVICE_FILE}" /etc/systemd/system/
+    sed "s|__PROJECT_DIR__|${PROJECT_DIR}|g" "${SCRIPT_DIR}/${SERVICE_FILE}" > /etc/systemd/system/${SERVICE_FILE}
 
     # Reload systemd
     systemctl daemon-reload

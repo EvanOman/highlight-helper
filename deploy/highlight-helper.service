@@ -1,14 +1,10 @@
 # Highlight Helper systemd service
 # Manages the Docker Compose stack as a system service
 #
-# Installation:
-#   sudo cp deploy/highlight-helper.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable highlight-helper
-#   sudo systemctl start highlight-helper
+# Installation (use the install script - it sets the correct working directory):
+#   sudo ./deploy/install.sh install
 #
-# Or use the install script:
-#   ./deploy/install.sh
+# Manual installation is not recommended as __PROJECT_DIR__ must be substituted.
 
 [Unit]
 Description=Highlight Helper - Book highlight collection service
@@ -23,16 +19,15 @@ Type=oneshot
 RemainAfterExit=yes
 
 # Working directory where docker-compose.yml is located
-WorkingDirectory=/home/evan/dev/highlight_helper
+# NOTE: This path is updated by install.sh during installation
+WorkingDirectory=__PROJECT_DIR__
 
 # Use production config only (no override file)
 ExecStart=/usr/bin/docker compose -f docker-compose.yml up -d --remove-orphans
 ExecStop=/usr/bin/docker compose -f docker-compose.yml down
 
-# Restart behavior is handled by Docker's restart policy
-# But this ensures the compose stack is brought up on boot
-Restart=on-failure
-RestartSec=10
+# Note: Restart behavior is handled by Docker's restart policy (unless-stopped)
+# systemd only manages bringing the compose stack up on boot/start
 
 # Timeout settings
 TimeoutStartSec=120
