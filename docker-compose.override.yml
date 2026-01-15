@@ -1,0 +1,26 @@
+# Docker Compose overrides for local development
+# This file is automatically merged with docker-compose.yml
+# To run production config only: docker compose -f docker-compose.yml up
+
+services:
+  highlight-helper:
+    # Mount source code for live reloading during development
+    volumes:
+      - ./app:/app/app
+      - ./static:/app/static
+      - ./data:/app/data
+      - ./certs:/app/certs:ro
+
+    # Development environment
+    environment:
+      - ENVIRONMENT=development
+
+    # Override command to enable hot-reload
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+    # Use local logging for development (easier to read)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
