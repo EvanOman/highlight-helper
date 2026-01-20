@@ -8,6 +8,10 @@ services:
       dockerfile: Dockerfile
     container_name: highlight-helper
 
+    # Make host.docker.internal work on Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     # Port mapping: host:container
     # Default production port is 18742 for consistency
     ports:
@@ -28,6 +32,13 @@ services:
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./data/highlight_helper.db
       - ENVIRONMENT=production
+      # Root path for subpath deployment (e.g., /highlights via Tailscale Serve)
+      - ROOT_PATH=/highlights
+      # OpenTelemetry tracing - send to global Jaeger
+      - OTEL_ENABLED=true
+      - OTEL_EXPORTER=otlp
+      - OTEL_ENDPOINT=http://host.docker.internal:4317
+      - OTEL_SERVICE_NAME=highlight-helper
 
     # Restart policy: always restart unless explicitly stopped
     restart: unless-stopped

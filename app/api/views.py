@@ -34,6 +34,10 @@ from app.services.settings import get_settings_service
 router = APIRouter(tags=["views"])
 templates = Jinja2Templates(directory="app/templates")
 
+# Add base_path as a global for subpath deployments (e.g., /highlights via Tailscale Serve)
+settings = get_settings()
+templates.env.globals["base_path"] = settings.root_path
+
 
 @router.get("/", response_class=HTMLResponse)
 async def home(
@@ -208,7 +212,9 @@ async def create_book_form(
     await db.flush()
     await db.refresh(book)
 
-    return RedirectResponse(url=f"/books/{book.id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=f"{settings.root_path}/books/{book.id}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.get("/books/{book_id}", response_class=HTMLResponse)
@@ -373,7 +379,9 @@ async def create_highlight_form(
             api_token=token,
         )
 
-    return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=f"{settings.root_path}/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.post("/books/{book_id}/delete")
@@ -391,7 +399,7 @@ async def delete_book_form(
 
     await db.delete(book)
 
-    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=f"{settings.root_path}/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/highlights/{highlight_id}/delete")
@@ -410,7 +418,9 @@ async def delete_highlight_form(
     book_id = highlight.book_id
     await db.delete(highlight)
 
-    return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=f"{settings.root_path}/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.get("/books/{book_id}/highlights/{highlight_id}/edit", response_class=HTMLResponse)
@@ -493,9 +503,9 @@ async def update_highlight_form(
 
     # If highlight was previously synced, try to update on Readwise
     if highlight.readwise_id:
-        settings = get_settings()
-        if settings.readwise_api_token:
-            service = ReadwiseService(settings.readwise_api_token)
+        app_settings = get_settings()
+        if app_settings.readwise_api_token:
+            service = ReadwiseService(app_settings.readwise_api_token)
             try:
                 result = await service.update_highlight(
                     readwise_id=highlight.readwise_id,
@@ -517,7 +527,9 @@ async def update_highlight_form(
             # No token configured, mark as needing re-sync
             highlight.synced_at = None
 
-    return RedirectResponse(url=f"/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url=f"{settings.root_path}/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.get("/highlights", response_class=HTMLResponse)

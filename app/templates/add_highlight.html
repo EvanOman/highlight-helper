@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <a href="/books/{{ book.id }}" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
+    <a href="{{ base_path }}/books/{{ book.id }}" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
@@ -38,7 +38,7 @@
     </button>
     <div id="extract-section" class="{{ 'hidden' if extracted_text else '' }}">
         <div class="px-4 pb-4">
-            <form id="extract-form" action="/books/{{ book.id }}/extract" method="post" enctype="multipart/form-data" class="space-y-4">
+            <form id="extract-form" action="{{ base_path }}/books/{{ book.id }}/extract" method="post" enctype="multipart/form-data" class="space-y-4">
                 <div>
                     <label for="image" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Photo of the page</label>
                     <input type="file"
@@ -104,7 +104,7 @@
     </button>
     <div id="manual-section">
         <div class="px-4 pb-4">
-            <form action="/books/{{ book.id }}/highlights/create" method="post" class="space-y-4">
+            <form action="{{ base_path }}/books/{{ book.id }}/highlights/create" method="post" class="space-y-4">
                 <div>
                     <label for="text" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Highlight text *</label>
                     <textarea id="text"

@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <a href="/" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
+    <a href="{{ base_path }}/" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
@@ -37,7 +37,7 @@
     </button>
     <div id="scan-section" class="{{ 'hidden' if extracted_isbn else '' }}">
         <div class="px-4 pb-4">
-            <form id="scan-form" action="/books/scan-isbn" method="post" enctype="multipart/form-data" class="space-y-4">
+            <form id="scan-form" action="{{ base_path }}/books/scan-isbn" method="post" enctype="multipart/form-data" class="space-y-4">
                 <div>
                     <label for="image" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Photo of cover or barcode</label>
                     <input type="file"
@@ -104,7 +104,7 @@
     </button>
     <div id="search-section">
         <div class="px-4 pb-4">
-            <form action="/books/search" method="post" class="flex gap-2">
+            <form action="{{ base_path }}/books/search" method="post" class="flex gap-2">
                 <input type="text"
                        name="query"
                        value="{{ query }}"
@@ -126,7 +126,7 @@
     {% if search_results %}
     <div class="space-y-3">
         {% for result in search_results %}
-        <form action="/books/create" method="post" class="border-b border-gray-100 dark:border-gray-700 last:border-b-0 pb-3 last:pb-0">
+        <form action="{{ base_path }}/books/create" method="post" class="border-b border-gray-100 dark:border-gray-700 last:border-b-0 pb-3 last:pb-0">
             <input type="hidden" name="title" value="{{ result.title }}">
             <input type="hidden" name="author" value="{{ result.author }}">
             <input type="hidden" name="isbn" value="{{ result.isbn or '' }}">
@@ -184,7 +184,7 @@
     </button>
     <div id="manual-section" class="hidden">
         <div class="px-4 pb-4">
-            <form action="/books/create" method="post" class="space-y-4">
+            <form action="{{ base_path }}/books/create" method="post" class="space-y-4">
                 <div>
                     <label for="title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
                     <input type="text"

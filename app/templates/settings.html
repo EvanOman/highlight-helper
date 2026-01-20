@@ -162,7 +162,7 @@ document.getElementById('validate-token-btn').addEventListener('click', async fu
     // If there's a new token, save it first
     const newToken = tokenInput.value.trim();
     if (newToken) {
-        await fetch('/api/settings', {
+        await fetch('{{ base_path }}/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ readwise_token: newToken })
@@ -174,7 +174,7 @@ document.getElementById('validate-token-btn').addEventListener('click', async fu
     statusEl.classList.add('hidden');
 
     try {
-        const response = await fetch('/api/settings/readwise/validate', { method: 'POST' });
+        const response = await fetch('{{ base_path }}/api/settings/readwise/validate', { method: 'POST' });
         const data = await response.json();
 
         statusEl.classList.remove('hidden');
@@ -216,7 +216,7 @@ document.getElementById('settings-form').addEventListener('submit', async functi
     }
 
     try {
-        const response = await fetch('/api/settings', {
+        const response = await fetch('{{ base_path }}/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -273,7 +273,7 @@ async function syncAllHighlights() {
     btnText.textContent = 'Syncing...';
 
     try {
-        const response = await fetch('/api/settings/readwise/sync-all', {
+        const response = await fetch('{{ base_path }}/api/settings/readwise/sync-all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });

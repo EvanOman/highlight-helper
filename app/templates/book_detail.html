@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <a href="/" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
+    <a href="{{ base_path }}/" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
@@ -37,14 +37,14 @@
             {% endif %}
 
             <div class="flex flex-wrap gap-2 mt-auto">
-                <a href="/books/{{ book.id }}/add-highlight"
+                <a href="{{ base_path }}/books/{{ book.id }}/add-highlight"
                    class="bg-primary-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-primary-700 transition inline-flex items-center gap-1">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                     </svg>
                     Add Highlight
                 </a>
-                <form action="/books/{{ book.id }}/delete" method="post"
+                <form action="{{ base_path }}/books/{{ book.id }}/delete" method="post"
                       onsubmit="return confirm('Delete this book and all its highlights?');">
                     <button type="submit"
                             class="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition">
@@ -110,11 +110,11 @@
                     <span id="sync-btn-text-{{ highlight.id }}">Sync</span>
                 </button>
                 {% endif %}
-                <a href="/books/{{ book.id }}/highlights/{{ highlight.id }}/edit"
+                <a href="{{ base_path }}/books/{{ book.id }}/highlights/{{ highlight.id }}/edit"
                    class="text-primary-600 hover:text-primary-700">
                     Edit
                 </a>
-                <form action="/highlights/{{ highlight.id }}/delete" method="post"
+                <form action="{{ base_path }}/highlights/{{ highlight.id }}/delete" method="post"
                       onsubmit="return confirm('Delete this highlight?');">
                     <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
                         Delete
@@ -132,7 +132,7 @@
     </svg>
     <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No highlights yet</h3>
     <p class="text-gray-600 dark:text-gray-400 mb-4">Add your first highlight from this book.</p>
-    <a href="/books/{{ book.id }}/add-highlight"
+    <a href="{{ base_path }}/books/{{ book.id }}/add-highlight"
        class="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
@@ -151,7 +151,7 @@ async function syncHighlightToReadwise(highlightId) {
     btnText.textContent = 'Syncing...';
 
     try {
-        const response = await fetch(`/api/readwise/sync/${highlightId}`, {
+        const response = await fetch(`{{ base_path }}/api/readwise/sync/${highlightId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

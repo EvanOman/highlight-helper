@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # Root path for subpath deployment (e.g., "/highlights" when behind Tailscale Serve)
+    root_path: str = ""
+
     # OpenTelemetry
     otel_enabled: bool = False
     otel_service_name: str = "highlight-helper"

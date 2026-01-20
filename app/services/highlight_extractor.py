@@ -184,21 +184,49 @@ class HighlightExtractorService:
                 "extraction.filename": filename,
                 "extraction.image_size_bytes": len(image_bytes),
                 "extraction.instructions_length": len(instructions),
+                "extraction.instructions": instructions[:200],  # Truncate for span
             },
         ) as span:
             try:
                 # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
-                jpeg_bytes = convert_to_jpeg(image_bytes)
-                image = dspy.Image(jpeg_bytes)
+                with create_span("image_conversion", {"input_size": len(image_bytes)}) as conv_span:
+                    jpeg_bytes = convert_to_jpeg(image_bytes)
+                    conv_span.set_attribute("output_size", len(jpeg_bytes))
+                    conv_span.set_attribute(
+                        "size_reduction_pct",
+                        round((1 - len(jpeg_bytes) / len(image_bytes)) * 100, 1)
+                        if image_bytes
+                        else 0,
+                    )
+
+                # Parse image for DSPy
+                with create_span("dspy_image_parse", {"jpeg_size": len(jpeg_bytes)}):
+                    image = dspy.Image(jpeg_bytes)
 
                 add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
-                # Use dspy.context for thread-safe LM configuration with usage tracking
-                with dspy.context(lm=self._lm, track_usage=True):
-                    # Use dspy.asyncify for async execution
-                    async_extract = dspy.asyncify(self._extractor)
-                    result = await async_extract(image=image, user_instructions=instructions)
 
-                    # Extract usage info
+                # Call the LLM via DSPy
+                with create_span(
+                    "dspy_llm_call",
+                    {
+                        "model": self.MODEL_NAME,
+                        "instructions_preview": instructions[:100],
+                    },
+                ) as llm_span:
+                    # Use dspy.context for thread-safe LM configuration with usage tracking
+                    with dspy.context(lm=self._lm, track_usage=True):
+                        # Use dspy.asyncify for async execution
+                        async_extract = dspy.asyncify(self._extractor)
+                        result = await async_extract(image=image, user_instructions=instructions)
+
+                    # Add result preview to LLM span
+                    llm_span.set_attribute(
+                        "result_text_preview", result.text[:200] if result.text else ""
+                    )
+                    llm_span.set_attribute("result_confidence", result.confidence)
+
+                # Extract usage info (outside LLM span)
+                with create_span("extract_usage_info") as usage_span:
                     usage = self._extract_usage_from_history()
                     if usage:
                         result.usage = usage
@@ -207,6 +235,10 @@ class HighlightExtractorService:
                         )
 
                         # Add usage to span attributes
+                        usage_span.set_attribute("input_tokens", usage.input_tokens)
+                        usage_span.set_attribute("output_tokens", usage.output_tokens)
+                        usage_span.set_attribute("total_tokens", usage.total_tokens)
+                        usage_span.set_attribute("cost_usd", float(usage.cost_usd))
                         add_span_attributes(
                             extraction_input_tokens=usage.input_tokens,
                             extraction_output_tokens=usage.output_tokens,
@@ -216,26 +248,27 @@ class HighlightExtractorService:
 
                         # Store usage in database if session provided
                         if db is not None:
-                            api_usage = APIUsage(
-                                model=usage.model,
-                                operation="highlight_extraction",
-                                input_tokens=usage.input_tokens,
-                                output_tokens=usage.output_tokens,
-                                total_tokens=usage.total_tokens,
-                                cost_usd=usage.cost_usd,
-                                highlight_id=highlight_id,
-                            )
-                            db.add(api_usage)
-                            await db.flush()  # Let request handler manage commit
+                            with create_span("store_api_usage"):
+                                api_usage = APIUsage(
+                                    model=usage.model,
+                                    operation="highlight_extraction",
+                                    input_tokens=usage.input_tokens,
+                                    output_tokens=usage.output_tokens,
+                                    total_tokens=usage.total_tokens,
+                                    cost_usd=usage.cost_usd,
+                                    highlight_id=highlight_id,
+                                )
+                                db.add(api_usage)
+                                await db.flush()  # Let request handler manage commit
 
-                    # Add result attributes to span
-                    add_span_attributes(
-                        extraction_confidence=result.confidence,
-                        extraction_text_length=len(result.text),
-                        extraction_has_page_number=result.page_number is not None,
-                    )
-                    set_span_status(True)
-                    return result
+                # Add result attributes to parent span
+                add_span_attributes(
+                    extraction_confidence=result.confidence,
+                    extraction_text_length=len(result.text),
+                    extraction_has_page_number=result.page_number is not None,
+                )
+                set_span_status(True)
+                return result
             except Exception as e:
                 logger.error(f"Extraction failed: {e}")
                 span.record_exception(e)

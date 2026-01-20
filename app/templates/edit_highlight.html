@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <a href="/books/{{ book.id }}" class="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm">
+    <a href="{{ base_path }}/books/{{ book.id }}" class="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
@@ -43,7 +43,7 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200">
     <div class="p-4">
         <h2 class="font-semibold text-gray-900 mb-4">Highlight Details</h2>
-        <form action="/books/{{ book.id }}/highlights/{{ highlight.id }}/update" method="post" class="space-y-4">
+        <form action="{{ base_path }}/books/{{ book.id }}/highlights/{{ highlight.id }}/update" method="post" class="space-y-4">
             <div>
                 <label for="text" class="block text-sm font-medium text-gray-700 mb-1">Highlight text *</label>
                 <textarea id="text"
@@ -75,7 +75,7 @@
                         class="flex-1 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
                     Save Changes
                 </button>
-                <a href="/books/{{ book.id }}"
+                <a href="{{ base_path }}/books/{{ book.id }}"
                    class="px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition">
                     Cancel
                 </a>

@@ -18,7 +18,7 @@
         {% endif %}
 
         <div class="flex flex-wrap items-center gap-2 text-sm">
-            <a href="/books/{{ highlight.book_id }}"
+            <a href="{{ base_path }}/books/{{ highlight.book_id }}"
                class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
                 {{ highlight.book_title }}
             </a>
@@ -61,11 +61,11 @@
                     <span id="sync-btn-text-{{ highlight.id }}">Sync</span>
                 </button>
                 {% endif %}
-                <a href="/books/{{ highlight.book_id }}/highlights/{{ highlight.id }}/edit"
+                <a href="{{ base_path }}/books/{{ highlight.book_id }}/highlights/{{ highlight.id }}/edit"
                    class="text-primary-600 hover:text-primary-700">
                     Edit
                 </a>
-                <form action="/highlights/{{ highlight.id }}/delete" method="post"
+                <form action="{{ base_path }}/highlights/{{ highlight.id }}/delete" method="post"
                       onsubmit="return confirm('Delete this highlight?');">
                     <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
                         Delete
@@ -83,7 +83,7 @@
     </svg>
     <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No highlights yet</h2>
     <p class="text-gray-600 dark:text-gray-400 mb-4">Add a book and start collecting highlights.</p>
-    <a href="/books/add"
+    <a href="{{ base_path }}/books/add"
        class="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
@@ -102,7 +102,7 @@ async function syncHighlightToReadwise(highlightId) {
     btnText.textContent = 'Syncing...';
 
     try {
-        const response = await fetch(`/api/readwise/sync/${highlightId}`, {
+        const response = await fetch(`{{ base_path }}/api/readwise/sync/${highlightId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

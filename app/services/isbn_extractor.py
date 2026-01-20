@@ -1,12 +1,16 @@
 """ISBN extraction service using DSPy with OpenAI Vision API."""
 
 import io
+import logging
 
 import dspy
 from PIL import Image
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+from app.core.telemetry import add_span_attributes, create_span, set_span_status
+
+logger = logging.getLogger(__name__)
 
 
 def convert_to_jpeg(image_bytes: bytes) -> bytes:
@@ -118,28 +122,66 @@ class ISBNExtractorService:
         Returns:
             ExtractedISBN containing the extracted ISBN
         """
-        try:
-            # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
-            jpeg_bytes = convert_to_jpeg(image_bytes)
-            image = dspy.Image(jpeg_bytes)
-            # Use dspy.context for thread-safe LM configuration
-            with dspy.context(lm=self._lm):
-                # Use dspy.asyncify for async execution
-                async_extract = dspy.asyncify(self._extractor)
-                result = await async_extract(image=image)
+        with create_span(
+            "isbn_extraction",
+            {
+                "extraction.filename": filename,
+                "extraction.image_size_bytes": len(image_bytes),
+            },
+        ) as span:
+            try:
+                # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
+                with create_span("image_conversion", {"input_size": len(image_bytes)}) as conv_span:
+                    jpeg_bytes = convert_to_jpeg(image_bytes)
+                    conv_span.set_attribute("output_size", len(jpeg_bytes))
+
+                # Parse image for DSPy
+                with create_span("dspy_image_parse", {"jpeg_size": len(jpeg_bytes)}):
+                    image = dspy.Image(jpeg_bytes)
+
+                add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
+
+                # Call the LLM via DSPy
+                with create_span("dspy_llm_call", {"model": "openai/gpt-5.2"}) as llm_span:
+                    # Use dspy.context for thread-safe LM configuration
+                    with dspy.context(lm=self._lm):
+                        # Use dspy.asyncify for async execution
+                        async_extract = dspy.asyncify(self._extractor)
+                        result = await async_extract(image=image)
+
+                    llm_span.set_attribute("result_isbn", result.isbn or "")
+                    llm_span.set_attribute("result_confidence", result.confidence)
+                    llm_span.set_attribute("result_source", result.source)
 
                 # Clean the ISBN (remove any remaining non-digits)
                 if result.isbn:
+                    original_isbn = result.isbn
                     result.isbn = "".join(c for c in result.isbn if c.isdigit())
+                    if original_isbn != result.isbn:
+                        add_span_attributes(isbn_cleaned=True, isbn_original=original_isbn)
 
+                # Add final result to span
+                add_span_attributes(
+                    extraction_isbn=result.isbn or "",
+                    extraction_confidence=result.confidence,
+                    extraction_source=result.source,
+                )
+                set_span_status(True)
+                logger.info(
+                    f"ISBN extraction: {result.isbn or 'none'} (confidence: {result.confidence})"
+                )
                 return result
-        except Exception:
-            # Fallback for errors
-            return ExtractedISBN(
-                isbn="",
-                confidence="low",
-                source="unknown",
-            )
+
+            except Exception as e:
+                logger.error(f"ISBN extraction failed: {e}")
+                span.record_exception(e)
+                set_span_status(False, str(e))
+                # Fallback for errors
+                return ExtractedISBN(
+                    isbn="",
+                    confidence="low",
+                    source="unknown",
+                )
 
 
 # Lazy initialization to avoid configuration issues at import time
