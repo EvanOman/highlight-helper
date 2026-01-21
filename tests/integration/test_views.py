@@ -224,7 +224,7 @@ class TestAllHighlightsView:
 
     async def test_all_highlights_empty(self, client: AsyncClient):
         """Test all highlights page with no highlights."""
-        response = await client.get("/highlights")
+        response = await client.get("/highlights/")
         assert response.status_code == 200
         assert "No highlights yet" in response.text
 
@@ -232,7 +232,7 @@ class TestAllHighlightsView:
         self, client: AsyncClient, sample_book, sample_highlight
     ):
         """Test all highlights page with data."""
-        response = await client.get("/highlights")
+        response = await client.get("/highlights/")
         assert response.status_code == 200
         assert sample_highlight.text in response.text
         assert sample_book.title in response.text
@@ -241,7 +241,7 @@ class TestAllHighlightsView:
         self, client: AsyncClient, sample_book, sample_highlight
     ):
         """Test that sync button appears for unsynced highlights."""
-        response = await client.get("/highlights")
+        response = await client.get("/highlights/")
         assert response.status_code == 200
         # Check for sync button (unsynced highlight)
         assert f"sync-btn-{sample_highlight.id}" in response.text

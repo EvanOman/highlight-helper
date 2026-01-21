@@ -532,7 +532,7 @@ async def update_highlight_form(
     )
 
 
-@router.get("/highlights", response_class=HTMLResponse)
+@router.get("/highlights/", response_class=HTMLResponse)
 async def all_highlights(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -566,7 +566,7 @@ async def all_highlights(
     )
 
 
-@router.get("/settings", response_class=HTMLResponse)
+@router.get("/settings/", response_class=HTMLResponse)
 async def settings_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
