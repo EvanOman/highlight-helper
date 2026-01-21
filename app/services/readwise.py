@@ -1,12 +1,17 @@
 """Readwise integration service for syncing highlights."""
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import httpx
+from readwise_sdk import AsyncReadwiseClient
+from readwise_sdk.contrib import AsyncHighlightPusher, SimpleHighlight
+from readwise_sdk.v2 import BookCategory
 
 from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,9 +34,7 @@ class ReadwiseBatchResult:
 
 
 class ReadwiseService:
-    """Service for syncing highlights to Readwise."""
-
-    BASE_URL = "https://readwise.io/api/v2"
+    """Service for syncing highlights to Readwise using the readwise-plus SDK."""
 
     def __init__(self, api_token: str | None = None) -> None:
         """Initialize the service.
@@ -43,30 +46,15 @@ class ReadwiseService:
             settings = get_settings()
             api_token = settings.readwise_api_token
         self._api_token = api_token
-        self._client: httpx.AsyncClient | None = None
 
     @property
     def is_configured(self) -> bool:
         """Check if Readwise is configured with an API token."""
         return bool(self._api_token)
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client."""
-        if self._client is None:
-            self._client = httpx.AsyncClient(
-                timeout=30.0,
-                headers={
-                    "Authorization": f"Token {self._api_token}",
-                    "Content-Type": "application/json",
-                },
-            )
-        return self._client
-
     async def close(self) -> None:
-        """Close the HTTP client."""
-        if self._client is not None:
-            await self._client.aclose()
-            self._client = None
+        """Close the service (no-op, SDK handles cleanup via context managers)."""
+        pass
 
     async def validate_token(self) -> bool:
         """Validate the Readwise API token.
@@ -81,16 +69,15 @@ class ReadwiseService:
                 return False
 
             try:
-                client = await self._get_client()
-                response = await client.get(f"{self.BASE_URL}/auth/")
-                is_valid = response.status_code == 204
+                async with AsyncReadwiseClient(api_key=self._api_token) as client:
+                    is_valid = await client.validate_token()
                 add_span_attributes(
                     readwise_token_configured=True,
                     readwise_token_valid=is_valid,
                 )
                 set_span_status(True)
                 return is_valid
-            except httpx.RequestError as e:
+            except Exception as e:
                 add_span_attributes(readwise_error=str(e))
                 set_span_status(False, str(e))
                 return False
@@ -133,56 +120,43 @@ class ReadwiseService:
                     error="Readwise API token not configured",
                 )
 
-            highlight_data: dict = {
-                "text": text[:8191],  # Readwise max length
-                "title": title[:511],  # Readwise max length
-                "author": author[:1024],  # Readwise max length
-                "category": "books",
-                "source_type": "highlight_helper",
-            }
-
-            if note:
-                highlight_data["note"] = note[:8191]
-
-            if page_number:
-                highlight_data["location"] = page_number
-                highlight_data["location_type"] = "page"
-
-            if highlighted_at:
-                highlight_data["highlighted_at"] = highlighted_at.isoformat()
-
             try:
-                client = await self._get_client()
-                response = await client.post(
-                    f"{self.BASE_URL}/highlights/",
-                    json={"highlights": [highlight_data]},
-                )
+                async with AsyncReadwiseClient(api_key=self._api_token) as client:
+                    pusher = AsyncHighlightPusher(client)
 
-                if response.status_code == 200:
-                    data = response.json()
-                    # Response contains array of modified books with their highlights
-                    if data and len(data) > 0:
-                        # Get the first book's modified highlights
-                        modified_highlights = data[0].get("modified_highlights", [])
-                        if modified_highlights:
-                            add_span_attributes(readwise_highlight_id=str(modified_highlights[0]))
-                            set_span_status(True)
-                            return ReadwiseSyncResult(
-                                success=True,
-                                readwise_id=str(modified_highlights[0]),
-                            )
-                    set_span_status(True)
-                    return ReadwiseSyncResult(success=True)
-                else:
-                    error = f"Readwise API error: {response.status_code} - {response.text}"
-                    add_span_attributes(readwise_error=error)
-                    set_span_status(False, error)
-                    return ReadwiseSyncResult(
-                        success=False,
-                        error=error,
+                    # Convert page_number to int if provided
+                    location = int(page_number) if page_number and page_number.isdigit() else None
+
+                    result = await pusher.push(
+                        text=text[:8191],  # Readwise max length
+                        title=title[:511],  # Readwise max length
+                        author=author[:1024],  # Readwise max length
+                        category=BookCategory.BOOKS,
+                        source_type="highlight_helper",
+                        note=note[:8191] if note else None,
+                        location=location,
+                        highlighted_at=highlighted_at,
                     )
-            except httpx.RequestError as e:
-                error = f"Network error: {str(e)}"
+
+                    if result.success:
+                        readwise_id = str(result.highlight_id) if result.highlight_id else None
+                        if readwise_id:
+                            add_span_attributes(readwise_highlight_id=readwise_id)
+                        set_span_status(True)
+                        return ReadwiseSyncResult(
+                            success=True,
+                            readwise_id=readwise_id,
+                        )
+                    else:
+                        error = result.error or "Unknown error"
+                        add_span_attributes(readwise_error=error)
+                        set_span_status(False, error)
+                        return ReadwiseSyncResult(
+                            success=False,
+                            error=error,
+                        )
+            except Exception as e:
+                error = f"Error syncing to Readwise: {e}"
                 add_span_attributes(readwise_error=error)
                 set_span_status(False, error)
                 return ReadwiseSyncResult(
@@ -199,8 +173,6 @@ class ReadwiseService:
     ) -> ReadwiseSyncResult:
         """Update an existing highlight on Readwise.
 
-        Uses PATCH /api/v2/highlights/{id}/ to update the highlight.
-
         Args:
             readwise_id: The Readwise highlight ID to update.
             text: Updated highlight text (optional).
@@ -216,43 +188,43 @@ class ReadwiseService:
                 error="Readwise API token not configured",
             )
 
-        # Build payload with only provided fields
-        payload: dict = {}
+        # Build update kwargs
+        update_kwargs: dict = {}
         if text is not None:
-            payload["text"] = text[:8191]  # Readwise max length
+            update_kwargs["text"] = text[:8191]
         if note is not None:
-            payload["note"] = note[:8191] if note else ""
-        if page_number is not None:
-            payload["location"] = page_number
-            payload["location_type"] = "page"
+            update_kwargs["note"] = note[:8191] if note else ""
+        if page_number is not None and page_number.isdigit():
+            update_kwargs["location"] = int(page_number)
 
-        if not payload:
+        if not update_kwargs:
             return ReadwiseSyncResult(
                 success=False,
                 error="No fields to update",
             )
 
         try:
-            client = await self._get_client()
-            response = await client.patch(
-                f"{self.BASE_URL}/highlights/{readwise_id}/",
-                json=payload,
-            )
+            async with AsyncReadwiseClient(api_key=self._api_token) as client:
+                pusher = AsyncHighlightPusher(client)
+                result = await pusher.update(
+                    highlight_id=int(readwise_id),
+                    **update_kwargs,
+                )
 
-            if response.status_code == 200:
-                return ReadwiseSyncResult(
-                    success=True,
-                    readwise_id=readwise_id,
-                )
-            else:
-                return ReadwiseSyncResult(
-                    success=False,
-                    error=f"Readwise API error: {response.status_code} - {response.text}",
-                )
-        except httpx.RequestError as e:
+                if result.success:
+                    return ReadwiseSyncResult(
+                        success=True,
+                        readwise_id=readwise_id,
+                    )
+                else:
+                    return ReadwiseSyncResult(
+                        success=False,
+                        error=result.error or "Update failed",
+                    )
+        except Exception as e:
             return ReadwiseSyncResult(
                 success=False,
-                error=f"Network error: {str(e)}",
+                error=f"Error updating highlight: {e}",
             )
 
     async def send_highlights(
@@ -293,81 +265,66 @@ class ReadwiseService:
                 set_span_status(True)
                 return ReadwiseBatchResult(total=0, synced=0, failed=0, results=[])
 
-            # Build payload
-            readwise_highlights = []
-            for h in highlights:
-                highlight_data: dict = {
-                    "text": h["text"][:8191],
-                    "title": h["title"][:511],
-                    "author": h["author"][:1024],
-                    "category": "books",
-                    "source_type": "highlight_helper",
-                }
-                if h.get("note"):
-                    highlight_data["note"] = h["note"][:8191]
-                if h.get("page_number"):
-                    highlight_data["location"] = h["page_number"]
-                    highlight_data["location_type"] = "page"
-                if h.get("highlighted_at"):
-                    highlight_data["highlighted_at"] = h["highlighted_at"].isoformat()
-
-                readwise_highlights.append(highlight_data)
-
             try:
-                client = await self._get_client()
-                response = await client.post(
-                    f"{self.BASE_URL}/highlights/",
-                    json={"highlights": readwise_highlights},
-                )
+                async with AsyncReadwiseClient(api_key=self._api_token) as client:
+                    pusher = AsyncHighlightPusher(client)
 
-                if response.status_code == 200:
-                    data = response.json()
-                    # Count all modified highlights across all returned books
-                    total_synced = 0
-                    all_ids = []
-                    for book_result in data:
-                        modified = book_result.get("modified_highlights", [])
-                        total_synced += len(modified)
-                        all_ids.extend(modified)
+                    # Convert to SimpleHighlight objects
+                    simple_highlights = []
+                    for h in highlights:
+                        location = None
+                        if h.get("page_number"):
+                            try:
+                                location = int(h["page_number"])
+                            except (ValueError, TypeError):
+                                pass
 
-                    results = []
-                    for i, rid in enumerate(all_ids + [None] * (len(highlights) - len(all_ids))):
-                        readwise_id = str(rid) if i < len(all_ids) else None
-                        results.append(ReadwiseSyncResult(success=True, readwise_id=readwise_id))
-                    # Pad results if we got fewer IDs back
-                    while len(results) < len(highlights):
-                        results.append(ReadwiseSyncResult(success=True))
+                        simple_highlights.append(
+                            SimpleHighlight(
+                                text=h["text"][:8191],
+                                title=h["title"][:511],
+                                author=h.get("author", "")[:1024],
+                                category=BookCategory.BOOKS,
+                                source_type="highlight_helper",
+                                note=h.get("note", "")[:8191] if h.get("note") else None,
+                                location=location,
+                                location_type="page" if location else None,
+                                highlighted_at=h.get("highlighted_at"),
+                            )
+                        )
+
+                    results = await pusher.push_batch(simple_highlights)
+
+                    # Convert results
+                    sync_results = []
+                    synced = 0
+                    failed = 0
+                    for result in results:
+                        if result.success:
+                            synced += 1
+                            readwise_id = str(result.highlight_id) if result.highlight_id else None
+                            sync_results.append(
+                                ReadwiseSyncResult(success=True, readwise_id=readwise_id)
+                            )
+                        else:
+                            failed += 1
+                            sync_results.append(
+                                ReadwiseSyncResult(success=False, error=result.error)
+                            )
 
                     add_span_attributes(
-                        readwise_synced_count=len(highlights),
-                        readwise_failed_count=0,
+                        readwise_synced_count=synced,
+                        readwise_failed_count=failed,
                     )
                     set_span_status(True)
                     return ReadwiseBatchResult(
                         total=len(highlights),
-                        synced=len(highlights),  # Readwise dedupes, so we assume all sent = synced
-                        failed=0,
-                        results=results[: len(highlights)],
+                        synced=synced,
+                        failed=failed,
+                        results=sync_results,
                     )
-                else:
-                    error_msg = f"Readwise API error: {response.status_code}"
-                    results = [
-                        ReadwiseSyncResult(success=False, error=error_msg) for _ in highlights
-                    ]
-                    add_span_attributes(
-                        readwise_error=error_msg,
-                        readwise_synced_count=0,
-                        readwise_failed_count=len(highlights),
-                    )
-                    set_span_status(False, error_msg)
-                    return ReadwiseBatchResult(
-                        total=len(highlights),
-                        synced=0,
-                        failed=len(highlights),
-                        results=results,
-                    )
-            except httpx.RequestError as e:
-                error_msg = f"Network error: {str(e)}"
+            except Exception as e:
+                error_msg = f"Error syncing batch: {e}"
                 results = [ReadwiseSyncResult(success=False, error=error_msg) for _ in highlights]
                 add_span_attributes(
                     readwise_error=error_msg,
@@ -423,12 +380,8 @@ async def sync_highlight_background(
         page_number: Optional page number.
         created_at: When the highlight was created.
     """
-    import logging
-
     from app.core.database import get_async_session
     from app.models.highlight import Highlight
-
-    logger = logging.getLogger(__name__)
 
     service = _get_service()
     if not service.is_configured:
@@ -458,7 +411,7 @@ async def sync_highlight_background(
 
                 if highlight:
                     highlight.readwise_id = result.readwise_id
-                    highlight.synced_at = datetime.now(tz=timezone.utc)
+                    highlight.synced_at = datetime.now(tz=UTC)
                     highlight.sync_status = SyncStatus.SYNCED
                     logger.info(f"Auto-synced highlight {highlight_id} to Readwise")
         else:
@@ -493,12 +446,8 @@ async def sync_highlight_background_with_token(
         created_at: When the highlight was created.
         api_token: The Readwise API token.
     """
-    import logging
-
     from app.core.database import get_async_session
     from app.models.highlight import Highlight
-
-    logger = logging.getLogger(__name__)
 
     service = ReadwiseService(api_token=api_token)
 
@@ -525,7 +474,7 @@ async def sync_highlight_background_with_token(
 
                 if highlight:
                     highlight.readwise_id = result.readwise_id
-                    highlight.synced_at = datetime.now(tz=timezone.utc)
+                    highlight.synced_at = datetime.now(tz=UTC)
                     highlight.sync_status = SyncStatus.SYNCED
                     logger.info(f"Auto-synced highlight {highlight_id} to Readwise")
         else:
@@ -533,5 +482,3 @@ async def sync_highlight_background_with_token(
 
     except Exception as e:
         logger.error(f"Error during auto-sync of highlight {highlight_id}: {e}")
-    finally:
-        await service.close()

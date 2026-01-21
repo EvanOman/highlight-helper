@@ -1,5 +1,7 @@
 """Web views for HTML pages."""
 
+from datetime import UTC
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -474,7 +476,7 @@ async def update_highlight_form(
     db: AsyncSession = Depends(get_db),
 ):
     """Update an existing highlight from form submission."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.services.readwise import ReadwiseService
 
@@ -514,7 +516,7 @@ async def update_highlight_form(
                     page_number=page_number if page_number else None,
                 )
                 if result.success:
-                    highlight.synced_at = datetime.now(tz=timezone.utc)
+                    highlight.synced_at = datetime.now(tz=UTC)
                 else:
                     # Readwise update failed, mark as needing re-sync
                     highlight.synced_at = None

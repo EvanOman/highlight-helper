@@ -1,6 +1,6 @@
 """Settings API routes."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -160,7 +160,7 @@ async def sync_all_highlights(
         synced_count = 0
         for i, sync_result in enumerate(batch_result.results):
             if sync_result.success and i < len(pending):
-                pending[i].synced_at = datetime.now(tz=timezone.utc)
+                pending[i].synced_at = datetime.now(tz=UTC)
                 pending[i].sync_status = SyncStatus.SYNCED
                 if sync_result.readwise_id:
                     pending[i].readwise_id = sync_result.readwise_id

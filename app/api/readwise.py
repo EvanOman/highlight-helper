@@ -1,6 +1,6 @@
 """Readwise integration API routes."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -85,7 +85,7 @@ async def sync_all_highlights(
     batch_result = await readwise.send_highlights(highlight_data)
 
     # Update synced highlights
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     for (highlight, _), sync_result in zip(rows, batch_result.results, strict=False):
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id
@@ -154,7 +154,7 @@ async def sync_highlight(
         # Update highlight with sync info
         if sync_result.readwise_id:
             highlight.readwise_id = sync_result.readwise_id
-        highlight.synced_at = datetime.now(tz=timezone.utc)
+        highlight.synced_at = datetime.now(tz=UTC)
         await db.flush()
 
     return ReadwiseSyncResponse(
@@ -215,7 +215,7 @@ async def sync_book_highlights(
     batch_result = await readwise.send_highlights(highlight_data)
 
     # Update synced highlights
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     for highlight, sync_result in zip(highlights, batch_result.results, strict=False):
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id

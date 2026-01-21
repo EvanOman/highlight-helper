@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -228,7 +229,7 @@ async def sample_highlight(test_session: AsyncSession, sample_book):
 @pytest.fixture
 async def synced_highlight(test_session: AsyncSession, sample_book):
     """Create a sample highlight that has been synced to Readwise."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.models.highlight import Highlight
 
@@ -238,7 +239,7 @@ async def synced_highlight(test_session: AsyncSession, sample_book):
         note="Synced note",
         page_number="100",
         readwise_id="12345",
-        synced_at=datetime.now(tz=timezone.utc),
+        synced_at=datetime.now(tz=UTC),
     )
     test_session.add(highlight)
     await test_session.flush()
