@@ -168,20 +168,23 @@ class TestAddHighlightView:
         assert "Extracting..." in response.text
         assert "animate-spin" in response.text
 
-    async def test_add_highlight_page_has_collapsible_sections(
-        self, client: AsyncClient, sample_book
-    ):
-        """Test add highlight page has collapsible accordion sections."""
+    async def test_add_highlight_page_shows_upload_form(self, client: AsyncClient, sample_book):
+        """Test add highlight page shows upload form and no editor initially."""
         response = await client.get(f"/books/{sample_book.id}/add-highlight")
         assert response.status_code == 200
-        # Check for collapsible section elements
+        assert "Extract from Image" in response.text
+        assert "extract-form" in response.text
+        # Editor should NOT be shown initially
+        assert "highlight-editor" not in response.text
+        assert "__highlightData" not in response.text
+
+    async def test_add_highlight_page_has_manual_section(self, client: AsyncClient, sample_book):
+        """Test add highlight page has manual entry section."""
+        response = await client.get(f"/books/{sample_book.id}/add-highlight")
+        assert response.status_code == 200
         assert "toggleSection" in response.text
-        assert "extract-section" in response.text
-        assert "extract-chevron" in response.text
         assert "manual-section" in response.text
         assert "manual-chevron" in response.text
-        # Check for section headers
-        assert "Extract from Image" in response.text
         assert "Enter Manually" in response.text
 
     async def test_add_highlight_page_not_found(self, client: AsyncClient):
@@ -192,7 +195,7 @@ class TestAddHighlightView:
     async def test_extract_highlight_form(
         self, client: AsyncClient, sample_book, mock_highlight_extractor_service
     ):
-        """Test extracting highlight via form."""
+        """Test extracting highlight via form shows highlight editor."""
         fake_image = io.BytesIO(b"fake image data")
 
         response = await client.post(
@@ -201,8 +204,13 @@ class TestAddHighlightView:
             files={"image": ("test.jpg", fake_image, "image/jpeg")},
         )
         assert response.status_code == 200
+        # Should show the highlight editor with full text data
+        assert "highlight-editor" in response.text
+        assert "__highlightData" in response.text
         assert "This is an extracted highlight." in response.text
         assert "Confidence: high" in response.text
+        assert "Review" in response.text
+        assert "Adjust Selection" in response.text
 
     async def test_create_highlight_form(self, client: AsyncClient, sample_book):
         """Test creating a highlight via form."""

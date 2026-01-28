@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
 from app.models.api_usage import APIUsage, calculate_cost
+from app.services.text_matching import locate_highlight
 
 logger = logging.getLogger(__name__)
 
@@ -50,36 +51,41 @@ class TokenUsage(BaseModel):
 class ExtractedHighlight(BaseModel):
     """Extracted highlight from an image."""
 
-    text: str = Field(default="", description="The extracted text exactly as it appears")
+    full_text: str = Field(default="", description="All readable text from the page, cleaned up")
+    highlight_text: str = Field(default="", description="The specific highlighted/selected portion")
     confidence: str = Field(
         default="low", description="Confidence level: 'high', 'medium', or 'low'"
     )
     page_number: str | None = Field(default=None, description="Page number if visible in the image")
+    highlight_start: int = Field(
+        default=0, description="Character offset of highlight in full_text"
+    )
+    highlight_end: int = Field(default=0, description="Character end offset")
     usage: TokenUsage | None = Field(default=None, description="Token usage for this extraction")
 
 
 class HighlightExtractionSignature(dspy.Signature):
-    """Extract text from a book page image based on user instructions.
+    """Extract text from a book page image.
 
-    You are a precise text extraction assistant. Your job is to extract
-    specific text from book page images based on user instructions.
+    You are a precise text extraction assistant. Given an image of a book page:
 
-    You can handle TWO types of requests:
+    1. Extract ALL readable text from the page into `full_text`. Clean up
+       any cut-off fragments at the top/bottom but preserve the text faithfully.
 
-    1. HIGHLIGHTED TEXT: If the user asks for "highlighted", "underlined",
-       "circled", or "marked" text, look for visually marked passages.
+    2. Based on the user's instructions, identify the specific highlighted,
+       underlined, circled, or requested portion and return it as `highlight_text`.
+       This should be a verbatim substring of `full_text`.
 
-    2. INSTRUCTION-BASED: If the user describes text without referring to
-       visual marks, find and extract the matching text. Examples:
-       - "grab the sentence about love" -> find a sentence mentioning love
-       - "extract the first paragraph" -> get the first paragraph
-       - "get the quote starting with 'In the beginning'" -> find that quote
+    The user may ask for:
+    - HIGHLIGHTED TEXT: "highlighted", "underlined", "circled", or "marked" text
+    - INSTRUCTION-BASED: "the sentence about love", "first paragraph", etc.
 
-    Instructions:
+    Rules:
     - Preserve the exact wording from the book - do not paraphrase or modify
+    - `highlight_text` must appear verbatim within `full_text`
     - If you can see a page number, include it
     - Rate confidence as "high" (exact match), "medium" (best guess), or "low"
-    - Return empty text with "low" confidence if nothing matches
+    - Return empty strings with "low" confidence if nothing matches
     """
 
     image: dspy.Image = dspy.InputField()
@@ -219,10 +225,18 @@ class HighlightExtractorService:
                         async_extract = dspy.asyncify(self._extractor)
                         result = await async_extract(image=image, user_instructions=instructions)
 
+                    # Compute highlight offsets within full_text
+                    if result.full_text and result.highlight_text:
+                        h_start, h_end = locate_highlight(result.full_text, result.highlight_text)
+                        result.highlight_start = h_start
+                        result.highlight_end = h_end
+
                     # Add result preview to LLM span
                     llm_span.set_attribute(
-                        "result_text_preview", result.text[:200] if result.text else ""
+                        "result_text_preview",
+                        result.highlight_text[:200] if result.highlight_text else "",
                     )
+                    llm_span.set_attribute("result_full_text_length", len(result.full_text))
                     llm_span.set_attribute("result_confidence", result.confidence)
 
                 # Extract usage info (outside LLM span)
@@ -264,7 +278,8 @@ class HighlightExtractorService:
                 # Add result attributes to parent span
                 add_span_attributes(
                     extraction_confidence=result.confidence,
-                    extraction_text_length=len(result.text),
+                    extraction_text_length=len(result.highlight_text),
+                    extraction_full_text_length=len(result.full_text),
                     extraction_has_page_number=result.page_number is not None,
                 )
                 set_span_status(True)
@@ -275,7 +290,8 @@ class HighlightExtractorService:
                 set_span_status(False, str(e))
                 # Fallback for errors
                 return ExtractedHighlight(
-                    text="",
+                    full_text="",
+                    highlight_text="",
                     confidence="low",
                     page_number=None,
                 )

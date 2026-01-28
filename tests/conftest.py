@@ -90,9 +90,12 @@ def mock_highlight_extractor_service():
     service = MagicMock(spec=HighlightExtractorService)
     service.extract_highlight = AsyncMock(
         return_value=ExtractedHighlight(
-            text="This is an extracted highlight.",
+            full_text="The full page text. This is an extracted highlight. More text after.",
+            highlight_text="This is an extracted highlight.",
             confidence="high",
             page_number="42",
+            highlight_start=20,
+            highlight_end=50,
         )
     )
     return service

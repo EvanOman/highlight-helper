@@ -150,9 +150,15 @@ class TestHighlightsAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["text"] == "This is an extracted highlight."
+        assert (
+            data["full_text"]
+            == "The full page text. This is an extracted highlight. More text after."
+        )
+        assert data["highlight_text"] == "This is an extracted highlight."
         assert data["confidence"] == "high"
         assert data["page_number"] == "42"
+        assert data["highlight_start"] == 20
+        assert data["highlight_end"] == 50
 
     async def test_extract_highlight_invalid_file_type(self, client: AsyncClient, sample_book):
         """Test extracting highlight with non-image file."""

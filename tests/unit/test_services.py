@@ -164,9 +164,12 @@ class TestHighlightExtractorService:
 
         # Mock the extractor module
         mock_result = ExtractedHighlight(
-            text="Extracted text",
+            full_text="Page text before. Extracted text. Page text after.",
+            highlight_text="Extracted text",
             confidence="high",
             page_number="42",
+            highlight_start=18,
+            highlight_end=32,
         )
 
         # Create an async function that returns our mock result
@@ -185,9 +188,12 @@ class TestHighlightExtractorService:
                         instructions="Extract the highlighted text",
                     )
 
-        assert result.text == "Extracted text"
+        assert result.highlight_text == "Extracted text"
+        assert result.full_text == "Page text before. Extracted text. Page text after."
         assert result.confidence == "high"
         assert result.page_number == "42"
+        assert result.highlight_start == 18
+        assert result.highlight_end == 32
 
     async def test_extract_highlight_error_fallback(self):
         """Test that errors during extraction return fallback response."""
@@ -207,7 +213,8 @@ class TestHighlightExtractorService:
                         instructions="Extract the highlighted text",
                     )
 
-        assert result.text == ""
+        assert result.highlight_text == ""
+        assert result.full_text == ""
         assert result.confidence == "low"
         assert result.page_number is None
 
@@ -233,7 +240,8 @@ class TestHighlightExtractorService:
             )
 
         # Should return fallback response, not raise an exception
-        assert result.text == ""
+        assert result.highlight_text == ""
+        assert result.full_text == ""
         assert result.confidence == "low"
         assert result.page_number is None
 
@@ -241,32 +249,47 @@ class TestHighlightExtractorService:
         """Test ExtractedHighlight Pydantic model."""
         # Test with all fields
         highlight = ExtractedHighlight(
-            text="Some text",
+            full_text="Full page text. Some text. More text.",
+            highlight_text="Some text",
             confidence="high",
             page_number="123",
+            highlight_start=16,
+            highlight_end=25,
         )
-        assert highlight.text == "Some text"
+        assert highlight.full_text == "Full page text. Some text. More text."
+        assert highlight.highlight_text == "Some text"
         assert highlight.confidence == "high"
         assert highlight.page_number == "123"
+        assert highlight.highlight_start == 16
+        assert highlight.highlight_end == 25
 
         # Test with defaults
         highlight_default = ExtractedHighlight()
-        assert highlight_default.text == ""
+        assert highlight_default.full_text == ""
+        assert highlight_default.highlight_text == ""
         assert highlight_default.confidence == "low"
         assert highlight_default.page_number is None
+        assert highlight_default.highlight_start == 0
+        assert highlight_default.highlight_end == 0
 
     def test_extracted_highlight_model_serialization(self):
         """Test ExtractedHighlight JSON serialization."""
         highlight = ExtractedHighlight(
-            text="Test text",
+            full_text="Full text here",
+            highlight_text="Test text",
             confidence="medium",
             page_number="42",
+            highlight_start=0,
+            highlight_end=9,
         )
         data = highlight.model_dump()
         assert data == {
-            "text": "Test text",
+            "full_text": "Full text here",
+            "highlight_text": "Test text",
             "confidence": "medium",
             "page_number": "42",
+            "highlight_start": 0,
+            "highlight_end": 9,
             "usage": None,
         }
 
@@ -276,9 +299,12 @@ class TestHighlightExtractorService:
         service = HighlightExtractorService(lm=mock_lm)
 
         mock_result = ExtractedHighlight(
-            text="The sentence about love from the book",
+            full_text="Some other text. The sentence about love from the book. Even more text.",
+            highlight_text="The sentence about love from the book",
             confidence="high",
             page_number="123",
+            highlight_start=17,
+            highlight_end=54,
         )
 
         async def mock_async_extract(*args, **kwargs):
@@ -296,7 +322,11 @@ class TestHighlightExtractorService:
                         instructions="grab the sentence about love",
                     )
 
-        assert result.text == "The sentence about love from the book"
+        assert result.highlight_text == "The sentence about love from the book"
+        assert (
+            result.full_text
+            == "Some other text. The sentence about love from the book. Even more text."
+        )
         assert result.confidence == "high"
         assert result.page_number == "123"
 

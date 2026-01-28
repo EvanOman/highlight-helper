@@ -115,9 +115,12 @@ class ExtractHighlightRequest(BaseModel):
 class ExtractHighlightResponse(BaseModel):
     """Schema for highlight extraction response."""
 
-    text: str
+    full_text: str
+    highlight_text: str
     confidence: str
     page_number: str | None
+    highlight_start: int
+    highlight_end: int
 
 
 # Readwise schemas

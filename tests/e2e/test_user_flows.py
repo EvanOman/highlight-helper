@@ -170,10 +170,12 @@ class TestHighlightManagementFlow:
         assert "add-highlight" in page.url
         assert page.locator("text=Extract from Image").is_visible()
         assert page.locator("text=Enter Manually").is_visible()
+        # No highlight editor should be shown initially
+        assert not page.locator("#highlight-editor").is_visible()
         page.close()
 
     def test_manual_highlight_creation(self, server, browser_context):
-        """Test creating a highlight manually."""
+        """Test creating a highlight manually via the Enter Manually section."""
         page = browser_context.new_page()
 
         # Navigate to add highlight page for the test book
@@ -184,13 +186,16 @@ class TestHighlightManagementFlow:
         page.click("text=Add Highlight")
         page.wait_for_load_state("networkidle")
 
-        # Fill in the highlight text
-        page.fill('textarea[name="text"]', "This is a test highlight for E2E testing.")
-        page.fill('input[name="page_number"]', "42")
-        page.fill('textarea[name="note"]', "Added during automated testing")
+        # The manual section should be visible (open by default when no extraction)
+        # Fill in the highlight text using the manual form fields
+        page.fill(
+            '#manual-section textarea[name="text"]', "This is a test highlight for E2E testing."
+        )
+        page.fill('#manual-section input[name="page_number"]', "42")
+        page.fill('#manual-section textarea[name="note"]', "Added during automated testing")
 
-        # Submit
-        page.click('button:has-text("Save Highlight")')
+        # Submit via the manual section's Save button
+        page.click('#manual-section button:has-text("Save Highlight")')
         page.wait_for_load_state("networkidle")
 
         # Should redirect to book detail with highlight visible
@@ -291,12 +296,12 @@ class TestEditHighlightFlow:
         page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
-        # Add a highlight
+        # Add a highlight via manual entry
         page.click("text=Add Highlight")
         page.wait_for_load_state("networkidle")
-        page.fill('textarea[name="text"]', "Original highlight text")
-        page.fill('input[name="page_number"]', "10")
-        page.click('button:has-text("Save Highlight")')
+        page.fill('#manual-section textarea[name="text"]', "Original highlight text")
+        page.fill('#manual-section input[name="page_number"]', "10")
+        page.click('#manual-section button:has-text("Save Highlight")')
         page.wait_for_load_state("networkidle")
 
         # Verify edit link is visible
@@ -406,12 +411,12 @@ class TestDeleteOperations:
         page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
-        # Add a highlight to delete
+        # Add a highlight to delete via manual entry
         page.click("text=Add Highlight")
         page.wait_for_load_state("networkidle")
-        page.fill('textarea[name="text"]', "Highlight to be deleted")
-        page.fill('input[name="page_number"]', "1")
-        page.click('button:has-text("Save Highlight")')
+        page.fill('#manual-section textarea[name="text"]', "Highlight to be deleted")
+        page.fill('#manual-section input[name="page_number"]', "1")
+        page.click('#manual-section button:has-text("Save Highlight")')
         page.wait_for_load_state("networkidle")
 
         # Verify highlight exists

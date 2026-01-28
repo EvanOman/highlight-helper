@@ -270,6 +270,10 @@ async def add_highlight_page(
         {
             "book": book,
             "extracted_text": "",
+            "full_text": "",
+            "highlight_text": "",
+            "highlight_start": 0,
+            "highlight_end": 0,
             "confidence": "",
             "page_number": "",
         },
@@ -296,6 +300,10 @@ async def extract_highlight_form(
     # Validate file type
     error_message = None
     extracted_text = ""
+    full_text = ""
+    highlight_text = ""
+    highlight_start = 0
+    highlight_end = 0
     confidence = ""
     page_number = ""
 
@@ -313,7 +321,11 @@ async def extract_highlight_form(
                     instructions=instructions,
                     db=db,
                 )
-                extracted_text = result.text
+                extracted_text = result.highlight_text
+                full_text = result.full_text
+                highlight_text = result.highlight_text
+                highlight_start = result.highlight_start
+                highlight_end = result.highlight_end
                 confidence = result.confidence
                 page_number = result.page_number or ""
             except Exception as e:
@@ -325,6 +337,10 @@ async def extract_highlight_form(
         {
             "book": book,
             "extracted_text": extracted_text,
+            "full_text": full_text,
+            "highlight_text": highlight_text,
+            "highlight_start": highlight_start,
+            "highlight_end": highlight_end,
             "confidence": confidence,
             "page_number": page_number,
             "instructions": instructions,

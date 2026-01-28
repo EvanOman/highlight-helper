@@ -215,9 +215,12 @@ async def extract_highlight_from_image(
     )
 
     return ExtractHighlightResponse(
-        text=result.text,
+        full_text=result.full_text,
+        highlight_text=result.highlight_text,
         confidence=result.confidence,
         page_number=result.page_number,
+        highlight_start=result.highlight_start,
+        highlight_end=result.highlight_end,
     )
 
 
