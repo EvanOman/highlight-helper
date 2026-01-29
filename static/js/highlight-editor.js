@@ -64,8 +64,23 @@
   container.appendChild(startHandle);
   container.appendChild(endHandle);
 
-  // Apply initial highlight
-  updateHighlight();
+  // Apply initial highlight (CSS classes only, not positioning)
+  wordSpans.forEach(function (span, idx) {
+    if (idx >= selStart && idx <= selEnd) {
+      span.classList.add("highlighted");
+    } else {
+      span.classList.remove("highlighted");
+    }
+  });
+
+  // Update hidden input with selected text
+  var selectedWords = words.slice(selStart, selEnd + 1).map(function (w) {
+    return w.text;
+  });
+  hiddenInput.value = selectedWords.join(" ");
+
+  // Position handles AFTER browser completes layout
+  requestAnimationFrame(positionHandles);
 
   function createHandle(type) {
     const handle = document.createElement("div");
@@ -104,6 +119,12 @@
     const containerRect = container.getBoundingClientRect();
     const startRect = startSpan.getBoundingClientRect();
     const endRect = endSpan.getBoundingClientRect();
+
+    // Check if rects are valid (non-zero), retry if layout not ready
+    if (startRect.height === 0 || containerRect.width === 0) {
+      requestAnimationFrame(positionHandles);
+      return;
+    }
 
     // Start handle: left edge of first selected word
     startHandle.style.left = (startRect.left - containerRect.left - 6) + "px";
