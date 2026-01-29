@@ -82,23 +82,42 @@
     <div class="p-4">
         <div class="flex items-center justify-between mb-3">
             <h2 class="font-semibold text-gray-900 dark:text-white">Review & Adjust Selection</h2>
-            {% if confidence %}
-            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-                {% if confidence == 'high' %}bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300
-                {% elif confidence == 'medium' %}bg-yellow-100 dark:bg-yellow-800/50 text-yellow-800 dark:text-yellow-300
-                {% else %}bg-red-100 dark:bg-red-800/50 text-red-800 dark:text-red-300{% endif %}">
-                Confidence: {{ confidence }}
-            </span>
-            {% endif %}
+            <div class="flex items-center gap-2">
+                {% if confidence %}
+                <span id="confidence-badge" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                    {% if confidence == 'high' %}bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300
+                    {% elif confidence == 'medium' %}bg-yellow-100 dark:bg-yellow-800/50 text-yellow-800 dark:text-yellow-300
+                    {% else %}bg-red-100 dark:bg-red-800/50 text-red-800 dark:text-red-300{% endif %}">
+                    Confidence: {{ confidence }}
+                </span>
+                {% endif %}
+                <button type="button"
+                        id="edit-mode-toggle"
+                        class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                        title="Edit text directly">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                    <span id="edit-toggle-text">Edit</span>
+                </button>
+            </div>
         </div>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <p id="selection-hint" class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Drag the blue handles or tap words to adjust the highlighted selection.
         </p>
+        <p id="edit-hint" class="text-sm text-gray-600 dark:text-gray-400 mb-4 hidden">
+            Edit the text directly to fix transcription errors.
+        </p>
 
-        <!-- Highlight editor area -->
+        <!-- Highlight editor area (selection mode) -->
         <div id="highlight-editor"
-             class="text-sm leading-relaxed text-gray-800 dark:text-gray-200 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 select-none overflow-hidden">
+             class="highlight-editor text-sm leading-relaxed text-gray-800 dark:text-gray-200 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 select-none overflow-hidden">
         </div>
+
+        <!-- Direct text editor (edit mode) -->
+        <textarea id="direct-text-editor"
+                  class="hidden w-full text-sm leading-relaxed text-gray-800 dark:text-gray-200 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 resize-none min-h-[120px]"
+                  placeholder="Edit the highlight text..."></textarea>
 
         <!-- Save form with hidden text input populated by JS -->
         <form action="{{ base_path }}/books/{{ book.id }}/highlights/create" method="post" class="space-y-4 mt-4">
@@ -263,5 +282,56 @@ window.__highlightData = {
 };
 </script>
 <script src="{{ base_path }}/static/js/highlight-editor.js"></script>
+<script>
+// Edit mode toggle functionality
+(function() {
+    const editToggle = document.getElementById('edit-mode-toggle');
+    const editToggleText = document.getElementById('edit-toggle-text');
+    const highlightEditor = document.getElementById('highlight-editor');
+    const directEditor = document.getElementById('direct-text-editor');
+    const selectionHint = document.getElementById('selection-hint');
+    const editHint = document.getElementById('edit-hint');
+    const hiddenInput = document.getElementById('highlight-text-input');
+
+    let isEditMode = false;
+
+    if (editToggle) {
+        editToggle.addEventListener('click', function() {
+            isEditMode = !isEditMode;
+
+            if (isEditMode) {
+                // Switch to edit mode
+                directEditor.value = hiddenInput.value;
+                highlightEditor.classList.add('hidden');
+                directEditor.classList.remove('hidden');
+                selectionHint.classList.add('hidden');
+                editHint.classList.remove('hidden');
+                editToggleText.textContent = 'Done';
+                directEditor.focus();
+
+                // Auto-resize textarea based on content
+                directEditor.style.height = 'auto';
+                directEditor.style.height = Math.max(120, directEditor.scrollHeight) + 'px';
+            } else {
+                // Switch back to selection mode
+                hiddenInput.value = directEditor.value;
+                highlightEditor.classList.remove('hidden');
+                directEditor.classList.add('hidden');
+                selectionHint.classList.remove('hidden');
+                editHint.classList.add('hidden');
+                editToggleText.textContent = 'Edit';
+            }
+        });
+
+        // Auto-resize textarea on input
+        directEditor.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.max(120, this.scrollHeight) + 'px';
+            // Also update hidden input in real-time
+            hiddenInput.value = this.value;
+        });
+    }
+})();
+</script>
 {% endif %}
 {% endblock %}
