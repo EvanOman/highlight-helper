@@ -108,6 +108,9 @@ docker-status:
 # Rebuild and restart container
 docker-restart: docker-build docker-down docker-up
 
+# Redeploy: rebuild and restart the production container (alias for docker-restart)
+redeploy: docker-restart
+
 # =============================================================================
 # Service Management (systemd)
 # =============================================================================

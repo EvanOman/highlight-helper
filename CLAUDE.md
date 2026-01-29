@@ -107,6 +107,46 @@ If using Tailscale, you can use Tailscale's built-in HTTPS feature:
 2. Access via `https://your-machine.tailnet-name.ts.net`
 3. Tailscale will handle certificate provisioning automatically
 
+## Deployment
+
+This service runs via Docker and is accessible at:
+- **Local**: http://localhost:18742
+- **Tailscale**: https://omachine.werewolf-universe.ts.net/highlights/
+
+### Redeploy After Code Changes
+
+To deploy local changes to the running service:
+
+```bash
+# Rebuild and restart (one command)
+docker compose build && docker compose down && docker compose -f docker-compose.yml up -d
+
+# Or use the Justfile targets:
+just docker-restart
+```
+
+Wait ~30 seconds for the container to become healthy, then verify:
+```bash
+docker ps --filter "name=highlight-helper"
+curl -I http://localhost:18742/
+```
+
+### Quick Commands
+
+```bash
+# Check status
+just docker-status
+
+# View logs
+just docker-logs
+
+# Rebuild only (no restart)
+just docker-build
+
+# Stop service
+just docker-down
+```
+
 ## Pull Request Workflow
 
 1. Create a feature branch from main
