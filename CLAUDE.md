@@ -113,6 +113,16 @@ This service runs via Docker and is accessible at:
 - **Local**: http://localhost:18742
 - **Tailscale**: https://omachine.werewolf-universe.ts.net/highlights/
 
+### Tailscale Serve Configuration
+
+The app uses `ROOT_PATH=/highlights` which requires the Tailscale serve route to preserve the path prefix:
+
+```bash
+tailscale serve --bg --set-path /highlights http://localhost:18742/highlights
+```
+
+This proxies requests to `http://localhost:18742/highlights/...` (NOT stripping the prefix). Without this, static files and some routes will return 404 because FastAPI's `root_path` setting makes route matching expect the full path including the prefix.
+
 ### Redeploy After Code Changes
 
 To deploy local changes to the running service:

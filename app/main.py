@@ -44,8 +44,10 @@ app = FastAPI(
 # Instrument FastAPI for tracing
 instrument_fastapi(app)
 
-# Mount static files
+# Mount static files at /static (and also at {root_path}/static for direct access)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+if settings.root_path:
+    app.mount(f"{settings.root_path}/static", StaticFiles(directory="static"), name="static_root")
 
 # Include routers
 app.include_router(views_router)
