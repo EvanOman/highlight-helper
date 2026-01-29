@@ -4,20 +4,23 @@ This file contains instructions for Claude Code when working on this project.
 
 ## Before Committing Changes
 
-**IMPORTANT**: Always run tests before committing any code changes.
+**IMPORTANT**: Always run CI checks before committing any code changes.
 
 ```bash
-# Run unit and integration tests
-python -m pytest tests/unit tests/integration -v --tb=short
-
-# Run linter
-ruff check app/ tests/
-
-# Run formatter check
-ruff format --check app/ tests/
+# Run all checks (format, lint, type check, tests) - same as CI
+just fc
 ```
 
-All tests must pass before creating commits or pull requests.
+This runs:
+1. `just fmt` - Format code with ruff
+2. `just lint-fix` - Fix linting issues
+3. `just lint` - Verify no lint errors
+4. `just type` - Type check with ty (excludes some files with DSPy issues)
+5. `just test` - Run unit and integration tests
+
+All checks must pass before creating commits or pull requests. CI will fail if any of these checks fail.
+
+**Note**: The type checker excludes `app/services/highlight_extractor.py`, `app/services/isbn_extractor.py`, and `tests/` due to DSPy-related type issues.
 
 ## Development Validation Requirements
 
