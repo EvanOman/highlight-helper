@@ -147,13 +147,13 @@ class EvalRunner:
 
         # Cache the result
         self._cache[cache_key] = {
-            "text": result.text,
+            "text": result.highlight_text,
             "page_number": result.page_number,
             "confidence": result.confidence,
             "latency_ms": latency_ms,
         }
 
-        return result.text, result.page_number, result.confidence, latency_ms
+        return result.highlight_text, result.page_number, result.confidence, latency_ms
 
     async def run_case(self, case: EvalCase, base_path: Path) -> EvalResult:
         """Run a single evaluation case."""
