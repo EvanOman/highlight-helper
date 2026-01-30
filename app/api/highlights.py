@@ -19,11 +19,12 @@ from app.api.schemas import (
     HighlightResponse,
     HighlightUpdate,
     HighlightWithBookResponse,
+    NoteCreate,
 )
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.book import Book
-from app.models.highlight import Highlight
+from app.models.highlight import AnnotationType, Highlight
 from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
@@ -62,6 +63,7 @@ async def list_highlights_for_book(
             note=h.note,
             page_number=h.page_number,
             created_at=h.created_at,
+            type=h.type.value,
             readwise_id=h.readwise_id,
             synced_at=h.synced_at,
         )
@@ -95,6 +97,7 @@ async def list_all_highlights(
             note=highlight.note,
             page_number=highlight.page_number,
             created_at=highlight.created_at,
+            type=highlight.type.value,
             readwise_id=highlight.readwise_id,
             synced_at=highlight.synced_at,
             book_title=book.title,
@@ -159,8 +162,54 @@ async def create_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        type=highlight.type.value,
         readwise_id=highlight.readwise_id,
         synced_at=highlight.synced_at,
+    )
+
+
+@router.post(
+    "/book/{book_id}/note",
+    response_model=HighlightResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_note(
+    book_id: int,
+    note_data: NoteCreate,
+    db: AsyncSession = Depends(get_db),
+) -> HighlightResponse:
+    """Create a standalone note for a book."""
+    # Verify book exists
+    book_query = select(Book).where(Book.id == book_id)
+    book_result = await db.execute(book_query)
+    book = book_result.scalar_one_or_none()
+    if not book:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Book not found",
+        )
+
+    note = Highlight(
+        book_id=book_id,
+        text=note_data.text,  # Optional quote/highlight text
+        note=note_data.note,  # Required note content
+        page_number=note_data.page_number,
+        type=AnnotationType.NOTE,
+    )
+    db.add(note)
+    await db.flush()
+    await db.refresh(note)
+
+    return HighlightResponse(
+        id=note.id,
+        book_id=note.book_id,
+        text=note.text,
+        note=note.note,
+        page_number=note.page_number,
+        created_at=note.created_at,
+        type=note.type.value,
+        readwise_id=note.readwise_id,
+        synced_at=note.synced_at,
     )
 
 
@@ -247,6 +296,7 @@ async def get_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        type=highlight.type.value,
         readwise_id=highlight.readwise_id,
         synced_at=highlight.synced_at,
     )
@@ -283,6 +333,7 @@ async def update_highlight(
         note=highlight.note,
         page_number=highlight.page_number,
         created_at=highlight.created_at,
+        type=highlight.type.value,
         readwise_id=highlight.readwise_id,
         synced_at=highlight.synced_at,
     )

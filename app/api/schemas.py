@@ -54,6 +54,14 @@ class HighlightCreate(BaseModel):
     page_number: str | None = Field(None, max_length=50)
 
 
+class NoteCreate(BaseModel):
+    """Schema for creating a standalone note."""
+
+    page_number: str = Field(..., min_length=1, max_length=50)
+    note: str = Field(..., min_length=1)  # The actual note content (required for notes)
+    text: str | None = None  # Optional highlight/quote text
+
+
 class HighlightUpdate(BaseModel):
     """Schema for updating a highlight."""
 
@@ -69,10 +77,11 @@ class HighlightResponse(BaseModel):
 
     id: int
     book_id: int
-    text: str
+    text: str | None  # Nullable for standalone notes
     note: str | None
     page_number: str | None
     created_at: datetime
+    type: str = "highlight"  # "highlight" or "note"
     readwise_id: str | None = None
     synced_at: datetime | None = None
 
