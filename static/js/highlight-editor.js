@@ -254,4 +254,72 @@
 
   // Reposition handles on resize
   window.addEventListener("resize", positionHandles);
+
+  // Expose API for external control (e.g., edit mode toggle)
+  window.__highlightEditorAPI = {
+    /**
+     * Get the words array with character positions
+     */
+    getWords: function () {
+      return words;
+    },
+    /**
+     * Get current selection bounds (word indices)
+     */
+    getSelection: function () {
+      return { selStart: selStart, selEnd: selEnd };
+    },
+    /**
+     * Set selection by word indices and update the UI
+     */
+    setSelection: function (newStart, newEnd) {
+      if (
+        newStart >= 0 &&
+        newEnd < words.length &&
+        newStart <= newEnd
+      ) {
+        selStart = newStart;
+        selEnd = newEnd;
+        updateHighlight();
+        return true;
+      }
+      return false;
+    },
+    /**
+     * Set selection by character positions (finds containing words)
+     */
+    setSelectionByCharPos: function (charStart, charEnd) {
+      var newSelStart = 0;
+      var newSelEnd = words.length - 1;
+
+      // Find word containing or after charStart
+      for (var i = 0; i < words.length; i++) {
+        if (words[i].end > charStart) {
+          newSelStart = i;
+          break;
+        }
+      }
+      // Find word containing or before charEnd
+      for (var j = words.length - 1; j >= 0; j--) {
+        if (words[j].start < charEnd) {
+          newSelEnd = j;
+          break;
+        }
+      }
+
+      if (newSelStart <= newSelEnd) {
+        selStart = newSelStart;
+        selEnd = newSelEnd;
+        updateHighlight();
+        return true;
+      }
+      return false;
+    },
+    /**
+     * Get the full text
+     */
+    getFullText: function () {
+      return data.fullText;
+    },
+  };
 })();

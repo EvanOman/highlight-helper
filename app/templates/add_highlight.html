@@ -292,8 +292,83 @@ window.__highlightData = {
     const selectionHint = document.getElementById('selection-hint');
     const editHint = document.getElementById('edit-hint');
     const hiddenInput = document.getElementById('highlight-text-input');
+    const confidenceBadge = document.getElementById('confidence-badge');
 
     let isEditMode = false;
+
+    /**
+     * Extract anchor words from text for matching.
+     * Returns first 2-3 words (start anchor) and last 2-3 words (end anchor).
+     */
+    function extractAnchors(text) {
+        const words = text.trim().split(/\s+/).filter(function(w) { return w.length > 0; });
+        if (words.length === 0) return null;
+
+        // Use 2 words for short texts, 3 for longer
+        const anchorLen = words.length <= 6 ? 2 : 3;
+
+        const startWords = words.slice(0, Math.min(anchorLen, words.length));
+        const endWords = words.slice(-Math.min(anchorLen, words.length));
+
+        return {
+            startAnchor: startWords.join(' '),
+            endAnchor: endWords.join(' ')
+        };
+    }
+
+    /**
+     * Find anchor position in full text (case-insensitive).
+     * For start anchor: returns first occurrence.
+     * For end anchor: returns last occurrence after minPos.
+     */
+    function findAnchorPosition(fullText, anchor, isEndAnchor, minPos) {
+        const fullLower = fullText.toLowerCase();
+        const anchorLower = anchor.toLowerCase();
+
+        if (isEndAnchor) {
+            // Find last occurrence after minPos
+            let lastPos = -1;
+            let searchStart = minPos || 0;
+            while (true) {
+                const pos = fullLower.indexOf(anchorLower, searchStart);
+                if (pos === -1) break;
+                lastPos = pos;
+                searchStart = pos + 1;
+            }
+            return lastPos;
+        } else {
+            // Find first occurrence
+            return fullLower.indexOf(anchorLower);
+        }
+    }
+
+    /**
+     * Attempt to match edited text back to full text using anchor words.
+     * Returns { charStart, charEnd } if successful, null otherwise.
+     */
+    function matchAnchorsToFullText(editedText, fullText) {
+        const anchors = extractAnchors(editedText);
+        if (!anchors) return null;
+
+        // Find start anchor (first occurrence)
+        const startPos = findAnchorPosition(fullText, anchors.startAnchor, false, 0);
+        if (startPos === -1) return null;
+
+        // Find end anchor (last occurrence after start position)
+        const endPos = findAnchorPosition(fullText, anchors.endAnchor, true, startPos);
+        if (endPos === -1) return null;
+
+        // Calculate end position (end of end anchor)
+        const charEnd = endPos + anchors.endAnchor.length;
+
+        // Validate: end must be after start
+        if (charEnd <= startPos) return null;
+
+        return {
+            charStart: startPos,
+            charEnd: charEnd
+        };
+    }
 
     if (editToggle) {
         editToggle.addEventListener('click', function() {
@@ -313,13 +388,47 @@ window.__highlightData = {
                 directEditor.style.height = 'auto';
                 directEditor.style.height = Math.max(120, directEditor.scrollHeight) + 'px';
             } else {
-                // Switch back to selection mode
-                hiddenInput.value = directEditor.value;
-                highlightEditor.classList.remove('hidden');
-                directEditor.classList.add('hidden');
-                selectionHint.classList.remove('hidden');
-                editHint.classList.add('hidden');
-                editToggleText.textContent = 'Edit';
+                // Switch back to selection mode - attempt anchor matching
+                const editedText = directEditor.value;
+                hiddenInput.value = editedText;
+
+                const api = window.__highlightEditorAPI;
+                if (api) {
+                    const fullText = api.getFullText();
+                    const match = matchAnchorsToFullText(editedText, fullText);
+
+                    if (match) {
+                        // Successfully matched - update highlight selection
+                        api.setSelectionByCharPos(match.charStart, match.charEnd);
+                        highlightEditor.classList.remove('hidden');
+                        directEditor.classList.add('hidden');
+                        selectionHint.classList.remove('hidden');
+                        editHint.classList.add('hidden');
+                        editToggleText.textContent = 'Edit';
+                    } else {
+                        // Could not match anchors - stay in edit mode visually
+                        // but hide the highlight editor since it's no longer accurate
+                        highlightEditor.classList.add('hidden');
+                        directEditor.classList.remove('hidden');
+                        selectionHint.classList.add('hidden');
+                        editHint.classList.add('hidden');
+                        editToggleText.textContent = 'Edited';
+                        isEditMode = true; // Stay in edit mode state
+
+                        // Update confidence badge to indicate edited state
+                        if (confidenceBadge) {
+                            confidenceBadge.textContent = 'Manually edited';
+                            confidenceBadge.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-300';
+                        }
+                    }
+                } else {
+                    // No API available - just switch views
+                    highlightEditor.classList.remove('hidden');
+                    directEditor.classList.add('hidden');
+                    selectionHint.classList.remove('hidden');
+                    editHint.classList.add('hidden');
+                    editToggleText.textContent = 'Edit';
+                }
             }
         });
 
