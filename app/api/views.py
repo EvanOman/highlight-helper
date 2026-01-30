@@ -280,6 +280,27 @@ async def add_highlight_page(
     )
 
 
+@router.get("/books/{book_id}/add-note", response_class=HTMLResponse)
+async def add_note_page(
+    request: Request,
+    book_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Page for adding a standalone note to a book."""
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    return templates.TemplateResponse(
+        request,
+        "add_note.html",
+        {"book": book},
+    )
+
+
 @router.post("/books/{book_id}/extract", response_class=HTMLResponse)
 async def extract_highlight_form(
     request: Request,
@@ -396,6 +417,40 @@ async def create_highlight_form(
             created_at=highlight.created_at,
             api_token=token,
         )
+
+    return RedirectResponse(
+        url=f"{settings.root_path}/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/books/{book_id}/notes/create")
+async def create_note_form(
+    book_id: int,
+    page_number: str = Form(...),
+    note: str = Form(...),
+    text: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new note for a book."""
+    from app.models.highlight import AnnotationType
+
+    query = select(Book).where(Book.id == book_id)
+    result = await db.execute(query)
+    book = result.scalar_one_or_none()
+
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Create note (a highlight with type=NOTE)
+    new_note = Highlight(
+        book_id=book_id,
+        text=text if text.strip() else None,
+        note=note,
+        page_number=page_number,
+        type=AnnotationType.NOTE,
+    )
+    db.add(new_note)
+    await db.flush()
 
     return RedirectResponse(
         url=f"{settings.root_path}/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER

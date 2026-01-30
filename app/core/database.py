@@ -53,20 +53,48 @@ def _run_migrations(conn) -> None:
 
     inspector = inspect(conn)
 
-    # Check if highlights table exists and needs type column
+    # Check if highlights table exists and needs migrations
     if "highlights" in inspector.get_table_names():
-        columns = [c["name"] for c in inspector.get_columns("highlights")]
+        columns = {c["name"]: c for c in inspector.get_columns("highlights")}
+
+        # Migration 1: Add type column if missing
         if "type" not in columns:
-            # Add type column with default value 'HIGHLIGHT' (uppercase to match enum)
             conn.execute(
                 text("ALTER TABLE highlights ADD COLUMN type VARCHAR(20) DEFAULT 'HIGHLIGHT'")
             )
-            # Update existing rows to have the default type
             conn.execute(text("UPDATE highlights SET type = 'HIGHLIGHT' WHERE type IS NULL"))
         else:
             # Fix any lowercase values from previous migration
             conn.execute(text("UPDATE highlights SET type = 'HIGHLIGHT' WHERE type = 'highlight'"))
             conn.execute(text("UPDATE highlights SET type = 'NOTE' WHERE type = 'note'"))
+
+        # Migration 2: Make text column nullable (SQLite workaround - recreate table)
+        # SQLite doesn't support ALTER COLUMN, so we need to recreate the table
+        # Check if text column is nullable by trying to insert NULL
+        text_col = columns.get("text", {})
+        if text_col and text_col.get("nullable") is False:
+            # SQLite workaround: create new table, copy data, drop old, rename
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS highlights_new (
+                    id INTEGER PRIMARY KEY,
+                    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    text TEXT,
+                    note TEXT,
+                    page_number VARCHAR(50),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    type VARCHAR(20) DEFAULT 'HIGHLIGHT',
+                    readwise_id VARCHAR(255),
+                    synced_at TIMESTAMP,
+                    sync_status VARCHAR(20) DEFAULT 'PENDING'
+                )
+            """))
+            conn.execute(text("""
+                INSERT INTO highlights_new
+                SELECT id, book_id, text, note, page_number, created_at, type, readwise_id, synced_at, sync_status
+                FROM highlights
+            """))
+            conn.execute(text("DROP TABLE highlights"))
+            conn.execute(text("ALTER TABLE highlights_new RENAME TO highlights"))
 
 
 @asynccontextmanager
