@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.books import router as books_router
+from app.api.chat import router as chat_router
 from app.api.highlights import router as highlights_router
 from app.api.readwise import router as readwise_router
 from app.api.settings import router as settings_router
@@ -51,6 +52,7 @@ if settings.root_path:
 
 # Include routers
 app.include_router(views_router)
+app.include_router(chat_router)
 app.include_router(books_router)
 app.include_router(highlights_router)
 app.include_router(readwise_router)

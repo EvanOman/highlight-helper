@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = ""
 
+    # Anthropic (for chat with highlights feature)
+    anthropic_api_key: str = ""
+
     # Readwise (optional)
     readwise_api_token: str | None = None
     readwise_auto_sync: bool = False  # Auto-sync highlights on creation

@@ -1,0 +1,158 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Chat with Your Highlights - Highlight Helper{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-[calc(100vh-12rem)]">
+    <div class="mb-4">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Chat with Your Highlights</h1>
+        <p class="text-gray-600 dark:text-gray-400">
+            {% if book %}
+                Chatting about: <a href="{{ base_path }}/books/{{ book.id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ book.title }}</a> ({{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %})
+            {% else %}
+                {{ book_count }} book{% if book_count != 1 %}s{% endif %}, {{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %}
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Chat messages container -->
+    <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+        <div id="chat-placeholder" class="text-center text-gray-500 dark:text-gray-400 py-8">
+            <p>Ask me about your highlights!</p>
+            <p class="text-sm mt-2">
+                {% if book %}
+                Try: "What are the main themes?" or "Summarize my highlights"
+                {% else %}
+                Try: "What themes appear across my books?" or "Find highlights about leadership"
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Input form -->
+    <form id="chat-form" class="flex gap-2">
+        <input type="text"
+               id="chat-input"
+               name="message"
+               placeholder="Ask about your highlights..."
+               class="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+               autocomplete="off">
+        <button type="submit"
+                id="send-button"
+                class="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+            Send
+        </button>
+    </form>
+</div>
+
+<script>
+const chatMessages = document.getElementById('chat-messages');
+const chatPlaceholder = document.getElementById('chat-placeholder');
+const chatForm = document.getElementById('chat-form');
+const chatInput = document.getElementById('chat-input');
+const sendButton = document.getElementById('send-button');
+
+// Store conversation history for multi-turn chat
+let conversationHistory = [];
+const bookId = {{ book.id if book else 'null' }};
+
+function addMessage(role, content) {
+    // Remove placeholder on first message
+    if (chatPlaceholder && chatPlaceholder.parentNode) {
+        chatPlaceholder.remove();
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = role === 'user'
+        ? 'flex justify-end'
+        : 'flex justify-start';
+
+    const bubble = document.createElement('div');
+    bubble.className = role === 'user'
+        ? 'max-w-[80%] px-4 py-2 rounded-2xl bg-primary-600 text-white whitespace-pre-wrap'
+        : 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white whitespace-pre-wrap';
+    bubble.textContent = content;
+
+    messageDiv.appendChild(bubble);
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    return bubble;
+}
+
+function setLoading(loading) {
+    sendButton.disabled = loading;
+    chatInput.disabled = loading;
+    if (loading) {
+        sendButton.textContent = '...';
+    } else {
+        sendButton.textContent = 'Send';
+    }
+}
+
+chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    // Add user message to UI and history
+    addMessage('user', message);
+    conversationHistory.push({ role: 'user', content: message });
+    chatInput.value = '';
+
+    // Add assistant placeholder
+    const assistantBubble = addMessage('assistant', '');
+    setLoading(true);
+
+    try {
+        const response = await fetch('{{ base_path }}/api/chat/message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message,
+                book_id: bookId,
+                history: conversationHistory.slice(0, -1)  // Exclude the message we just added
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            // Parse SSE format: data: <content>\n\n
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const content = line.slice(6);
+                    fullResponse += content;
+                    assistantBubble.textContent = fullResponse;
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }
+        }
+
+        // Add assistant response to history
+        conversationHistory.push({ role: 'assistant', content: fullResponse });
+    } catch (error) {
+        console.error('Chat error:', error);
+        assistantBubble.textContent = 'Error: Could not get response. Please try again.';
+        assistantBubble.classList.add('text-red-500', 'dark:text-red-400');
+    } finally {
+        setLoading(false);
+        chatInput.focus();
+    }
+});
+
+// Focus input on load
+chatInput.focus();
+</script>
+{% endblock %}
