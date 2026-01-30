@@ -43,6 +43,30 @@ async def init_db() -> None:
     """Initialize the database, creating all tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Run migrations for schema changes
+        await conn.run_sync(_run_migrations)
+
+
+def _run_migrations(conn) -> None:
+    """Run database migrations for schema changes."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(conn)
+
+    # Check if highlights table exists and needs type column
+    if "highlights" in inspector.get_table_names():
+        columns = [c["name"] for c in inspector.get_columns("highlights")]
+        if "type" not in columns:
+            # Add type column with default value 'HIGHLIGHT' (uppercase to match enum)
+            conn.execute(
+                text("ALTER TABLE highlights ADD COLUMN type VARCHAR(20) DEFAULT 'HIGHLIGHT'")
+            )
+            # Update existing rows to have the default type
+            conn.execute(text("UPDATE highlights SET type = 'HIGHLIGHT' WHERE type IS NULL"))
+        else:
+            # Fix any lowercase values from previous migration
+            conn.execute(text("UPDATE highlights SET type = 'HIGHLIGHT' WHERE type = 'highlight'"))
+            conn.execute(text("UPDATE highlights SET type = 'NOTE' WHERE type = 'note'"))
 
 
 @asynccontextmanager
