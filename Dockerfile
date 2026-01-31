@@ -40,8 +40,8 @@ COPY --from=builder /app/.venv /app/.venv
 COPY app/ ./app/
 COPY static/ ./static/
 
-# Create directories for data and certs (will be mounted as volumes)
-RUN mkdir -p /app/data /app/certs && chown -R appuser:appuser /app
+# Create directories for data, certs, and backups (will be mounted as volumes)
+RUN mkdir -p /app/data /app/certs /app/backups && chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser

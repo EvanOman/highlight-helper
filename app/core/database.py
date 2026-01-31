@@ -1,12 +1,16 @@
 """Database connection and session management."""
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -14,6 +18,41 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.is_development,
 )
+
+
+def _configure_sqlite_pragmas(dbapi_connection, connection_record):
+    """Configure SQLite pragmas for durability and performance.
+
+    These settings improve crash recovery and concurrent access:
+    - journal_mode=WAL: Write-Ahead Logging for better crash recovery
+    - synchronous=NORMAL: Good durability with WAL mode
+    - busy_timeout=5000: Wait 5 seconds on locks before failing
+    """
+    cursor = dbapi_connection.cursor()
+
+    # Enable WAL mode for better crash recovery and concurrent reads
+    cursor.execute("PRAGMA journal_mode=WAL")
+    result = cursor.fetchone()
+    if result and result[0].lower() != "wal":
+        logger.warning(
+            f"Failed to enable WAL mode, journal_mode is: {result[0]}. "
+            "This may indicate the database is in use or a permission issue."
+        )
+    else:
+        logger.debug("SQLite WAL mode enabled successfully")
+
+    # NORMAL synchronous is safe with WAL and provides good performance
+    cursor.execute("PRAGMA synchronous=NORMAL")
+
+    # Wait 5 seconds on locks before failing
+    cursor.execute("PRAGMA busy_timeout=5000")
+
+    cursor.close()
+
+
+# Register the pragma configuration for SQLite connections
+if "sqlite" in settings.database_url:
+    event.listen(engine.sync_engine, "connect", _configure_sqlite_pragmas)
 
 async_session_maker = async_sessionmaker(
     engine,
@@ -49,7 +88,7 @@ async def init_db() -> None:
 
 def _run_migrations(conn) -> None:
     """Run database migrations for schema changes."""
-    from sqlalchemy import inspect, text
+    from sqlalchemy import inspect
 
     inspector = inspect(conn)
 
@@ -74,7 +113,8 @@ def _run_migrations(conn) -> None:
         text_col = columns.get("text", {})
         if text_col and text_col.get("nullable") is False:
             # SQLite workaround: create new table, copy data, drop old, rename
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS highlights_new (
                     id INTEGER PRIMARY KEY,
                     book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
@@ -87,12 +127,15 @@ def _run_migrations(conn) -> None:
                     synced_at TIMESTAMP,
                     sync_status VARCHAR(20) DEFAULT 'PENDING'
                 )
-            """))
-            conn.execute(text("""
+            """)
+            )
+            conn.execute(
+                text("""
                 INSERT INTO highlights_new
                 SELECT id, book_id, text, note, page_number, created_at, type, readwise_id, synced_at, sync_status
                 FROM highlights
-            """))
+            """)
+            )
             conn.execute(text("DROP TABLE highlights"))
             conn.execute(text("ALTER TABLE highlights_new RENAME TO highlights"))
 

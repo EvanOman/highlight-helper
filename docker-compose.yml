@@ -21,6 +21,8 @@ services:
     volumes:
       # Database persistence
       - ./data:/app/data
+      # Database backups
+      - ./backups:/app/backups
       # SSL certificates (optional, for HTTPS)
       - ./certs:/app/certs:ro
 
