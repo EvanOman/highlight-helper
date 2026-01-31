@@ -107,9 +107,9 @@
     </div>
 </div>
 
-<!-- Sync All Section -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sync Highlights</h2>
+<!-- Sync Up Section -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sync to Readwise</h2>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
         Sync all unsynced highlights to Readwise. This will send any highlights that haven't been synced yet.
     </p>
@@ -128,6 +128,46 @@
             <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
         </svg>
         <span id="sync-all-btn-text">Sync All Unsynced Highlights</span>
+    </button>
+</div>
+
+<!-- Sync Down Section -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import from Readwise</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        Import your existing highlights from Readwise. Only book highlights will be imported. Duplicates are automatically skipped.
+    </p>
+
+    <!-- Progress display -->
+    <div id="sync-down-progress" class="mb-4 hidden">
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+            <div class="flex items-center gap-2 mb-2">
+                <div id="sync-down-spinner" class="animate-spin h-4 w-4 border-2 border-primary-600 border-t-transparent rounded-full"></div>
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300" id="sync-down-message">Connecting to Readwise...</p>
+            </div>
+            <!-- Progress bar -->
+            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mb-2">
+                <div id="sync-down-bar" class="bg-primary-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400" id="sync-down-stats"></p>
+        </div>
+    </div>
+
+    <!-- Result display -->
+    <div id="sync-down-result" class="mb-4 hidden">
+        <div class="rounded-lg p-4" id="sync-down-result-box">
+            <p class="text-sm text-gray-600 dark:text-gray-300" id="sync-down-result-text"></p>
+        </div>
+    </div>
+
+    <button type="button"
+            id="sync-down-btn"
+            onclick="syncDownFromReadwise()"
+            class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+        <span id="sync-down-btn-text">Import from Readwise</span>
     </button>
 </div>
 
@@ -299,6 +339,97 @@ async function syncAllHighlights() {
     } finally {
         btn.disabled = false;
         btnText.textContent = 'Sync All Unsynced Highlights';
+    }
+}
+
+async function syncDownFromReadwise() {
+    const btn = document.getElementById('sync-down-btn');
+    const btnText = document.getElementById('sync-down-btn-text');
+    const progressDiv = document.getElementById('sync-down-progress');
+    const progressMessage = document.getElementById('sync-down-message');
+    const progressBar = document.getElementById('sync-down-bar');
+    const progressStats = document.getElementById('sync-down-stats');
+    const spinner = document.getElementById('sync-down-spinner');
+    const resultDiv = document.getElementById('sync-down-result');
+    const resultBox = document.getElementById('sync-down-result-box');
+    const resultText = document.getElementById('sync-down-result-text');
+
+    // Reset and show progress
+    btn.disabled = true;
+    btnText.textContent = 'Importing...';
+    progressDiv.classList.remove('hidden');
+    resultDiv.classList.add('hidden');
+    progressBar.style.width = '0%';
+    progressMessage.textContent = 'Connecting to Readwise...';
+    progressStats.textContent = '';
+    spinner.classList.remove('hidden');
+
+    try {
+        const response = await fetch('{{ base_path }}/api/settings/readwise/sync-down', {
+            method: 'POST'
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+
+                        // Update progress UI
+                        progressMessage.textContent = data.message;
+
+                        if (data.books_total > 0) {
+                            const percent = Math.round((data.books_processed / data.books_total) * 100);
+                            progressBar.style.width = `${percent}%`;
+                        }
+
+                        progressStats.textContent = `Books: ${data.books_processed}/${data.books_total || '?'} | Imported: ${data.highlights_imported} | Skipped: ${data.highlights_skipped}`;
+
+                        if (data.phase === 'complete') {
+                            // Hide progress, show result
+                            spinner.classList.add('hidden');
+                            progressDiv.classList.add('hidden');
+                            resultDiv.classList.remove('hidden');
+
+                            if (data.errors && data.errors.length > 0) {
+                                resultBox.className = 'rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/30';
+                                resultText.textContent = `Imported ${data.highlights_imported} highlight(s), skipped ${data.highlights_skipped} (already exist). ${data.errors.length} error(s) occurred.`;
+                            } else if (data.highlights_imported > 0) {
+                                resultBox.className = 'rounded-lg p-4 bg-green-50 dark:bg-green-900/30';
+                                resultText.textContent = `Successfully imported ${data.highlights_imported} highlight(s) from ${data.books_processed} book(s). ${data.highlights_skipped} already existed.`;
+                            } else if (data.highlights_skipped > 0) {
+                                resultBox.className = 'rounded-lg p-4 bg-blue-50 dark:bg-blue-900/30';
+                                resultText.textContent = `All ${data.highlights_skipped} highlight(s) already exist locally. Nothing new to import.`;
+                            } else {
+                                resultBox.className = 'rounded-lg p-4 bg-gray-50 dark:bg-gray-700';
+                                resultText.textContent = 'No book highlights found in Readwise.';
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error parsing SSE data:', e);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        progressDiv.classList.add('hidden');
+        resultDiv.classList.remove('hidden');
+        resultBox.className = 'rounded-lg p-4 bg-red-50 dark:bg-red-900/30';
+        resultText.textContent = 'Error importing from Readwise. Please try again.';
+    } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Import from Readwise';
     }
 }
 </script>

@@ -1,13 +1,16 @@
 """Settings API routes."""
 
+import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.schemas import ReadwiseSyncDownResponse
 from app.core.database import get_db
 from app.models.highlight import Highlight, SyncStatus
 from app.services.readwise import ReadwiseService
@@ -176,3 +179,69 @@ async def sync_all_highlights(
         )
     finally:
         await service.close()
+
+
+@router.post("/readwise/sync-down")
+async def sync_down_from_readwise(
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Import highlights from Readwise into the local database.
+
+    Uses Server-Sent Events (SSE) to stream progress updates.
+    The final event contains the complete result.
+    """
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+
+    async def generate_events():
+        if not token:
+            # Send error and complete
+            error_data = ReadwiseSyncDownResponse(
+                success=False,
+                books_processed=0,
+                highlights_imported=0,
+                highlights_skipped=0,
+                errors=["Readwise API token not configured"],
+            )
+            yield f"data: {json.dumps(error_data.model_dump())}\n\n"
+            return
+
+        service = ReadwiseService(api_token=token)
+        try:
+            async for progress in service.sync_down(db):
+                event_data = {
+                    "phase": progress.phase,
+                    "message": progress.message,
+                    "books_processed": progress.books_processed,
+                    "books_total": progress.books_total,
+                    "highlights_imported": progress.highlights_imported,
+                    "highlights_skipped": progress.highlights_skipped,
+                    "errors": progress.errors,
+                }
+                yield f"data: {json.dumps(event_data)}\n\n"
+
+                # Commit after processing phase completes
+                if progress.phase == "complete":
+                    await db.commit()
+        except Exception as e:
+            error_data = {
+                "phase": "complete",
+                "message": f"Error: {e}",
+                "books_processed": 0,
+                "books_total": 0,
+                "highlights_imported": 0,
+                "highlights_skipped": 0,
+                "errors": [str(e)],
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+        finally:
+            await service.close()
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )

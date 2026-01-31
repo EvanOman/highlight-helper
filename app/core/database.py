@@ -139,6 +139,15 @@ def _run_migrations(conn) -> None:
             conn.execute(text("DROP TABLE highlights"))
             conn.execute(text("ALTER TABLE highlights_new RENAME TO highlights"))
 
+        # Migration 3: Add unique index on readwise_id (for sync-down deduplication)
+        # SQLite supports partial indexes with WHERE clause
+        conn.execute(
+            text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_readwise_id
+            ON highlights(readwise_id) WHERE readwise_id IS NOT NULL
+        """)
+        )
+
 
 @asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
