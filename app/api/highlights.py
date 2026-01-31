@@ -144,11 +144,13 @@ async def create_highlight(
     if settings.readwise_auto_sync and settings.readwise_api_token:
         from app.services.readwise import sync_highlight_background
 
+        # ty type checker has a ParamSpec bug: even str() casts are reported as str|None
+        # See: book.author is Mapped[str] (non-nullable), function accepts str|None
         background_tasks.add_task(
             sync_highlight_background,
             highlight_id=highlight.id,
             book_title=book.title,
-            book_author=book.author,
+            book_author=book.author,  # type: ignore[arg-type]
             text=highlight.text,
             note=highlight.note,
             page_number=highlight.page_number,

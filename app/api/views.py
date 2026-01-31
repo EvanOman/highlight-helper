@@ -455,11 +455,13 @@ async def create_highlight_form(
     if auto_sync and token:
         from app.services.readwise import sync_highlight_background_with_token
 
+        # ty type checker has a ParamSpec bug: even str() casts are reported as str|None
+        # See: book.author is Mapped[str] (non-nullable), function accepts str|None
         background_tasks.add_task(
             sync_highlight_background_with_token,
             highlight_id=highlight.id,
             book_title=book.title,
-            book_author=book.author,
+            book_author=book.author,  # type: ignore[arg-type]
             text=highlight.text,
             note=highlight.note,
             page_number=highlight.page_number,

@@ -416,11 +416,12 @@ class ReadwiseService:
         if not self._api_token:
             return []
 
-        books = []
-        try:
-            async with AsyncReadwiseClient(api_key=self._api_token) as client:
+        def _fetch_books() -> list[ReadwiseBook]:
+            books = []
+            client = self._create_client()
+            try:
                 # Use export_highlights which returns books with their highlights
-                async for export_book in client.v2.export_highlights():
+                for export_book in client.v2.export_highlights():
                     # Filter to only books category
                     if export_book.category != "books":
                         continue
@@ -446,10 +447,15 @@ class ReadwiseService:
                             highlights=highlights,
                         )
                     )
+            finally:
+                client.close()
+            return books
+
+        try:
+            return await asyncio.to_thread(_fetch_books)
         except Exception as e:
             logger.error(f"Error fetching books from Readwise: {e}")
-
-        return books
+            return []
 
     async def sync_down(
         self,
@@ -638,7 +644,7 @@ async def get_readwise_service() -> ReadwiseService:
 async def sync_highlight_background(
     highlight_id: int,
     book_title: str,
-    book_author: str,
+    book_author: str | None,
     text: str,
     note: str | None,
     page_number: str | None,
@@ -652,7 +658,7 @@ async def sync_highlight_background(
     Args:
         highlight_id: The local highlight ID to update after sync.
         book_title: Book title for Readwise.
-        book_author: Book author for Readwise.
+        book_author: Book author for Readwise (defaults to "Unknown Author" if None).
         text: The highlight text.
         note: Optional note/annotation.
         page_number: Optional page number.
@@ -670,7 +676,7 @@ async def sync_highlight_background(
         result = await service.send_highlight(
             text=text,
             title=book_title,
-            author=book_author,
+            author=book_author or "Unknown Author",
             note=note,
             page_number=page_number,
             highlighted_at=created_at,
@@ -702,7 +708,7 @@ async def sync_highlight_background(
 async def sync_highlight_background_with_token(
     highlight_id: int,
     book_title: str,
-    book_author: str,
+    book_author: str | None,
     text: str,
     note: str | None,
     page_number: str | None,
@@ -717,7 +723,7 @@ async def sync_highlight_background_with_token(
     Args:
         highlight_id: The local highlight ID to update after sync.
         book_title: Book title for Readwise.
-        book_author: Book author for Readwise.
+        book_author: Book author for Readwise (defaults to "Unknown Author" if None).
         text: The highlight text.
         note: Optional note/annotation.
         page_number: Optional page number.
@@ -733,7 +739,7 @@ async def sync_highlight_background_with_token(
         result = await service.send_highlight(
             text=text,
             title=book_title,
-            author=book_author,
+            author=book_author or "Unknown Author",
             note=note,
             page_number=page_number,
             highlighted_at=created_at,
