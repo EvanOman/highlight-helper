@@ -788,7 +788,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
-    { name = "readwise-plus" },
+    { name = "readwise-sdk" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -823,7 +823,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.5.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.12" },
-    { name = "readwise-plus", specifier = ">=0.1.3" },
+    { name = "readwise-sdk", path = "readwise_sdk-0.1.0-py3-none-any.whl" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
 ]
@@ -2047,17 +2047,25 @@ wheels = [
 ]
 
 [[package]]
-name = "readwise-plus"
-version = "0.1.3"
-source = { registry = "https://pypi.org/simple" }
+name = "readwise-sdk"
+version = "0.1.0"
+source = { path = "readwise_sdk-0.1.0-py3-none-any.whl" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/3c/903fffbedfb00d745e5c53e0bf8c0446528109aac7606101c51ba26a09f8/readwise_plus-0.1.3.tar.gz", hash = "sha256:19c29d529f3a02772b829a8fd912c7ed212e7d9aaba43edc14c8c12239f71530", size = 160419, upload-time = "2026-01-21T03:04:40.719Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/8d/48579f1bf4edcd0b69383760aed40387828594dc48536f2213d7ff36351d/readwise_plus-0.1.3-py3-none-any.whl", hash = "sha256:a8821be427ab8a9c437d75a1f6ba66753fd42b897a65151d9ea424ce6c5c1378", size = 64050, upload-time = "2026-01-21T03:04:38.988Z" },
+    { filename = "readwise_sdk-0.1.0-py3-none-any.whl", hash = "sha256:52891ddbdb23d4bd4c2d0e6df3ca55139f921b5fcaeea8cfadeaca96693a9ba8" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.0.0" },
+    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.21.0" },
+]
+provides-extras = ["cli"]
 
 [[package]]
 name = "referencing"

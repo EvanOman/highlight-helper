@@ -464,7 +464,7 @@ class TestISBNExtractorService:
 
 
 class TestReadwiseService:
-    """Tests for the ReadwiseService using the readwise-plus SDK."""
+    """Tests for the ReadwiseService using the readwise-sdk."""
 
     def test_is_configured_without_token(self):
         """Test is_configured returns False without token."""
@@ -483,12 +483,12 @@ class TestReadwiseService:
         """Test successful token validation."""
         service = ReadwiseService(api_token="valid_token")
 
-        mock_client = AsyncMock()
-        mock_client.validate_token = AsyncMock(return_value=True)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.validate_token = MagicMock(return_value=True)
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             result = await service.validate_token()
 
         assert result is True
@@ -497,12 +497,12 @@ class TestReadwiseService:
         """Test token validation with invalid token."""
         service = ReadwiseService(api_token="invalid_token")
 
-        mock_client = AsyncMock()
-        mock_client.validate_token = AsyncMock(return_value=False)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.validate_token = MagicMock(return_value=False)
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        with patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             result = await service.validate_token()
 
         assert result is False
@@ -526,15 +526,15 @@ class TestReadwiseService:
         mock_push_result.highlight_id = 67890
 
         mock_pusher = MagicMock()
-        mock_pusher.push = AsyncMock(return_value=mock_push_result)
+        mock_pusher.push = MagicMock(return_value=mock_push_result)
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
         with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
+            patch("app.services.readwise.ReadwiseClient", return_value=mock_client),
+            patch("app.services.readwise.HighlightPusher", return_value=mock_pusher),
         ):
             result = await service.send_highlight(
                 text="Test highlight text",
@@ -575,15 +575,15 @@ class TestReadwiseService:
         mock_push_result.error = "API error: 500 Internal Server Error"
 
         mock_pusher = MagicMock()
-        mock_pusher.push = AsyncMock(return_value=mock_push_result)
+        mock_pusher.push = MagicMock(return_value=mock_push_result)
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
         with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
+            patch("app.services.readwise.ReadwiseClient", return_value=mock_client),
+            patch("app.services.readwise.HighlightPusher", return_value=mock_pusher),
         ):
             result = await service.send_highlight(
                 text="Test highlight",
@@ -599,15 +599,15 @@ class TestReadwiseService:
         service = ReadwiseService(api_token="test_token")
 
         mock_pusher = MagicMock()
-        mock_pusher.push = AsyncMock(side_effect=Exception("Connection failed"))
+        mock_pusher.push = MagicMock(side_effect=Exception("Connection failed"))
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
         with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
+            patch("app.services.readwise.ReadwiseClient", return_value=mock_client),
+            patch("app.services.readwise.HighlightPusher", return_value=mock_pusher),
         ):
             result = await service.send_highlight(
                 text="Test highlight",
@@ -632,15 +632,15 @@ class TestReadwiseService:
         mock_result_2.highlight_id = 222
 
         mock_pusher = MagicMock()
-        mock_pusher.push_batch = AsyncMock(return_value=[mock_result_1, mock_result_2])
+        mock_pusher.push_batch = MagicMock(return_value=[mock_result_1, mock_result_2])
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
         with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
+            patch("app.services.readwise.ReadwiseClient", return_value=mock_client),
+            patch("app.services.readwise.HighlightPusher", return_value=mock_pusher),
         ):
             result = await service.send_highlights(
                 [
@@ -691,20 +691,15 @@ class TestReadwiseService:
         """Test successful highlight update."""
         service = ReadwiseService(api_token="test_token")
 
-        mock_update_result = MagicMock()
-        mock_update_result.success = True
+        mock_v2 = MagicMock()
+        mock_v2.update_highlight = MagicMock(return_value=None)
 
-        mock_pusher = MagicMock()
-        mock_pusher.update = AsyncMock(return_value=mock_update_result)
+        mock_client = MagicMock()
+        mock_client.v2 = mock_v2
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
-        ):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             result = await service.update_highlight(
                 readwise_id="67890",
                 text="Updated text",
@@ -720,20 +715,15 @@ class TestReadwiseService:
         """Test update_highlight with only some fields."""
         service = ReadwiseService(api_token="test_token")
 
-        mock_update_result = MagicMock()
-        mock_update_result.success = True
+        mock_v2 = MagicMock()
+        mock_v2.update_highlight = MagicMock(return_value=None)
 
-        mock_pusher = MagicMock()
-        mock_pusher.update = AsyncMock(return_value=mock_update_result)
+        mock_client = MagicMock()
+        mock_client.v2 = mock_v2
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
-        ):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             # Only update text, leave note and page_number as None
             result = await service.update_highlight(
                 readwise_id="67890",
@@ -743,8 +733,8 @@ class TestReadwiseService:
         assert result.success is True
 
         # Verify update was called with only text
-        mock_pusher.update.assert_called_once()
-        call_kwargs = mock_pusher.update.call_args[1]
+        mock_v2.update_highlight.assert_called_once()
+        call_kwargs = mock_v2.update_highlight.call_args[1]
         assert call_kwargs.get("text") == "Only text updated"
         assert "note" not in call_kwargs
         assert "location" not in call_kwargs
@@ -779,21 +769,15 @@ class TestReadwiseService:
         """Test update_highlight with API error."""
         service = ReadwiseService(api_token="test_token")
 
-        mock_update_result = MagicMock()
-        mock_update_result.success = False
-        mock_update_result.error = "Not found"
+        mock_v2 = MagicMock()
+        mock_v2.update_highlight = MagicMock(side_effect=Exception("Not found"))
 
-        mock_pusher = MagicMock()
-        mock_pusher.update = AsyncMock(return_value=mock_update_result)
+        mock_client = MagicMock()
+        mock_client.v2 = mock_v2
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
-        ):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             result = await service.update_highlight(
                 readwise_id="99999",
                 text="Test text",
@@ -806,17 +790,15 @@ class TestReadwiseService:
         """Test update_highlight with network error."""
         service = ReadwiseService(api_token="test_token")
 
-        mock_pusher = MagicMock()
-        mock_pusher.update = AsyncMock(side_effect=Exception("Connection failed"))
+        mock_v2 = MagicMock()
+        mock_v2.update_highlight = MagicMock(side_effect=Exception("Connection failed"))
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client = MagicMock()
+        mock_client.v2 = mock_v2
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
-        ):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             result = await service.update_highlight(
                 readwise_id="67890",
                 text="Test text",
@@ -829,20 +811,15 @@ class TestReadwiseService:
         """Test update_highlight can clear a note by setting empty string."""
         service = ReadwiseService(api_token="test_token")
 
-        mock_update_result = MagicMock()
-        mock_update_result.success = True
+        mock_v2 = MagicMock()
+        mock_v2.update_highlight = MagicMock(return_value=None)
 
-        mock_pusher = MagicMock()
-        mock_pusher.update = AsyncMock(return_value=mock_update_result)
+        mock_client = MagicMock()
+        mock_client.v2 = mock_v2
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        with (
-            patch("app.services.readwise.AsyncReadwiseClient", return_value=mock_client),
-            patch("app.services.readwise.AsyncHighlightPusher", return_value=mock_pusher),
-        ):
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
             result = await service.update_highlight(
                 readwise_id="67890",
                 note="",  # Empty string to clear note
@@ -851,7 +828,7 @@ class TestReadwiseService:
         assert result.success is True
 
         # Verify payload contains empty note
-        call_kwargs = mock_pusher.update.call_args[1]
+        call_kwargs = mock_v2.update_highlight.call_args[1]
         assert call_kwargs.get("note") == ""
 
 

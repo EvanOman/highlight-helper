@@ -1,11 +1,12 @@
 """Readwise integration service for syncing highlights."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from readwise_sdk import AsyncReadwiseClient
-from readwise_sdk.contrib import AsyncHighlightPusher, SimpleHighlight
+from readwise_sdk import ReadwiseClient
+from readwise_sdk.contrib import HighlightPusher, PushResult, SimpleHighlight
 from readwise_sdk.v2 import BookCategory
 
 from app.core.config import get_settings
@@ -34,7 +35,11 @@ class ReadwiseBatchResult:
 
 
 class ReadwiseService:
-    """Service for syncing highlights to Readwise using the readwise-plus SDK."""
+    """Service for syncing highlights to Readwise using the readwise-sdk.
+
+    Uses asyncio.to_thread to run the synchronous SDK in a thread pool,
+    keeping the FastAPI async event loop responsive.
+    """
 
     def __init__(self, api_token: str | None = None) -> None:
         """Initialize the service.
@@ -56,6 +61,10 @@ class ReadwiseService:
         """Close the service (no-op, SDK handles cleanup via context managers)."""
         pass
 
+    def _create_client(self) -> ReadwiseClient:
+        """Create a Readwise client instance."""
+        return ReadwiseClient(api_key=self._api_token)
+
     async def validate_token(self) -> bool:
         """Validate the Readwise API token.
 
@@ -69,8 +78,15 @@ class ReadwiseService:
                 return False
 
             try:
-                async with AsyncReadwiseClient(api_key=self._api_token) as client:
-                    is_valid = await client.validate_token()
+
+                def _validate() -> bool:
+                    client = self._create_client()
+                    try:
+                        return client.validate_token()
+                    finally:
+                        client.close()
+
+                is_valid = await asyncio.to_thread(_validate)
                 add_span_attributes(
                     readwise_token_configured=True,
                     readwise_token_valid=is_valid,
@@ -121,40 +137,45 @@ class ReadwiseService:
                 )
 
             try:
-                async with AsyncReadwiseClient(api_key=self._api_token) as client:
-                    pusher = AsyncHighlightPusher(client)
+                # Convert page_number to int if provided
+                location = int(page_number) if page_number and page_number.isdigit() else None
 
-                    # Convert page_number to int if provided
-                    location = int(page_number) if page_number and page_number.isdigit() else None
+                def _push() -> PushResult:
+                    client = self._create_client()
+                    try:
+                        pusher = HighlightPusher(client)
+                        return pusher.push(
+                            text=text[:8191],  # Readwise max length
+                            title=title[:511],  # Readwise max length
+                            author=author[:1024],  # Readwise max length
+                            category=BookCategory.BOOKS,
+                            source_type="highlight_helper",
+                            note=note[:8191] if note else None,
+                            location=location,
+                            highlighted_at=highlighted_at,
+                        )
+                    finally:
+                        client.close()
 
-                    result = await pusher.push(
-                        text=text[:8191],  # Readwise max length
-                        title=title[:511],  # Readwise max length
-                        author=author[:1024],  # Readwise max length
-                        category=BookCategory.BOOKS,
-                        source_type="highlight_helper",
-                        note=note[:8191] if note else None,
-                        location=location,
-                        highlighted_at=highlighted_at,
+                result = await asyncio.to_thread(_push)
+
+                if result.success:
+                    readwise_id = str(result.highlight_id) if result.highlight_id else None
+                    if readwise_id:
+                        add_span_attributes(readwise_highlight_id=readwise_id)
+                    set_span_status(True)
+                    return ReadwiseSyncResult(
+                        success=True,
+                        readwise_id=readwise_id,
                     )
-
-                    if result.success:
-                        readwise_id = str(result.highlight_id) if result.highlight_id else None
-                        if readwise_id:
-                            add_span_attributes(readwise_highlight_id=readwise_id)
-                        set_span_status(True)
-                        return ReadwiseSyncResult(
-                            success=True,
-                            readwise_id=readwise_id,
-                        )
-                    else:
-                        error = result.error or "Unknown error"
-                        add_span_attributes(readwise_error=error)
-                        set_span_status(False, error)
-                        return ReadwiseSyncResult(
-                            success=False,
-                            error=error,
-                        )
+                else:
+                    error = result.error or "Unknown error"
+                    add_span_attributes(readwise_error=error)
+                    set_span_status(False, error)
+                    return ReadwiseSyncResult(
+                        success=False,
+                        error=error,
+                    )
             except Exception as e:
                 error = f"Error syncing to Readwise: {e}"
                 add_span_attributes(readwise_error=error)
@@ -204,23 +225,19 @@ class ReadwiseService:
             )
 
         try:
-            async with AsyncReadwiseClient(api_key=self._api_token) as client:
-                pusher = AsyncHighlightPusher(client)
-                result = await pusher.update(
-                    highlight_id=int(readwise_id),
-                    **update_kwargs,
-                )
 
-                if result.success:
-                    return ReadwiseSyncResult(
-                        success=True,
-                        readwise_id=readwise_id,
-                    )
-                else:
-                    return ReadwiseSyncResult(
-                        success=False,
-                        error=result.error or "Update failed",
-                    )
+            def _update() -> None:
+                client = self._create_client()
+                try:
+                    client.v2.update_highlight(int(readwise_id), **update_kwargs)
+                finally:
+                    client.close()
+
+            await asyncio.to_thread(_update)
+            return ReadwiseSyncResult(
+                success=True,
+                readwise_id=readwise_id,
+            )
         except Exception as e:
             return ReadwiseSyncResult(
                 success=False,
@@ -266,63 +283,66 @@ class ReadwiseService:
                 return ReadwiseBatchResult(total=0, synced=0, failed=0, results=[])
 
             try:
-                async with AsyncReadwiseClient(api_key=self._api_token) as client:
-                    pusher = AsyncHighlightPusher(client)
+                # Convert to SimpleHighlight objects
+                simple_highlights = []
+                for h in highlights:
+                    location = None
+                    if h.get("page_number"):
+                        try:
+                            location = int(h["page_number"])
+                        except (ValueError, TypeError):
+                            pass
 
-                    # Convert to SimpleHighlight objects
-                    simple_highlights = []
-                    for h in highlights:
-                        location = None
-                        if h.get("page_number"):
-                            try:
-                                location = int(h["page_number"])
-                            except (ValueError, TypeError):
-                                pass
-
-                        simple_highlights.append(
-                            SimpleHighlight(
-                                text=h["text"][:8191],
-                                title=h["title"][:511],
-                                author=h.get("author", "")[:1024],
-                                category=BookCategory.BOOKS,
-                                source_type="highlight_helper",
-                                note=h.get("note", "")[:8191] if h.get("note") else None,
-                                location=location,
-                                location_type="page" if location else None,
-                                highlighted_at=h.get("highlighted_at"),
-                            )
+                    simple_highlights.append(
+                        SimpleHighlight(
+                            text=h["text"][:8191],
+                            title=h["title"][:511],
+                            author=h.get("author", "")[:1024],
+                            category=BookCategory.BOOKS,
+                            source_type="highlight_helper",
+                            note=h.get("note", "")[:8191] if h.get("note") else None,
+                            location=location,
+                            location_type="page" if location else None,
+                            highlighted_at=h.get("highlighted_at"),
                         )
-
-                    results = await pusher.push_batch(simple_highlights)
-
-                    # Convert results
-                    sync_results = []
-                    synced = 0
-                    failed = 0
-                    for result in results:
-                        if result.success:
-                            synced += 1
-                            readwise_id = str(result.highlight_id) if result.highlight_id else None
-                            sync_results.append(
-                                ReadwiseSyncResult(success=True, readwise_id=readwise_id)
-                            )
-                        else:
-                            failed += 1
-                            sync_results.append(
-                                ReadwiseSyncResult(success=False, error=result.error)
-                            )
-
-                    add_span_attributes(
-                        readwise_synced_count=synced,
-                        readwise_failed_count=failed,
                     )
-                    set_span_status(True)
-                    return ReadwiseBatchResult(
-                        total=len(highlights),
-                        synced=synced,
-                        failed=failed,
-                        results=sync_results,
-                    )
+
+                def _push_batch() -> list[PushResult]:
+                    client = self._create_client()
+                    try:
+                        pusher = HighlightPusher(client)
+                        return pusher.push_batch(simple_highlights)
+                    finally:
+                        client.close()
+
+                results = await asyncio.to_thread(_push_batch)
+
+                # Convert results
+                sync_results = []
+                synced = 0
+                failed = 0
+                for result in results:
+                    if result.success:
+                        synced += 1
+                        readwise_id = str(result.highlight_id) if result.highlight_id else None
+                        sync_results.append(
+                            ReadwiseSyncResult(success=True, readwise_id=readwise_id)
+                        )
+                    else:
+                        failed += 1
+                        sync_results.append(ReadwiseSyncResult(success=False, error=result.error))
+
+                add_span_attributes(
+                    readwise_synced_count=synced,
+                    readwise_failed_count=failed,
+                )
+                set_span_status(True)
+                return ReadwiseBatchResult(
+                    total=len(highlights),
+                    synced=synced,
+                    failed=failed,
+                    results=sync_results,
+                )
             except Exception as e:
                 error_msg = f"Error syncing batch: {e}"
                 results = [ReadwiseSyncResult(success=False, error=error_msg) for _ in highlights]
