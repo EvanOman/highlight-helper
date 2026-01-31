@@ -248,3 +248,21 @@ async def synced_highlight(test_session: AsyncSession, sample_book):
     await test_session.flush()
     await test_session.refresh(highlight)
     return highlight
+
+
+@pytest.fixture
+async def sample_note(test_session: AsyncSession, sample_book):
+    """Create a sample note (not a highlight) for testing."""
+    from app.models.highlight import AnnotationType, Highlight
+
+    note = Highlight(
+        book_id=sample_book.id,
+        text=None,  # Notes don't have highlight text
+        note="This is a standalone note about the book.",
+        page_number="50",
+        type=AnnotationType.NOTE,
+    )
+    test_session.add(note)
+    await test_session.flush()
+    await test_session.refresh(note)
+    return note
