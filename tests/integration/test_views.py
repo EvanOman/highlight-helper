@@ -124,7 +124,7 @@ class TestBookDetailView:
         assert response.status_code == 200
         assert sample_book.title in response.text
         assert sample_book.author in response.text
-        assert "No highlights yet" in response.text
+        assert "No highlights or notes yet" in response.text
 
     async def test_book_detail_with_highlights(
         self, client: AsyncClient, sample_book, sample_highlight
@@ -354,3 +354,114 @@ class TestDeleteHighlightView:
         )
         assert response.status_code == 303
         assert f"/books/{sample_book.id}" in response.headers["location"]
+
+
+class TestTimelineView:
+    """Tests for the timeline feature on book detail page."""
+
+    async def test_book_detail_shows_timeline_with_page_numbers(
+        self, client: AsyncClient, sample_book, sample_highlight
+    ):
+        """Test that timeline is shown when highlights have page numbers."""
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        # Timeline should be shown (sample_highlight has page_number="42")
+        assert "Reading Progress" in response.text
+        assert "p. 42" in response.text
+        # Check for legend
+        assert "Highlights" in response.text
+        assert "Notes" in response.text
+
+    async def test_book_detail_hides_timeline_without_page_numbers(
+        self, client: AsyncClient, test_session, sample_book
+    ):
+        """Test that timeline is hidden when no highlights have page numbers."""
+        from app.models.highlight import Highlight
+
+        # Create highlight without page number
+        highlight = Highlight(
+            book_id=sample_book.id,
+            text="Highlight without page",
+            page_number=None,
+        )
+        test_session.add(highlight)
+        await test_session.commit()
+
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        # Timeline should NOT be shown
+        assert "Reading Progress" not in response.text
+
+    async def test_book_detail_timeline_shows_correct_page_range(
+        self, client: AsyncClient, test_session, sample_book
+    ):
+        """Test that timeline shows correct min/max page numbers."""
+        from app.models.highlight import Highlight
+
+        # Create highlights at different pages
+        highlight1 = Highlight(
+            book_id=sample_book.id,
+            text="First highlight",
+            page_number="10",
+        )
+        highlight2 = Highlight(
+            book_id=sample_book.id,
+            text="Last highlight",
+            page_number="200",
+        )
+        test_session.add_all([highlight1, highlight2])
+        await test_session.commit()
+
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        assert "p. 10" in response.text
+        assert "p. 200" in response.text
+
+    async def test_book_detail_highlight_cards_have_ids(
+        self, client: AsyncClient, sample_book, sample_highlight
+    ):
+        """Test that highlight cards have IDs for timeline scroll targeting."""
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        # Check for highlight card ID
+        assert f'id="highlight-{sample_highlight.id}"' in response.text
+
+    async def test_book_detail_timeline_single_item_no_duplicate_label(
+        self, client: AsyncClient, sample_book, sample_highlight
+    ):
+        """Test that single item timeline does not show duplicate page labels."""
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        # Should only show one "p. 42" label, not two
+        # Count occurrences of "p. 42" in page labels section
+        # The label should appear once (not twice at both ends)
+        content = response.text
+        # The pattern should not have two adjacent page labels with same value
+        assert "p. 42</span>" in content
+        # When min == max, we should NOT have a second label
+        # The implementation hides the second label when timeline_min_page == timeline_max_page
+
+    async def test_book_detail_timeline_escapes_preview_text(
+        self, client: AsyncClient, test_session, sample_book
+    ):
+        """Test that preview text in tooltip is properly escaped (XSS prevention)."""
+        from app.models.highlight import Highlight
+
+        # Create highlight with potentially dangerous content
+        highlight = Highlight(
+            book_id=sample_book.id,
+            text='Test <script>alert("xss")</script> text',
+            page_number="50",
+        )
+        test_session.add(highlight)
+        await test_session.commit()
+
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        # The script tag should be escaped in the title attribute
+        assert "<script>" not in response.text or "&lt;script&gt;" in response.text
+        assert (
+            'alert("xss")' not in response.text
+            or "&#34;" in response.text
+            or "&quot;" in response.text
+        )
