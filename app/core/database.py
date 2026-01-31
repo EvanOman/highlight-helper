@@ -74,7 +74,8 @@ def _run_migrations(conn) -> None:
         text_col = columns.get("text", {})
         if text_col and text_col.get("nullable") is False:
             # SQLite workaround: create new table, copy data, drop old, rename
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS highlights_new (
                     id INTEGER PRIMARY KEY,
                     book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
@@ -87,14 +88,26 @@ def _run_migrations(conn) -> None:
                     synced_at TIMESTAMP,
                     sync_status VARCHAR(20) DEFAULT 'PENDING'
                 )
-            """))
-            conn.execute(text("""
+            """)
+            )
+            conn.execute(
+                text("""
                 INSERT INTO highlights_new
                 SELECT id, book_id, text, note, page_number, created_at, type, readwise_id, synced_at, sync_status
                 FROM highlights
-            """))
+            """)
+            )
             conn.execute(text("DROP TABLE highlights"))
             conn.execute(text("ALTER TABLE highlights_new RENAME TO highlights"))
+
+        # Migration 3: Add unique index on readwise_id (for sync-down deduplication)
+        # SQLite supports partial indexes with WHERE clause
+        conn.execute(
+            text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_readwise_id
+            ON highlights(readwise_id) WHERE readwise_id IS NOT NULL
+        """)
+        )
 
 
 @asynccontextmanager

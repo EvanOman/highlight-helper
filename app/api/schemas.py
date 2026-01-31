@@ -154,3 +154,13 @@ class ReadwiseBatchSyncResponse(BaseModel):
     total: int
     synced: int
     failed: int
+
+
+class ReadwiseSyncDownResponse(BaseModel):
+    """Schema for sync-down (import from Readwise) response."""
+
+    success: bool
+    books_processed: int
+    highlights_imported: int
+    highlights_skipped: int
+    errors: list[str] = []

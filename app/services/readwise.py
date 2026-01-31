@@ -1,7 +1,8 @@
 """Readwise integration service for syncing highlights."""
 
 import logging
-from dataclasses import dataclass
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from readwise_sdk import AsyncReadwiseClient
@@ -31,6 +32,53 @@ class ReadwiseBatchResult:
     synced: int
     failed: int
     results: list[ReadwiseSyncResult]
+
+
+@dataclass
+class ReadwiseHighlight:
+    """A highlight fetched from Readwise."""
+
+    id: str
+    text: str
+    note: str | None
+    location: int | None
+    highlighted_at: datetime | None
+
+
+@dataclass
+class ReadwiseBook:
+    """A book fetched from Readwise with its highlights."""
+
+    id: str
+    title: str
+    author: str
+    category: str
+    cover_url: str | None
+    highlights: list[ReadwiseHighlight] = field(default_factory=list)
+
+
+@dataclass
+class SyncDownProgress:
+    """Progress update during sync-down operation."""
+
+    phase: str  # "fetching", "processing", "complete"
+    message: str
+    books_processed: int = 0
+    books_total: int = 0
+    highlights_imported: int = 0
+    highlights_skipped: int = 0
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SyncDownResult:
+    """Final result of sync-down operation."""
+
+    success: bool
+    books_processed: int
+    highlights_imported: int
+    highlights_skipped: int
+    errors: list[str] = field(default_factory=list)
 
 
 class ReadwiseService:
@@ -338,6 +386,216 @@ class ReadwiseService:
                     failed=len(highlights),
                     results=results,
                 )
+
+    async def fetch_books(self) -> list[ReadwiseBook]:
+        """Fetch all books from Readwise using the export API.
+
+        Returns:
+            List of ReadwiseBook objects with category 'books'.
+        """
+        if not self._api_token:
+            return []
+
+        books = []
+        try:
+            async with AsyncReadwiseClient(api_key=self._api_token) as client:
+                # Use export_highlights which returns books with their highlights
+                async for export_book in client.v2.export_highlights():
+                    # Filter to only books category
+                    if export_book.category != "books":
+                        continue
+
+                    highlights = []
+                    for h in export_book.highlights:
+                        highlights.append(
+                            ReadwiseHighlight(
+                                id=str(h.id),
+                                text=h.text or "",
+                                note=h.note,
+                                location=h.location,
+                                highlighted_at=h.highlighted_at,
+                            )
+                        )
+                    books.append(
+                        ReadwiseBook(
+                            id=str(export_book.user_book_id),
+                            title=export_book.title or "Unknown Title",
+                            author=export_book.author or "Unknown Author",
+                            category=export_book.category or "books",
+                            cover_url=export_book.cover_image_url,
+                            highlights=highlights,
+                        )
+                    )
+        except Exception as e:
+            logger.error(f"Error fetching books from Readwise: {e}")
+
+        return books
+
+    async def sync_down(
+        self,
+        db_session,
+    ) -> AsyncIterator[SyncDownProgress]:
+        """Import highlights from Readwise into the local database.
+
+        This is a generator that yields progress updates as books are processed.
+        Uses readwise_id unique constraint to prevent duplicates.
+
+        Args:
+            db_session: SQLAlchemy async session
+
+        Yields:
+            SyncDownProgress updates during the import process
+        """
+        from sqlalchemy import select
+        from sqlalchemy.exc import IntegrityError
+
+        from app.models.book import Book
+        from app.models.highlight import AnnotationType, Highlight, SyncStatus
+
+        with create_span("readwise_sync_down"):
+            if not self._api_token:
+                yield SyncDownProgress(
+                    phase="complete",
+                    message="Readwise not configured",
+                    errors=["Readwise API token not configured"],
+                )
+                return
+
+            # Phase 1: Fetching books from Readwise
+            yield SyncDownProgress(
+                phase="fetching",
+                message="Fetching books from Readwise...",
+            )
+
+            try:
+                readwise_books = await self.fetch_books()
+            except Exception as e:
+                error_msg = f"Failed to fetch from Readwise: {e}"
+                logger.error(error_msg)
+                yield SyncDownProgress(
+                    phase="complete",
+                    message="Failed to fetch from Readwise",
+                    errors=[error_msg],
+                )
+                return
+
+            if not readwise_books:
+                yield SyncDownProgress(
+                    phase="complete",
+                    message="No books found in Readwise",
+                    books_processed=0,
+                    highlights_imported=0,
+                    highlights_skipped=0,
+                )
+                return
+
+            # Phase 2: Processing books
+            total_books = len(readwise_books)
+            books_processed = 0
+            highlights_imported = 0
+            highlights_skipped = 0
+            errors: list[str] = []
+
+            for rw_book in readwise_books:
+                try:
+                    # Skip books with no highlights
+                    if not rw_book.highlights:
+                        books_processed += 1
+                        continue
+
+                    # Find or create the book
+                    book_query = select(Book).where(
+                        Book.title == rw_book.title,
+                        Book.author == rw_book.author,
+                    )
+                    result = await db_session.execute(book_query)
+                    book = result.scalar_one_or_none()
+
+                    if not book:
+                        book = Book(
+                            title=rw_book.title,
+                            author=rw_book.author,
+                            cover_url=rw_book.cover_url,
+                        )
+                        db_session.add(book)
+                        await db_session.flush()
+
+                    # Import each highlight
+                    for rw_highlight in rw_book.highlights:
+                        try:
+                            # Check if highlight already exists by readwise_id
+                            existing_query = select(Highlight).where(
+                                Highlight.readwise_id == rw_highlight.id
+                            )
+                            existing_result = await db_session.execute(existing_query)
+                            if existing_result.scalar_one_or_none():
+                                highlights_skipped += 1
+                                continue
+
+                            # Create new highlight
+                            highlight = Highlight(
+                                book_id=book.id,
+                                text=rw_highlight.text,
+                                note=rw_highlight.note,
+                                page_number=(
+                                    str(rw_highlight.location) if rw_highlight.location else None
+                                ),
+                                type=AnnotationType.HIGHLIGHT,
+                                readwise_id=rw_highlight.id,
+                                synced_at=datetime.now(tz=UTC),
+                                sync_status=SyncStatus.SYNCED,
+                                created_at=rw_highlight.highlighted_at or datetime.now(tz=UTC),
+                            )
+                            db_session.add(highlight)
+                            highlights_imported += 1
+
+                        except IntegrityError:
+                            # Unique constraint violation - highlight already exists
+                            await db_session.rollback()
+                            highlights_skipped += 1
+                        except Exception as e:
+                            error_msg = f"Error importing highlight: {e}"
+                            logger.warning(error_msg)
+                            errors.append(error_msg)
+
+                    await db_session.flush()
+                    books_processed += 1
+
+                    # Yield progress update
+                    yield SyncDownProgress(
+                        phase="processing",
+                        message=f"Processing: {rw_book.title}",
+                        books_processed=books_processed,
+                        books_total=total_books,
+                        highlights_imported=highlights_imported,
+                        highlights_skipped=highlights_skipped,
+                        errors=errors,
+                    )
+
+                except Exception as e:
+                    # Catch any error for this book and continue with the next
+                    error_msg = f"Error processing book '{rw_book.title}': {e}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+                    books_processed += 1
+
+            # Phase 3: Complete
+            add_span_attributes(
+                readwise_books_processed=books_processed,
+                readwise_highlights_imported=highlights_imported,
+                readwise_highlights_skipped=highlights_skipped,
+            )
+            set_span_status(True)
+
+            yield SyncDownProgress(
+                phase="complete",
+                message="Import complete",
+                books_processed=books_processed,
+                books_total=total_books,
+                highlights_imported=highlights_imported,
+                highlights_skipped=highlights_skipped,
+                errors=errors,
+            )
 
 
 # Lazy initialization for optional service
