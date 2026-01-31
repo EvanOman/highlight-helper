@@ -134,3 +134,31 @@ service-logs:
 # Restart the service (requires sudo)
 service-restart:
     sudo systemctl restart highlight-helper
+
+# =============================================================================
+# Database Backup Commands
+# =============================================================================
+
+# Create a database backup
+backup:
+    ./scripts/backup_db.sh
+
+# List available backups
+backup-list:
+    @echo "Available backups:"
+    @find ./backups -name "highlight_helper_*.db" -type f 2>/dev/null | sort | while read backup; do \
+        size=$$(du -h "$$backup" | cut -f1); \
+        echo "  $$(basename $$backup) ($$size)"; \
+    done || echo "  No backups found"
+
+# Restore from a backup file
+backup-restore file:
+    @if [ ! -f "{{file}}" ]; then \
+        echo "Error: Backup file not found: {{file}}"; \
+        exit 1; \
+    fi
+    @echo "Restoring from: {{file}}"
+    @echo "This will overwrite the current database. Press Ctrl+C to cancel..."
+    @sleep 3
+    cp "{{file}}" ./data/highlight_helper.db
+    @echo "Database restored successfully."
