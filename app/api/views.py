@@ -240,12 +240,61 @@ async def book_detail(
     highlights_result = await db.execute(highlights_query)
     highlights = highlights_result.scalars().all()
 
+    # Build timeline data for highlights with page numbers
+    timeline_items = []
+    page_numbers = []
+
+    for h in highlights:
+        if h.page_number:
+            try:
+                # Handle page ranges like "42-43" by taking the first number
+                page_num = int(h.page_number.split("-")[0].strip())
+                page_numbers.append(page_num)
+                preview_text = h.text or h.note or ""
+                if len(preview_text) > 50:
+                    preview_text = preview_text[:50] + "..."
+                timeline_items.append(
+                    {
+                        "id": h.id,
+                        "page_number": page_num,
+                        "type": h.type.value if hasattr(h.type, "value") else str(h.type),
+                        "preview": preview_text,
+                    }
+                )
+            except (ValueError, AttributeError):
+                # Skip highlights with non-numeric page numbers
+                pass
+
+    min_page = min(page_numbers) if page_numbers else 0
+    max_page = max(page_numbers) if page_numbers else 0
+
+    for item in timeline_items:
+        if max_page > min_page:
+            item["position"] = ((item["page_number"] - min_page) / (max_page - min_page)) * 100
+        else:
+            item["position"] = 50  # Center single item
+
+    # Handle overlapping dots: group items on the same page and offset nearby items
+    # Sort by page number for consistent positioning
+    timeline_items.sort(key=lambda x: (x["page_number"], x["id"]))
+
+    # Add vertical offset for items on same or nearby pages
+    page_count: dict[int, int] = {}
+    for item in timeline_items:
+        page = item["page_number"]
+        count = page_count.get(page, 0)
+        item["offset_index"] = count
+        page_count[page] = count + 1
+
     return templates.TemplateResponse(
         request,
         "book_detail.html",
         {
             "book": book,
             "highlights": highlights,
+            "timeline_items": timeline_items,
+            "timeline_min_page": min_page,
+            "timeline_max_page": max_page,
         },
     )
 

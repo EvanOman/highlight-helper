@@ -63,6 +63,52 @@
     </div>
 </div>
 
+<!-- Timeline Section -->
+{% if timeline_items %}
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Reading Progress</h3>
+
+    <!-- Timeline -->
+    <div class="relative">
+        <!-- Page labels - only show both if different -->
+        <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+            <span>p. {{ timeline_min_page }}</span>
+            {% if timeline_min_page != timeline_max_page %}
+            <span>p. {{ timeline_max_page }}</span>
+            {% endif %}
+        </div>
+
+        <!-- Track -->
+        <div class="relative h-3 bg-gray-200 dark:bg-gray-700 rounded-full">
+            <!-- Dots -->
+            {% for item in timeline_items %}
+            <button
+                class="absolute top-1/2 -translate-x-1/2 w-4 h-4 rounded-full
+                       {% if item.type == 'note' %}bg-blue-500 hover:bg-blue-600{% else %}bg-primary-500 hover:bg-primary-600{% endif %}
+                       shadow-sm hover:scale-125 transition-transform cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                style="left: {{ item.position }}%; transform: translateX(-50%) translateY(calc(-50% - {{ item.offset_index * 18 }}px));"
+                title="Page {{ item.page_number }}: {{ item.preview | e }}"
+                onclick="scrollToHighlight({{ item.id }})"
+                type="button">
+            </button>
+            {% endfor %}
+        </div>
+
+        <!-- Legend -->
+        <div class="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <div class="flex items-center gap-1">
+                <span class="w-3 h-3 rounded-full bg-primary-500"></span>
+                <span>Highlights</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                <span>Notes</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Highlights & Notes -->
 <div class="mb-4 flex items-center justify-between">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -73,7 +119,7 @@
 {% if highlights %}
 <div class="space-y-4">
     {% for highlight in highlights %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+    <div id="highlight-{{ highlight.id }}" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
         {% if highlight.type == 'note' %}
         <!-- Standalone Note -->
         <div class="flex items-start gap-2 mb-3">
@@ -177,6 +223,18 @@
 {% endif %}
 
 <script>
+function scrollToHighlight(highlightId) {
+    const card = document.getElementById(`highlight-${highlightId}`);
+    if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Flash effect
+        card.classList.add('ring-2', 'ring-primary-500');
+        setTimeout(() => {
+            card.classList.remove('ring-2', 'ring-primary-500');
+        }, 1500);
+    }
+}
+
 async function syncHighlightToReadwise(highlightId) {
     const btn = document.getElementById(`sync-btn-${highlightId}`);
     const btnText = document.getElementById(`sync-btn-text-${highlightId}`);
