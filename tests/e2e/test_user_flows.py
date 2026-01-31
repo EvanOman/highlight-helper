@@ -393,7 +393,6 @@ class TestEditHighlightFlow:
 class TestDeleteOperations:
     """Tests for delete functionality."""
 
-    @pytest.mark.skip(reason="Flaky in CI due to confirm dialog handling in headless mode")
     def test_delete_highlight(self, server, browser_context):
         """Test deleting a highlight."""
         page = browser_context.new_page()
@@ -422,22 +421,19 @@ class TestDeleteOperations:
         # Verify highlight exists
         assert page.locator("text=Highlight to be deleted").is_visible()
 
-        # Find the delete button for the highlight (not the book delete button)
-        # The highlight delete is in a form with action /highlights/{id}/delete
+        # Override window.confirm to always return true (avoids flaky dialog handling)
+        page.evaluate("window.confirm = () => true")
+
+        # Find and click the delete button for the highlight
         delete_button = page.locator("form[action*='/highlights/'] button:has-text('Delete')").first
+        delete_button.click()
+        page.wait_for_load_state("networkidle")
 
-        # Set up dialog handler before triggering the click
-        page.on("dialog", lambda d: d.accept())
-
-        # Click without waiting for navigation (dialog blocks default wait)
-        delete_button.click(no_wait_after=True)
-
-        # Wait for the highlight text to disappear (indicates delete succeeded)
-        page.wait_for_selector("text=Highlight to be deleted", state="hidden", timeout=10000)
+        # Highlight should be gone
+        assert not page.locator("text=Highlight to be deleted").is_visible()
 
         page.close()
 
-    @pytest.mark.skip(reason="Flaky in CI due to confirm dialog handling in headless mode")
     def test_delete_book(self, server, browser_context):
         """Test deleting a book."""
         page = browser_context.new_page()
@@ -455,14 +451,12 @@ class TestDeleteOperations:
         page.click('button:has-text("Add Book")')
         page.wait_for_load_state("networkidle")
 
-        # Set up dialog handler before triggering the click
-        page.on("dialog", lambda d: d.accept())
+        # Override window.confirm to always return true (avoids flaky dialog handling)
+        page.evaluate("window.confirm = () => true")
 
-        # Click without waiting for navigation (dialog blocks default wait)
-        page.click("text=Delete Book", no_wait_after=True)
-
-        # Wait for redirect to home - check for home page content
-        page.wait_for_url("**/", timeout=10000)
+        # Click delete and wait for navigation
+        page.click("text=Delete Book")
+        page.wait_for_load_state("networkidle")
 
         # Book should be gone from home page
         assert not page.locator("text=Book To Delete").is_visible()
