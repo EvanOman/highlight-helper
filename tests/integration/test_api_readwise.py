@@ -96,3 +96,39 @@ class TestReadwiseAPI:
         """Test syncing all highlights when Readwise not configured."""
         response = await client_readwise_unconfigured.post("/api/readwise/sync/all")
         assert response.status_code == 400
+
+    async def test_sync_single_note_rejected(self, client, sample_note):
+        """Test that syncing a single note returns an error."""
+        response = await client.post(f"/api/readwise/sync/{sample_note.id}")
+        assert response.status_code == 400
+        assert "Notes cannot be synced" in response.json()["detail"]
+
+    async def test_sync_all_excludes_notes(self, client, sample_highlight, sample_note):
+        """Test that sync all only syncs highlights, not notes."""
+        # Ensure both fixtures are created
+        _ = sample_highlight.id
+        _ = sample_note.id
+
+        response = await client.post("/api/readwise/sync/all")
+        assert response.status_code == 200
+        data = response.json()
+        # Only the highlight should be synced, not the note
+        assert data["total"] == 1
+        assert data["synced"] == 1
+        assert data["failed"] == 0
+
+    async def test_sync_book_excludes_notes(
+        self, client, sample_book, sample_highlight, sample_note
+    ):
+        """Test that sync book only syncs highlights, not notes."""
+        # Ensure fixtures are created
+        _ = sample_highlight.id
+        _ = sample_note.id
+
+        response = await client.post(f"/api/readwise/sync/book/{sample_book.id}")
+        assert response.status_code == 200
+        data = response.json()
+        # Only the highlight should be synced, not the note
+        assert data["total"] == 1
+        assert data["synced"] == 1
+        assert data["failed"] == 0

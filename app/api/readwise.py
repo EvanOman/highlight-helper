@@ -1,5 +1,6 @@
 """Readwise integration API routes."""
 
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,8 +14,10 @@ from app.api.schemas import (
 )
 from app.core.database import get_db
 from app.models.book import Book
-from app.models.highlight import Highlight
+from app.models.highlight import AnnotationType, Highlight
 from app.services.readwise import ReadwiseService, get_readwise_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/readwise", tags=["readwise"])
 
@@ -60,10 +63,29 @@ async def sync_all_highlights(
             detail="Readwise API token not configured",
         )
 
-    # Get all unsynced highlights with their books
-    query = select(Highlight, Book).join(Book).where(Highlight.synced_at.is_(None))
+    # Get all unsynced highlights with their books (excluding notes)
+    query = (
+        select(Highlight, Book)
+        .join(Book)
+        .where(Highlight.synced_at.is_(None))
+        .where(Highlight.type == AnnotationType.HIGHLIGHT)
+    )
     result = await db.execute(query)
     rows = result.all()
+
+    # Log if there are notes being excluded
+    notes_query = (
+        select(Highlight)
+        .where(Highlight.synced_at.is_(None))
+        .where(Highlight.type == AnnotationType.NOTE)
+    )
+    notes_result = await db.execute(notes_query)
+    notes_count = len(notes_result.all())
+    if notes_count > 0:
+        logger.info(
+            "Skipping %d note(s) during sync - notes are not supported by Readwise",
+            notes_count,
+        )
 
     if not rows:
         return ReadwiseBatchSyncResponse(total=0, synced=0, failed=0)
@@ -130,6 +152,17 @@ async def sync_highlight(
 
     highlight, book = row
 
+    # Notes cannot be synced to Readwise
+    if highlight.type == AnnotationType.NOTE:
+        logger.info(
+            "Rejecting sync request for note id=%d - notes are not supported by Readwise",
+            highlight_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Notes cannot be synced to Readwise",
+        )
+
     # Use PATCH if highlight was previously synced, otherwise POST
     if highlight.readwise_id:
         # Update existing highlight on Readwise
@@ -188,12 +221,31 @@ async def sync_book_highlights(
             detail="Book not found",
         )
 
-    # Get unsynced highlights for this book
+    # Get unsynced highlights for this book (excluding notes)
     query = (
-        select(Highlight).where(Highlight.book_id == book_id).where(Highlight.synced_at.is_(None))
+        select(Highlight)
+        .where(Highlight.book_id == book_id)
+        .where(Highlight.synced_at.is_(None))
+        .where(Highlight.type == AnnotationType.HIGHLIGHT)
     )
     result = await db.execute(query)
     highlights = result.scalars().all()
+
+    # Log if there are notes being excluded
+    notes_query = (
+        select(Highlight)
+        .where(Highlight.book_id == book_id)
+        .where(Highlight.synced_at.is_(None))
+        .where(Highlight.type == AnnotationType.NOTE)
+    )
+    notes_result = await db.execute(notes_query)
+    notes_count = len(notes_result.scalars().all())
+    if notes_count > 0:
+        logger.info(
+            "Skipping %d note(s) for book id=%d during sync - notes are not supported by Readwise",
+            notes_count,
+            book_id,
+        )
 
     if not highlights:
         return ReadwiseBatchSyncResponse(total=0, synced=0, failed=0)
