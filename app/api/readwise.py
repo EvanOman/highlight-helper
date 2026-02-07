@@ -4,16 +4,19 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import (
     ReadwiseBatchSyncResponse,
     ReadwiseStatusResponse,
     ReadwiseSyncResponse,
 )
+from app.core.database import get_db
 from app.models.highlight import AnnotationType
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
-from app.services.readwise import ReadwiseService, get_readwise_service
+from app.services.readwise import ReadwiseService
+from app.services.settings import get_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +25,17 @@ router = APIRouter(prefix="/api/readwise", tags=["readwise"])
 
 @router.get("/status", response_model=ReadwiseStatusResponse)
 async def get_readwise_status(
-    readwise: ReadwiseService = Depends(get_readwise_service),
+    db: AsyncSession = Depends(get_db),
 ) -> ReadwiseStatusResponse:
     """Get Readwise integration status."""
-    configured = readwise.is_configured
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+    configured = bool(token)
 
     token_valid = None
     if configured:
-        token_valid = await readwise.validate_token()
+        async with ReadwiseService(api_token=token) as service:
+            token_valid = await service.validate_token()
 
     return ReadwiseStatusResponse(
         configured=configured,
@@ -39,28 +45,32 @@ async def get_readwise_status(
 
 @router.post("/validate", response_model=ReadwiseStatusResponse)
 async def validate_readwise_token(
-    readwise: ReadwiseService = Depends(get_readwise_service),
+    db: AsyncSession = Depends(get_db),
 ) -> ReadwiseStatusResponse:
     """Validate the Readwise API token."""
-    if not readwise.is_configured:
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+    if not token:
         return ReadwiseStatusResponse(configured=False, token_valid=None)
 
-    token_valid = await readwise.validate_token()
-    return ReadwiseStatusResponse(configured=True, token_valid=token_valid)
+    async with ReadwiseService(api_token=token) as service:
+        token_valid = await service.validate_token()
+        return ReadwiseStatusResponse(configured=True, token_valid=token_valid)
 
 
 @router.post("/sync/all", response_model=ReadwiseBatchSyncResponse)
 async def sync_all_highlights(
+    db: AsyncSession = Depends(get_db),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
-    readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseBatchSyncResponse:
     """Sync all unsynced highlights to Readwise."""
-    if not readwise.is_configured:
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Readwise API token not configured",
         )
-
     # Get all unsynced highlights with their books (excluding notes)
     rows = await highlight_repo.list_unsynced()
 
@@ -89,7 +99,8 @@ async def sync_all_highlights(
     ]
 
     # Send to Readwise
-    batch_result = await readwise.send_highlights(highlight_data)
+    async with ReadwiseService(api_token=token) as service:
+        batch_result = await service.send_highlights(highlight_data)
 
     # Update synced highlights
     now = datetime.now(tz=UTC)
@@ -110,20 +121,21 @@ async def sync_all_highlights(
 @router.post("/sync/{highlight_id}", response_model=ReadwiseSyncResponse)
 async def sync_highlight(
     highlight_id: int,
+    db: AsyncSession = Depends(get_db),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
-    readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseSyncResponse:
     """Sync a single highlight to Readwise.
 
     If the highlight was previously synced (has readwise_id), uses PATCH to update.
     Otherwise, uses POST to create a new highlight on Readwise.
     """
-    if not readwise.is_configured:
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Readwise API token not configured",
         )
-
     # Get highlight with book
     highlight, book = await highlight_repo.get_with_book_or_404(highlight_id)
 
@@ -139,24 +151,25 @@ async def sync_highlight(
         )
 
     # Use PATCH if highlight was previously synced, otherwise POST
-    if highlight.readwise_id:
-        # Update existing highlight on Readwise
-        sync_result = await readwise.update_highlight(
-            readwise_id=highlight.readwise_id,
-            text=highlight.text,
-            note=highlight.note,
-            page_number=highlight.page_number,
-        )
-    else:
-        # Create new highlight on Readwise
-        sync_result = await readwise.send_highlight(
-            text=highlight.text or "",
-            title=book.title,
-            author=book.author,
-            note=highlight.note,
-            page_number=highlight.page_number,
-            highlighted_at=highlight.created_at,
-        )
+    async with ReadwiseService(api_token=token) as service:
+        if highlight.readwise_id:
+            # Update existing highlight on Readwise
+            sync_result = await service.update_highlight(
+                readwise_id=highlight.readwise_id,
+                text=highlight.text,
+                note=highlight.note,
+                page_number=highlight.page_number,
+            )
+        else:
+            # Create new highlight on Readwise
+            sync_result = await service.send_highlight(
+                text=highlight.text or "",
+                title=book.title,
+                author=book.author,
+                note=highlight.note,
+                page_number=highlight.page_number,
+                highlighted_at=highlight.created_at,
+            )
 
     if sync_result.success:
         # Update highlight with sync info
@@ -175,17 +188,18 @@ async def sync_highlight(
 @router.post("/sync/book/{book_id}", response_model=ReadwiseBatchSyncResponse)
 async def sync_book_highlights(
     book_id: int,
+    db: AsyncSession = Depends(get_db),
     book_repo: BookRepository = Depends(get_book_repo),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
-    readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseBatchSyncResponse:
     """Sync all unsynced highlights for a book to Readwise."""
-    if not readwise.is_configured:
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Readwise API token not configured",
         )
-
     # Verify book exists
     book = await book_repo.get_or_404(book_id)
 
@@ -218,7 +232,8 @@ async def sync_book_highlights(
     ]
 
     # Send to Readwise
-    batch_result = await readwise.send_highlights(highlight_data)
+    async with ReadwiseService(api_token=token) as service:
+        batch_result = await service.send_highlights(highlight_data)
 
     # Update synced highlights
     now = datetime.now(tz=UTC)

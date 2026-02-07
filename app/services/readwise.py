@@ -112,6 +112,12 @@ class ReadwiseService:
         """Check if Readwise is configured with an API token."""
         return bool(self._api_token)
 
+    async def __aenter__(self) -> "ReadwiseService":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        await self.close()
+
     async def close(self) -> None:
         """Close the service (no-op, SDK handles cleanup via context managers)."""
         pass

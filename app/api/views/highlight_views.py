@@ -271,14 +271,14 @@ async def update_highlight_form(
         settings_service = await get_settings_service(db)
         token = await settings_service.get_readwise_token()
         if token:
-            service = ReadwiseService(token)
             try:
-                result = await service.update_highlight(
-                    readwise_id=highlight.readwise_id,
-                    text=text,
-                    note=note if note else None,
-                    page_number=page_number if page_number else None,
-                )
+                async with ReadwiseService(token) as service:
+                    result = await service.update_highlight(
+                        readwise_id=highlight.readwise_id,
+                        text=text,
+                        note=note if note else None,
+                        page_number=page_number if page_number else None,
+                    )
                 if result.success:
                     highlight.synced_at = datetime.now(tz=UTC)
                 else:
@@ -287,8 +287,6 @@ async def update_highlight_form(
             except Exception:
                 # On error, mark as needing re-sync
                 highlight.synced_at = None
-            finally:
-                await service.close()
         else:
             # No token configured, mark as needing re-sync
             highlight.synced_at = None

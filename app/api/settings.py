@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.schemas import ReadwiseSyncDownResponse
 from app.core.database import get_db
-from app.models.highlight import Highlight, SyncStatus
+from app.models.highlight import AnnotationType, Highlight, SyncStatus
 from app.services.readwise import ReadwiseService
 from app.services.settings import get_settings_service
 
@@ -95,12 +95,9 @@ async def validate_readwise_token(
     if not token:
         return {"valid": False, "error": "No token configured"}
 
-    service = ReadwiseService(api_token=token)
-    try:
+    async with ReadwiseService(api_token=token) as service:
         is_valid = await service.validate_token()
         return {"valid": is_valid, "error": None if is_valid else "Invalid token"}
-    finally:
-        await service.close()
 
 
 @router.post("/readwise/sync-all", response_model=SyncAllResponse)
@@ -122,13 +119,18 @@ async def sync_all_highlights(
     query = (
         select(Highlight)
         .where(Highlight.sync_status == SyncStatus.PENDING)
+        .where(Highlight.type == AnnotationType.HIGHLIGHT)
         .options(selectinload(Highlight.book))
     )
     result = await db.execute(query)
     pending = result.scalars().all()
 
     # Count already synced (SYNCED status)
-    count_query = select(Highlight).where(Highlight.sync_status == SyncStatus.SYNCED)
+    count_query = (
+        select(Highlight)
+        .where(Highlight.sync_status == SyncStatus.SYNCED)
+        .where(Highlight.type == AnnotationType.HIGHLIGHT)
+    )
     count_result = await db.execute(count_query)
     already_synced = len(count_result.scalars().all())
 
@@ -155,30 +157,27 @@ async def sync_all_highlights(
         )
 
     # Send to Readwise
-    service = ReadwiseService(api_token=token)
-    try:
+    async with ReadwiseService(api_token=token) as service:
         batch_result = await service.send_highlights(highlights_data)
 
-        # Update synced highlights in database
-        synced_count = 0
-        for i, sync_result in enumerate(batch_result.results):
-            if sync_result.success and i < len(pending):
-                pending[i].synced_at = datetime.now(tz=UTC)
-                pending[i].sync_status = SyncStatus.SYNCED
-                if sync_result.readwise_id:
-                    pending[i].readwise_id = sync_result.readwise_id
-                synced_count += 1
+    # Update synced highlights in database
+    synced_count = 0
+    for i, sync_result in enumerate(batch_result.results):
+        if sync_result.success and i < len(pending):
+            pending[i].synced_at = datetime.now(tz=UTC)
+            pending[i].sync_status = SyncStatus.SYNCED
+            if sync_result.readwise_id:
+                pending[i].readwise_id = sync_result.readwise_id
+            synced_count += 1
 
-        await db.commit()
+    await db.commit()
 
-        return SyncAllResponse(
-            total=len(pending),
-            synced=synced_count,
-            failed=len(pending) - synced_count,
-            already_synced=already_synced,
-        )
-    finally:
-        await service.close()
+    return SyncAllResponse(
+        total=len(pending),
+        synced=synced_count,
+        failed=len(pending) - synced_count,
+        already_synced=already_synced,
+    )
 
 
 @router.post("/readwise/sync-down")
@@ -206,36 +205,34 @@ async def sync_down_from_readwise(
             yield f"data: {json.dumps(error_data.model_dump())}\n\n"
             return
 
-        service = ReadwiseService(api_token=token)
-        try:
-            async for progress in service.sync_down(db):
-                event_data = {
-                    "phase": progress.phase,
-                    "message": progress.message,
-                    "books_processed": progress.books_processed,
-                    "books_total": progress.books_total,
-                    "highlights_imported": progress.highlights_imported,
-                    "highlights_skipped": progress.highlights_skipped,
-                    "errors": progress.errors,
-                }
-                yield f"data: {json.dumps(event_data)}\n\n"
+        async with ReadwiseService(api_token=token) as service:
+            try:
+                async for progress in service.sync_down(db):
+                    event_data = {
+                        "phase": progress.phase,
+                        "message": progress.message,
+                        "books_processed": progress.books_processed,
+                        "books_total": progress.books_total,
+                        "highlights_imported": progress.highlights_imported,
+                        "highlights_skipped": progress.highlights_skipped,
+                        "errors": progress.errors,
+                    }
+                    yield f"data: {json.dumps(event_data)}\n\n"
 
-                # Commit after processing phase completes
-                if progress.phase == "complete":
-                    await db.commit()
-        except Exception as e:
-            error_data = {
-                "phase": "complete",
-                "message": f"Error: {e}",
-                "books_processed": 0,
-                "books_total": 0,
-                "highlights_imported": 0,
-                "highlights_skipped": 0,
-                "errors": [str(e)],
-            }
-            yield f"data: {json.dumps(error_data)}\n\n"
-        finally:
-            await service.close()
+                    # Commit after processing phase completes
+                    if progress.phase == "complete":
+                        await db.commit()
+            except Exception as e:
+                error_data = {
+                    "phase": "complete",
+                    "message": f"Error: {e}",
+                    "books_processed": 0,
+                    "books_total": 0,
+                    "highlights_imported": 0,
+                    "highlights_skipped": 0,
+                    "errors": [str(e)],
+                }
+                yield f"data: {json.dumps(error_data)}\n\n"
 
     return StreamingResponse(
         generate_events(),
