@@ -9,11 +9,18 @@ from datetime import UTC, datetime
 from readwise_sdk import ReadwiseClient
 from readwise_sdk.contrib import HighlightPusher, PushResult, SimpleHighlight
 from readwise_sdk.v2 import BookCategory
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
 
 logger = logging.getLogger(__name__)
+
+# Readwise API field length limits
+READWISE_MAX_TEXT_LENGTH = 8191
+READWISE_MAX_TITLE_LENGTH = 511
+READWISE_MAX_AUTHOR_LENGTH = 1024
+READWISE_MAX_NOTE_LENGTH = 8191
 
 
 @dataclass
@@ -193,12 +200,12 @@ class ReadwiseService:
                     try:
                         pusher = HighlightPusher(client)
                         return pusher.push(
-                            text=text[:8191],  # Readwise max length
-                            title=title[:511],  # Readwise max length
-                            author=author[:1024],  # Readwise max length
+                            text=text[:READWISE_MAX_TEXT_LENGTH],
+                            title=title[:READWISE_MAX_TITLE_LENGTH],
+                            author=author[:READWISE_MAX_AUTHOR_LENGTH],
                             category=BookCategory.BOOKS,
                             source_type="highlight_helper",
-                            note=note[:8191] if note else None,
+                            note=note[:READWISE_MAX_NOTE_LENGTH] if note else None,
                             location=location,
                             highlighted_at=highlighted_at,
                         )
@@ -260,9 +267,9 @@ class ReadwiseService:
         # Build update kwargs
         update_kwargs: dict = {}
         if text is not None:
-            update_kwargs["text"] = text[:8191]
+            update_kwargs["text"] = text[:READWISE_MAX_TEXT_LENGTH]
         if note is not None:
-            update_kwargs["note"] = note[:8191] if note else ""
+            update_kwargs["note"] = note[:READWISE_MAX_NOTE_LENGTH] if note else ""
         if page_number is not None and page_number.isdigit():
             update_kwargs["location"] = int(page_number)
 
@@ -343,12 +350,14 @@ class ReadwiseService:
 
                     simple_highlights.append(
                         SimpleHighlight(
-                            text=h["text"][:8191],
-                            title=h["title"][:511],
-                            author=h.get("author", "")[:1024],
+                            text=h["text"][:READWISE_MAX_TEXT_LENGTH],
+                            title=h["title"][:READWISE_MAX_TITLE_LENGTH],
+                            author=h.get("author", "")[:READWISE_MAX_AUTHOR_LENGTH],
                             category=BookCategory.BOOKS,
                             source_type="highlight_helper",
-                            note=h.get("note", "")[:8191] if h.get("note") else None,
+                            note=h.get("note", "")[:READWISE_MAX_NOTE_LENGTH]
+                            if h.get("note")
+                            else None,
                             location=location,
                             location_type="page" if location else None,
                             highlighted_at=h.get("highlighted_at"),
@@ -459,7 +468,7 @@ class ReadwiseService:
 
     async def sync_down(
         self,
-        db_session,
+        db_session: AsyncSession,
     ) -> AsyncIterator[SyncDownProgress]:
         """Import highlights from Readwise into the local database.
 
