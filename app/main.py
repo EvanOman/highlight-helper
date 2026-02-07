@@ -2,7 +2,8 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.books import router as books_router
@@ -46,7 +47,7 @@ app = FastAPI(
 
 @app.exception_handler(NotFoundError)
 async def not_found_handler(request, exc: NotFoundError):
-    raise HTTPException(status_code=404, detail=exc.detail)
+    return JSONResponse(status_code=404, content={"detail": exc.detail})
 
 
 # Instrument FastAPI for tracing
