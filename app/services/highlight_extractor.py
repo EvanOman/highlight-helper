@@ -1,41 +1,18 @@
 """Highlight extraction service using DSPy with OpenAI Vision API."""
 
-import io
 import logging
 
 import dspy
-from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
 from app.models.api_usage import APIUsage, calculate_cost
+from app.services.image_utils import convert_to_jpeg
 from app.services.text_matching import locate_highlight
 
 logger = logging.getLogger(__name__)
-
-
-def convert_to_jpeg(image_bytes: bytes) -> bytes:
-    """Convert image bytes to JPEG format for compatibility.
-
-    Handles formats like MPO, HEIC, etc. that may not be recognized by dspy.Image.
-    """
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        # Convert to RGB if necessary (handles RGBA, P mode, etc.)
-        if img.mode in ("RGBA", "P", "LA"):
-            img = img.convert("RGB")
-        elif img.mode != "RGB":
-            img = img.convert("RGB")
-
-        # Save as JPEG
-        output = io.BytesIO()
-        img.save(output, format="JPEG", quality=95)
-        return output.getvalue()
-    except Exception:
-        # If conversion fails, return original bytes and let dspy handle it
-        return image_bytes
 
 
 class TokenUsage(BaseModel):
