@@ -8,6 +8,13 @@ A mobile-friendly web app for collecting and organizing book highlights using AI
 
 Highlight Helper captures and organizes passages from physical books. Take a photo of a highlighted page, and the app uses OpenAI's Vision API to extract the text, returning both the full page content and the highlighted portion. An interactive editor lets you review and adjust the selection before saving.
 
+## Limitations & Security Model
+
+- This project is designed for **single-user** operation.
+- The intended deployment/access pattern is over a **private Tailscale network** to your own machine.
+- It currently does **not** implement production-grade multi-user security controls (for example: authentication/authorization hardening, CSRF protection, per-user isolation, and abuse/rate controls).
+- Treat this app as personal/dev-machine software unless additional hardening is added.
+
 ### Key Features
 
 - **AI-Powered Text Extraction** — Upload a photo of a book page, and the Vision API extracts all readable text along with the highlighted portion
@@ -17,56 +24,6 @@ Highlight Helper captures and organizes passages from physical books. Take a pho
 - **Highlight Organization** — View all highlights in one place, organized by book
 - **Readwise Sync** — Sync highlights to Readwise for integration with your reading workflow
 - **Local Database** — Data stored in SQLite; highlights stay on your server
-
-## Screenshots
-
-### Home Screen
-
-Books with highlight counts. Empty state directs users to add their first book.
-
-<p align="center">
-  <img src="docs/screenshots/home-empty.png" alt="Empty Home Screen" width="300">
-  <img src="docs/screenshots/home-with-book.png" alt="Home Screen with Book" width="300">
-</p>
-
-### Book Search
-
-Search for books using the Google Books API. Results include cover images, authors, and ISBNs.
-
-<p align="center">
-  <img src="docs/screenshots/search-results.png" alt="Book Search Results" width="300">
-</p>
-
-### Book Details
-
-View a book's details and all its highlights.
-
-<p align="center">
-  <img src="docs/screenshots/book-detail.png" alt="Book Detail - Empty" width="300">
-  <img src="docs/screenshots/book-with-highlight.png" alt="Book Detail with Highlight" width="300">
-</p>
-
-### Highlight Extraction
-
-Upload a photo of a book page, provide optional instructions (e.g. "extract highlighted text"), and the AI extracts the full page text with the highlighted portion identified.
-
-<p align="center">
-  <img src="docs/screenshots/phase1-extract-from-image.png" alt="Upload and Extract" width="300">
-</p>
-
-After extraction, the editor displays the full page text with the highlighted selection marked in yellow. Drag the handles or tap words to adjust the selection before saving.
-
-<p align="center">
-  <img src="docs/screenshots/phase2-review-adjust.png" alt="Review and Adjust Selection" width="300">
-</p>
-
-### All Highlights View
-
-Browse all highlights across all books in one list.
-
-<p align="center">
-  <img src="docs/screenshots/all-highlights.png" alt="All Highlights View" width="300">
-</p>
 
 ## Technology Stack
 
@@ -81,7 +38,7 @@ Browse all highlights across all books in one list.
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.12+
 - An OpenAI API key (for highlight extraction)
 
 ### Installation
@@ -143,24 +100,29 @@ ruff format .
 ```
 highlight_helper/
 ├── app/
-│   ├── api/              # API routes (books, highlights, views)
+│   ├── api/              # API routes and HTML views
+│   │   ├── views/        # Server-rendered HTML views (package)
+│   │   ├── books.py      # Book REST API
+│   │   ├── highlights.py # Highlight REST API
+│   │   ├── readwise.py   # Readwise sync API
+│   │   ├── chat.py       # AI chat endpoints and views
+│   │   └── schemas.py    # Pydantic request/response models
 │   ├── core/             # Configuration and database setup
 │   ├── models/           # SQLAlchemy database models
+│   ├── repositories/     # Database access layer
 │   ├── services/         # External service integrations
 │   │   ├── book_lookup.py         # Google Books API
 │   │   ├── highlight_extractor.py # OpenAI Vision API via DSPy
-│   │   ├── text_matching.py       # Fuzzy text matching for highlight offsets
-│   │   └── readwise.py            # Readwise sync
+│   │   ├── readwise.py            # Readwise sync
+│   │   └── chat.py                # AI chat service
 │   └── templates/        # Jinja2 HTML templates
 ├── tests/
-│   ├── unit/             # Unit tests for models, schemas, services
-│   ├── integration/      # Integration tests for API endpoints
+│   ├── unit/             # Unit tests
+│   ├── integration/      # Integration tests
 │   └── e2e/              # End-to-end Playwright tests
-├── docs/
-│   └── screenshots/      # App screenshots
 └── static/
     └── js/
-        └── highlight-editor.js  # Interactive word-level highlight editor
+        └── highlight-editor.js  # Interactive highlight editor
 ```
 
 ## API Documentation
