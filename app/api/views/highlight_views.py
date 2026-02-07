@@ -1,9 +1,8 @@
-"""Web views for HTML pages."""
+"""Highlight-related views (add, extract, create, edit, update, delete, list all)."""
 
 from datetime import UTC
 
 from fastapi import (
-    APIRouter,
     BackgroundTasks,
     Depends,
     File,
@@ -14,289 +13,20 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.book import Book
 from app.models.highlight import Highlight
-from app.services.book_lookup import BookLookupService, get_book_lookup_service
 from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
-from app.services.isbn_extractor import (
-    ISBNExtractorService,
-    get_isbn_extractor_service,
-)
 from app.services.settings import get_settings_service
 
-router = APIRouter(tags=["views"])
-templates = Jinja2Templates(directory="app/templates")
-
-# Add base_path as a global for subpath deployments (e.g., /highlights via Tailscale Serve)
-settings = get_settings()
-templates.env.globals["base_path"] = settings.root_path
-
-
-@router.get("/", response_class=HTMLResponse)
-async def home(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Home page showing all books."""
-    # Get books with highlight counts
-    highlight_count_subq = (
-        select(Highlight.book_id, func.count(Highlight.id).label("count"))
-        .group_by(Highlight.book_id)
-        .subquery()
-    )
-
-    query = (
-        select(Book, func.coalesce(highlight_count_subq.c.count, 0).label("highlight_count"))
-        .outerjoin(highlight_count_subq, Book.id == highlight_count_subq.c.book_id)
-        .order_by(Book.created_at.desc())
-    )
-
-    result = await db.execute(query)
-    rows = result.all()
-
-    books = [
-        {
-            "id": book.id,
-            "title": book.title,
-            "author": book.author,
-            "cover_url": book.cover_url,
-            "highlight_count": highlight_count,
-        }
-        for book, highlight_count in rows
-    ]
-
-    return templates.TemplateResponse(
-        request,
-        "home.html",
-        {"books": books},
-    )
-
-
-@router.get("/books/add", response_class=HTMLResponse)
-async def add_book_page(request: Request):
-    """Page for adding a new book."""
-    return templates.TemplateResponse(
-        request,
-        "add_book.html",
-        {"search_results": None, "query": ""},
-    )
-
-
-@router.post("/books/search", response_class=HTMLResponse)
-async def search_books_page(
-    request: Request,
-    query: str = Form(""),
-    book_lookup: BookLookupService = Depends(get_book_lookup_service),
-):
-    """Search for books and display results."""
-    search_results = []
-    if query and len(query) >= 2:
-        results = await book_lookup.search_books(query)
-        search_results = [
-            {
-                "title": r.title,
-                "author": r.author,
-                "isbn": r.isbn,
-                "cover_url": r.cover_url,
-            }
-            for r in results
-        ]
-
-    return templates.TemplateResponse(
-        request,
-        "add_book.html",
-        {"search_results": search_results, "query": query},
-    )
-
-
-@router.post("/books/scan-isbn", response_class=HTMLResponse)
-async def scan_isbn_page(
-    request: Request,
-    image: UploadFile = File(...),
-    isbn_extractor: ISBNExtractorService = Depends(get_isbn_extractor_service),
-    book_lookup: BookLookupService = Depends(get_book_lookup_service),
-):
-    """Extract ISBN from image and search for the book."""
-    error_message = None
-    search_results = []
-    extracted_isbn = ""
-    confidence = ""
-
-    if not image.content_type or not image.content_type.startswith("image/"):
-        error_message = "Please upload an image file"
-    else:
-        image_bytes = await image.read()
-        if len(image_bytes) > 20 * 1024 * 1024:
-            error_message = "Image file too large (max 20MB)"
-        else:
-            try:
-                result = await isbn_extractor.extract_isbn(
-                    image_bytes=image_bytes,
-                    filename=image.filename or "image.jpg",
-                )
-                extracted_isbn = result.isbn
-                confidence = result.confidence
-
-                # If we got an ISBN, search for the book
-                if extracted_isbn:
-                    book_result = await book_lookup.search_by_isbn(extracted_isbn)
-                    if book_result:
-                        search_results = [
-                            {
-                                "title": book_result.title,
-                                "author": book_result.author,
-                                "isbn": book_result.isbn,
-                                "cover_url": book_result.cover_url,
-                            }
-                        ]
-                    else:
-                        # Try searching with the ISBN as query
-                        results = await book_lookup.search_books(extracted_isbn)
-                        search_results = [
-                            {
-                                "title": r.title,
-                                "author": r.author,
-                                "isbn": r.isbn,
-                                "cover_url": r.cover_url,
-                            }
-                            for r in results
-                        ]
-                        if not search_results:
-                            error_message = (
-                                f"Found ISBN {extracted_isbn} but couldn't find book info. "
-                                "Try searching manually."
-                            )
-                else:
-                    error_message = (
-                        "Could not extract ISBN from image. Try a clearer photo of the barcode."
-                    )
-            except Exception as e:
-                error_message = f"Error extracting ISBN: {str(e)}"
-
-    return templates.TemplateResponse(
-        request,
-        "add_book.html",
-        {
-            "search_results": search_results if search_results else None,
-            "query": extracted_isbn,
-            "extracted_isbn": extracted_isbn,
-            "isbn_confidence": confidence,
-            "error_message": error_message,
-        },
-    )
-
-
-@router.post("/books/create")
-async def create_book_form(
-    title: str = Form(...),
-    author: str = Form(...),
-    isbn: str = Form(""),
-    cover_url: str = Form(""),
-    db: AsyncSession = Depends(get_db),
-):
-    """Create a new book from form submission."""
-    book = Book(
-        title=title,
-        author=author,
-        isbn=isbn if isbn else None,
-        cover_url=cover_url if cover_url else None,
-    )
-    db.add(book)
-    await db.flush()
-    await db.refresh(book)
-
-    return RedirectResponse(
-        url=f"{settings.root_path}/books/{book.id}", status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-@router.get("/books/{book_id}", response_class=HTMLResponse)
-async def book_detail(
-    request: Request,
-    book_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """Book detail page showing all highlights."""
-    query = select(Book).where(Book.id == book_id)
-    result = await db.execute(query)
-    book = result.scalar_one_or_none()
-
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    # Get highlights
-    highlights_query = (
-        select(Highlight).where(Highlight.book_id == book_id).order_by(Highlight.created_at.desc())
-    )
-    highlights_result = await db.execute(highlights_query)
-    highlights = highlights_result.scalars().all()
-
-    # Build timeline data for highlights with page numbers
-    timeline_items = []
-    page_numbers = []
-
-    for h in highlights:
-        if h.page_number:
-            try:
-                # Handle page ranges like "42-43" by taking the first number
-                page_num = int(h.page_number.split("-")[0].strip())
-                page_numbers.append(page_num)
-                preview_text = h.text or h.note or ""
-                if len(preview_text) > 50:
-                    preview_text = preview_text[:50] + "..."
-                timeline_items.append(
-                    {
-                        "id": h.id,
-                        "page_number": page_num,
-                        "type": h.type.value if hasattr(h.type, "value") else str(h.type),
-                        "preview": preview_text,
-                    }
-                )
-            except (ValueError, AttributeError):
-                # Skip highlights with non-numeric page numbers
-                pass
-
-    min_page = min(page_numbers) if page_numbers else 0
-    max_page = max(page_numbers) if page_numbers else 0
-
-    for item in timeline_items:
-        if max_page > min_page:
-            item["position"] = ((item["page_number"] - min_page) / (max_page - min_page)) * 100
-        else:
-            item["position"] = 50  # Center single item
-
-    # Handle overlapping dots: group items on the same page and offset nearby items
-    # Sort by page number for consistent positioning
-    timeline_items.sort(key=lambda x: (x["page_number"], x["id"]))
-
-    # Add vertical offset for items on same or nearby pages
-    page_count: dict[int, int] = {}
-    for item in timeline_items:
-        page = item["page_number"]
-        count = page_count.get(page, 0)
-        item["offset_index"] = count
-        page_count[page] = count + 1
-
-    return templates.TemplateResponse(
-        request,
-        "book_detail.html",
-        {
-            "book": book,
-            "highlights": highlights,
-            "timeline_items": timeline_items,
-            "timeline_min_page": min_page,
-            "timeline_max_page": max_page,
-        },
-    )
+from ._common import router, settings, templates
 
 
 @router.get("/books/{book_id}/add-highlight", response_class=HTMLResponse)
@@ -508,24 +238,6 @@ async def create_note_form(
     )
 
 
-@router.post("/books/{book_id}/delete")
-async def delete_book_form(
-    book_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a book."""
-    query = select(Book).where(Book.id == book_id)
-    result = await db.execute(query)
-    book = result.scalar_one_or_none()
-
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    await db.delete(book)
-
-    return RedirectResponse(url=f"{settings.root_path}/", status_code=status.HTTP_303_SEE_OTHER)
-
-
 @router.post("/highlights/{highlight_id}/delete")
 async def delete_highlight_form(
     highlight_id: int,
@@ -574,8 +286,8 @@ async def edit_highlight_page(
         raise HTTPException(status_code=404, detail="Highlight not found")
 
     # Check if Readwise is configured
-    settings = get_settings()
-    readwise_configured = bool(settings.readwise_api_token)
+    env_settings = get_settings()
+    readwise_configured = bool(env_settings.readwise_api_token)
 
     return templates.TemplateResponse(
         request,
@@ -687,27 +399,4 @@ async def all_highlights(
         request,
         "all_highlights.html",
         {"highlights": highlights},
-    )
-
-
-@router.get("/settings", response_class=HTMLResponse)
-async def settings_page(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Settings page for configuring the application."""
-    settings = await get_settings_service(db)
-
-    token = await settings.get_readwise_token()
-    auto_sync = await settings.get_readwise_auto_sync()
-    api_metrics = await settings.get_api_usage_metrics()
-
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {
-            "token_configured": bool(token),
-            "auto_sync": auto_sync,
-            "api_metrics": api_metrics,
-        },
     )
