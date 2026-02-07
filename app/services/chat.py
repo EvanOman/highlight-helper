@@ -29,6 +29,7 @@ class ChatService:
         self.db = db
         settings = get_settings()
         self._client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._chat_model = settings.chat_model
 
     async def _get_highlights_context(self, book_id: int | None = None) -> str:
         """Fetch highlights from the database and format as context.
@@ -169,7 +170,7 @@ Here are all the user's highlights:
 
         try:
             async with self._client.messages.stream(
-                model="claude-sonnet-4-20250514",
+                model=self._chat_model,
                 max_tokens=2048,
                 system=system_prompt,
                 messages=messages,

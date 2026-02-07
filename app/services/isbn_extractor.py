@@ -74,10 +74,11 @@ class ISBNExtractorService:
         Args:
             lm: Optional DSPy language model. If not provided, creates one from settings.
         """
+        settings = get_settings()
+        self._model_name = settings.vision_model
         if lm is None:
-            settings = get_settings()
             lm = dspy.LM(
-                "openai/gpt-5.2",
+                self._model_name,
                 api_key=settings.openai_api_key,
                 max_tokens=500,
             )
@@ -119,7 +120,7 @@ class ISBNExtractorService:
                 add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
 
                 # Call the LLM via DSPy
-                with create_span("dspy_llm_call", {"model": "openai/gpt-5.2"}) as llm_span:
+                with create_span("dspy_llm_call", {"model": self._model_name}) as llm_span:
                     # Use dspy.context for thread-safe LM configuration
                     with dspy.context(lm=self._lm):
                         # Use dspy.asyncify for async execution

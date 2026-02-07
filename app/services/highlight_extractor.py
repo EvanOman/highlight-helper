@@ -85,18 +85,17 @@ class HighlightExtractorModule(dspy.Module):
 class HighlightExtractorService:
     """Service for extracting highlights from images using DSPy."""
 
-    MODEL_NAME = "openai/gpt-5.2"
-
     def __init__(self, lm: dspy.LM | None = None) -> None:
         """Initialize the service.
 
         Args:
             lm: Optional DSPy language model. If not provided, creates one from settings.
         """
+        settings = get_settings()
+        self._model_name = settings.vision_model
         if lm is None:
-            settings = get_settings()
             lm = dspy.LM(
-                self.MODEL_NAME,
+                self._model_name,
                 api_key=settings.openai_api_key,
                 max_tokens=2000,
             )
@@ -127,14 +126,14 @@ class HighlightExtractorService:
             total_tokens = usage_data.get("total_tokens", 0) or (input_tokens + output_tokens)
 
             # Calculate cost
-            cost = calculate_cost(self.MODEL_NAME, input_tokens, output_tokens)
+            cost = calculate_cost(self._model_name, input_tokens, output_tokens)
 
             return TokenUsage(
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
                 cost_usd=cost,
-                model=self.MODEL_NAME,
+                model=self._model_name,
             )
         except Exception as e:
             logger.warning(f"Failed to extract usage from history: {e}")
@@ -192,7 +191,7 @@ class HighlightExtractorService:
                 with create_span(
                     "dspy_llm_call",
                     {
-                        "model": self.MODEL_NAME,
+                        "model": self._model_name,
                         "instructions_preview": instructions[:100],
                     },
                 ) as llm_span:

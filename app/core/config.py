@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Anthropic (for chat with highlights feature)
     anthropic_api_key: str = ""
 
+    # Model configuration
+    vision_model: str = "openai/gpt-5.2"
+    chat_model: str = "claude-sonnet-4-20250514"
+
     # Readwise (optional)
     readwise_api_token: str | None = None
     readwise_auto_sync: bool = False  # Auto-sync highlights on creation
