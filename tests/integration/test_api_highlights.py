@@ -4,6 +4,10 @@ import io
 from unittest.mock import AsyncMock, patch
 
 from httpx import AsyncClient
+from sqlalchemy import delete
+
+from app.models.settings import AppSetting
+from app.services.settings import READWISE_API_TOKEN, READWISE_AUTO_SYNC
 
 
 class TestHighlightsAPI:
@@ -187,18 +191,24 @@ class TestHighlightAutoSync:
     """Tests for automatic Readwise sync on highlight creation."""
 
     async def test_create_highlight_triggers_auto_sync_when_enabled(
-        self, client: AsyncClient, sample_book
+        self, client: AsyncClient, sample_book, test_session
     ):
         """Test that creating a highlight triggers auto-sync when enabled."""
-        mock_settings = type(
-            "Settings",
-            (),
-            {"readwise_auto_sync": True, "readwise_api_token": "test_token"},
-        )()
+        await test_session.execute(
+            delete(AppSetting).where(AppSetting.key.in_([READWISE_AUTO_SYNC, READWISE_API_TOKEN]))
+        )
+        test_session.add_all(
+            [
+                AppSetting(key=READWISE_AUTO_SYNC, value="true"),
+                AppSetting(key=READWISE_API_TOKEN, value="test_token"),
+            ]
+        )
+        await test_session.flush()
 
         with (
-            patch("app.api.highlights.get_settings", return_value=mock_settings),
-            patch("app.services.readwise.sync_highlight_background", new_callable=AsyncMock),
+            patch(
+                "app.services.readwise.sync_highlight_background_with_token", new_callable=AsyncMock
+            ),
         ):
             response = await client.post(
                 f"/api/highlights/book/{sample_book.id}",
@@ -213,19 +223,23 @@ class TestHighlightAutoSync:
             # and the fact that the endpoint code path includes auto-sync logic
 
     async def test_create_highlight_skips_auto_sync_when_disabled(
-        self, client: AsyncClient, sample_book
+        self, client: AsyncClient, sample_book, test_session
     ):
         """Test that creating a highlight skips auto-sync when disabled."""
-        mock_settings = type(
-            "Settings",
-            (),
-            {"readwise_auto_sync": False, "readwise_api_token": "test_token"},
-        )()
+        await test_session.execute(
+            delete(AppSetting).where(AppSetting.key.in_([READWISE_AUTO_SYNC, READWISE_API_TOKEN]))
+        )
+        test_session.add_all(
+            [
+                AppSetting(key=READWISE_AUTO_SYNC, value="false"),
+                AppSetting(key=READWISE_API_TOKEN, value="test_token"),
+            ]
+        )
+        await test_session.flush()
 
         with (
-            patch("app.api.highlights.get_settings", return_value=mock_settings),
             patch(
-                "app.services.readwise.sync_highlight_background", new_callable=AsyncMock
+                "app.services.readwise.sync_highlight_background_with_token", new_callable=AsyncMock
             ) as mock_sync,
         ):
             response = await client.post(
@@ -238,19 +252,23 @@ class TestHighlightAutoSync:
             mock_sync.assert_not_called()
 
     async def test_create_highlight_skips_auto_sync_without_token(
-        self, client: AsyncClient, sample_book
+        self, client: AsyncClient, sample_book, test_session
     ):
         """Test that creating a highlight skips auto-sync without token."""
-        mock_settings = type(
-            "Settings",
-            (),
-            {"readwise_auto_sync": True, "readwise_api_token": None},
-        )()
+        await test_session.execute(
+            delete(AppSetting).where(AppSetting.key.in_([READWISE_AUTO_SYNC, READWISE_API_TOKEN]))
+        )
+        test_session.add_all(
+            [
+                AppSetting(key=READWISE_AUTO_SYNC, value="true"),
+                AppSetting(key=READWISE_API_TOKEN, value=None),
+            ]
+        )
+        await test_session.flush()
 
         with (
-            patch("app.api.highlights.get_settings", return_value=mock_settings),
             patch(
-                "app.services.readwise.sync_highlight_background", new_callable=AsyncMock
+                "app.services.readwise.sync_highlight_background_with_token", new_callable=AsyncMock
             ) as mock_sync,
         ):
             response = await client.post(

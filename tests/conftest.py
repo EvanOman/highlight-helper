@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from datetime import UTC
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.models.settings import AppSetting
 from app.services.book_lookup import BookLookupService, get_book_lookup_service
 from app.services.highlight_extractor import (
     ExtractedHighlight,
@@ -28,6 +29,7 @@ from app.services.readwise import (
     ReadwiseSyncResult,
     get_readwise_service,
 )
+from app.services.settings import READWISE_API_TOKEN
 
 # Use an in-memory SQLite database for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -149,6 +151,7 @@ def mock_readwise_service_unconfigured():
 
 @pytest.fixture
 async def client(
+    test_session: AsyncSession,
     override_get_db,
     mock_book_lookup_service,
     mock_highlight_extractor_service,
@@ -156,6 +159,11 @@ async def client(
     mock_readwise_service,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
+    # Configure DB-backed app settings for "configured" Readwise flows
+    token_setting = AppSetting(key=READWISE_API_TOKEN, value="test_token")
+    test_session.add(token_setting)
+    await test_session.flush()
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_book_lookup_service] = lambda: mock_book_lookup_service
     app.dependency_overrides[get_highlight_extractor_service] = (
@@ -164,15 +172,44 @@ async def client(
     app.dependency_overrides[get_isbn_extractor_service] = lambda: mock_isbn_extractor_service
     app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service
 
+    async def _send_highlights_batch(*args, **kwargs):
+        highlights = kwargs.get("highlights")
+        if highlights is None:
+            highlights = args[-1] if args else []
+        return ReadwiseBatchResult(
+            total=len(highlights),
+            synced=len(highlights),
+            failed=0,
+            results=[ReadwiseSyncResult(success=True, readwise_id="12345") for _ in highlights],
+        )
+
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    with (
+        patch(
+            "app.services.readwise.ReadwiseService.validate_token", new=AsyncMock(return_value=True)
+        ),
+        patch(
+            "app.services.readwise.ReadwiseService.send_highlight",
+            new=AsyncMock(return_value=ReadwiseSyncResult(success=True, readwise_id="12345")),
+        ),
+        patch(
+            "app.services.readwise.ReadwiseService.update_highlight",
+            new=AsyncMock(return_value=ReadwiseSyncResult(success=True, readwise_id="12345")),
+        ),
+        patch(
+            "app.services.readwise.ReadwiseService.send_highlights",
+            new=AsyncMock(side_effect=_send_highlights_batch),
+        ),
+    ):
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
 async def client_readwise_unconfigured(
+    test_session: AsyncSession,
     override_get_db,
     mock_book_lookup_service,
     mock_highlight_extractor_service,
@@ -180,6 +217,11 @@ async def client_readwise_unconfigured(
     mock_readwise_service_unconfigured,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client with Readwise not configured."""
+    # Configure DB-backed app settings as unconfigured
+    token_setting = AppSetting(key=READWISE_API_TOKEN, value=None)
+    test_session.add(token_setting)
+    await test_session.flush()
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_book_lookup_service] = lambda: mock_book_lookup_service
     app.dependency_overrides[get_highlight_extractor_service] = (
