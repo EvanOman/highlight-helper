@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -18,38 +19,48 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def server():
-    """Start the FastAPI server for E2E tests."""
-    # Remove any existing database
-    db_path = Path("highlight_helper.db")
-    if db_path.exists():
-        db_path.unlink()
+    """Start the FastAPI server for E2E tests using an isolated temp database."""
+    # Use a temp directory for the database so we never touch the real one
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "e2e_test.db"
+        env = {
+            **os.environ,
+            "DATABASE_URL": f"sqlite+aiosqlite:///{db_path}",
+        }
 
-    # Start the server using the current Python interpreter
-    server_process = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8765"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+        server_process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "app.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8765",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
 
-    # Wait for server to start
-    time.sleep(3)
+        # Wait for server to start
+        time.sleep(3)
 
-    yield "http://127.0.0.1:8765"
+        yield "http://127.0.0.1:8765"
 
-    # Stop the server gracefully with fallback to force kill
-    try:
-        server_process.send_signal(signal.SIGTERM)
-        server_process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        # Force kill if graceful shutdown fails
-        server_process.kill()
-        server_process.wait(timeout=2)
-    except Exception:
-        # Ensure process is terminated
+        # Stop the server gracefully with fallback to force kill
         try:
+            server_process.send_signal(signal.SIGTERM)
+            server_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
             server_process.kill()
+            server_process.wait(timeout=2)
         except Exception:
-            pass
+            try:
+                server_process.kill()
+            except Exception:
+                pass
 
 
 @pytest.fixture(scope="module")
@@ -164,7 +175,7 @@ class TestHighlightManagementFlow:
         page.wait_for_load_state("networkidle")
 
         # Click Add Highlight
-        page.click("text=Add Highlight")
+        page.locator("a:has-text('Add Highlight')").first.click()
         page.wait_for_load_state("networkidle")
 
         assert "add-highlight" in page.url
@@ -183,7 +194,7 @@ class TestHighlightManagementFlow:
         page.wait_for_load_state("networkidle")
         page.click("text=Test Manual Book")
         page.wait_for_load_state("networkidle")
-        page.click("text=Add Highlight")
+        page.locator("a:has-text('Add Highlight')").first.click()
         page.wait_for_load_state("networkidle")
 
         # The manual section should be visible (open by default when no extraction)
@@ -297,7 +308,7 @@ class TestEditHighlightFlow:
         page.wait_for_load_state("networkidle")
 
         # Add a highlight via manual entry
-        page.click("text=Add Highlight")
+        page.locator("a:has-text('Add Highlight')").first.click()
         page.wait_for_load_state("networkidle")
         page.fill('#manual-section textarea[name="text"]', "Original highlight text")
         page.fill('#manual-section input[name="page_number"]', "10")
@@ -411,7 +422,7 @@ class TestDeleteOperations:
         page.wait_for_load_state("networkidle")
 
         # Add a highlight to delete via manual entry
-        page.click("text=Add Highlight")
+        page.locator("a:has-text('Add Highlight')").first.click()
         page.wait_for_load_state("networkidle")
         page.fill('#manual-section textarea[name="text"]', "Highlight to be deleted")
         page.fill('#manual-section input[name="page_number"]', "1")
