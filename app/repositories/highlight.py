@@ -24,17 +24,17 @@ class HighlightRepository:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_or_404(self, highlight_id: int) -> Highlight:
-        """Get a highlight by ID, raising HTTP 404 if not found."""
+    async def get_or_raise(self, highlight_id: int) -> Highlight:
+        """Get a highlight by ID, raising NotFoundError if not found."""
         highlight = await self.get_by_id(highlight_id)
         if not highlight:
             raise NotFoundError("Highlight not found")
         return highlight
 
-    async def get_with_book_or_404(
+    async def get_with_book_or_raise(
         self, highlight_id: int, book_id: int | None = None
     ) -> tuple[Highlight, Book]:
-        """Get a highlight with its book, raising HTTP 404 if not found.
+        """Get a highlight with its book, raising NotFoundError if not found.
 
         Args:
             highlight_id: The highlight ID to look up.
@@ -57,7 +57,7 @@ class HighlightRepository:
             from app.repositories.book import BookRepository
 
             book_repo = BookRepository(self.db)
-            book = await book_repo.get_or_404(book_id)
+            book = await book_repo.get_or_raise(book_id)
             return highlight, book
         else:
             row = result.first()

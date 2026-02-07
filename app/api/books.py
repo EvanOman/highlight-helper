@@ -101,7 +101,7 @@ async def get_book(
     book_repo: BookRepository = Depends(get_book_repo),
 ) -> BookResponse:
     """Get a specific book by ID."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
     highlight_count = await book_repo.get_highlight_count(book_id)
 
     return BookResponse(
@@ -122,7 +122,7 @@ async def update_book(
     book_repo: BookRepository = Depends(get_book_repo),
 ) -> BookResponse:
     """Update a book."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     update_data = book_data.model_dump(exclude_unset=True)
     book = await book_repo.update(book, **update_data)
@@ -146,5 +146,5 @@ async def delete_book(
     book_repo: BookRepository = Depends(get_book_repo),
 ) -> None:
     """Delete a book and all its highlights."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
     await book_repo.delete(book)

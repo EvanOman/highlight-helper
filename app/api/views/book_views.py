@@ -157,7 +157,7 @@ async def book_detail(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Book detail page showing all highlights."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
     highlights = await highlight_repo.list_for_book(book_id)
 
     # Build timeline data for highlights with page numbers
@@ -225,7 +225,7 @@ async def delete_book_form(
     book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Delete a book."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
     await book_repo.delete(book)
 
     return RedirectResponse(url=f"{settings.root_path}/", status_code=status.HTTP_303_SEE_OTHER)

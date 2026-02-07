@@ -40,7 +40,7 @@ async def list_highlights_for_book(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> list[HighlightResponse]:
     """List all highlights for a specific book."""
-    await book_repo.get_or_404(book_id)
+    await book_repo.get_or_raise(book_id)
     highlights = await highlight_repo.list_for_book(book_id)
 
     return [
@@ -99,7 +99,7 @@ async def create_highlight(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Create a new highlight for a book."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     highlight = await highlight_repo.create(
         book_id=book_id,
@@ -154,7 +154,7 @@ async def create_note(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Create a standalone note for a book."""
-    await book_repo.get_or_404(book_id)
+    await book_repo.get_or_raise(book_id)
 
     note = await highlight_repo.create(
         book_id=book_id,
@@ -195,7 +195,7 @@ async def extract_highlight_from_image(
     This endpoint uses OpenAI Vision to extract text from a book page image
     based on the provided instructions.
     """
-    await book_repo.get_or_404(book_id)
+    await book_repo.get_or_raise(book_id)
 
     # Validate file type
     if not image.content_type or not image.content_type.startswith("image/"):
@@ -237,7 +237,7 @@ async def get_highlight(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Get a specific highlight by ID."""
-    highlight = await highlight_repo.get_or_404(highlight_id)
+    highlight = await highlight_repo.get_or_raise(highlight_id)
 
     return HighlightResponse(
         id=highlight.id,
@@ -259,7 +259,7 @@ async def update_highlight(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Update a highlight."""
-    highlight = await highlight_repo.get_or_404(highlight_id)
+    highlight = await highlight_repo.get_or_raise(highlight_id)
 
     update_data = highlight_data.model_dump(exclude_unset=True)
     highlight = await highlight_repo.update(highlight, **update_data)
@@ -283,5 +283,5 @@ async def delete_highlight(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> None:
     """Delete a highlight."""
-    highlight = await highlight_repo.get_or_404(highlight_id)
+    highlight = await highlight_repo.get_or_raise(highlight_id)
     await highlight_repo.delete(highlight)

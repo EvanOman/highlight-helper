@@ -52,7 +52,7 @@ async def book_chat_page(
     book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Book-specific chat page."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
     highlight_count = await book_repo.get_highlight_count(book_id)
 
     return templates.TemplateResponse(

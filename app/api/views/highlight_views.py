@@ -35,7 +35,7 @@ async def add_highlight_page(
     book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Page for adding a new highlight to a book."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     return templates.TemplateResponse(
         request,
@@ -60,7 +60,7 @@ async def add_note_page(
     book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Page for adding a standalone note to a book."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     return templates.TemplateResponse(
         request,
@@ -80,7 +80,7 @@ async def extract_highlight_form(
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
 ):
     """Extract highlight from uploaded image."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     # Validate file type
     error_message = None
@@ -146,7 +146,7 @@ async def create_highlight_form(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Create a new highlight from form submission."""
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     highlight = await highlight_repo.create(
         book_id=book_id,
@@ -192,7 +192,7 @@ async def create_note_form(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Create a new note for a book."""
-    await book_repo.get_or_404(book_id)
+    await book_repo.get_or_raise(book_id)
 
     await highlight_repo.create(
         book_id=book_id,
@@ -213,7 +213,7 @@ async def delete_highlight_form(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Delete a highlight."""
-    highlight = await highlight_repo.get_or_404(highlight_id)
+    highlight = await highlight_repo.get_or_raise(highlight_id)
     book_id = highlight.book_id
     await highlight_repo.delete(highlight)
 
@@ -231,7 +231,7 @@ async def edit_highlight_page(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Page for editing an existing highlight."""
-    highlight, book = await highlight_repo.get_with_book_or_404(highlight_id, book_id)
+    highlight, book = await highlight_repo.get_with_book_or_raise(highlight_id, book_id)
 
     # Check if Readwise is configured in app settings
     app_settings = await get_settings_service(db)
@@ -259,7 +259,7 @@ async def update_highlight_form(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Update an existing highlight from form submission."""
-    highlight, _book = await highlight_repo.get_with_book_or_404(highlight_id, book_id)
+    highlight, _book = await highlight_repo.get_with_book_or_raise(highlight_id, book_id)
 
     # Update local fields
     highlight.text = text

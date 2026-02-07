@@ -137,7 +137,7 @@ async def sync_highlight(
             detail="Readwise API token not configured",
         )
     # Get highlight with book
-    highlight, book = await highlight_repo.get_with_book_or_404(highlight_id)
+    highlight, book = await highlight_repo.get_with_book_or_raise(highlight_id)
 
     # Notes cannot be synced to Readwise
     if highlight.type == AnnotationType.NOTE:
@@ -201,7 +201,7 @@ async def sync_book_highlights(
             detail="Readwise API token not configured",
         )
     # Verify book exists
-    book = await book_repo.get_or_404(book_id)
+    book = await book_repo.get_or_raise(book_id)
 
     # Get unsynced highlights for this book (excluding notes)
     rows = await highlight_repo.list_unsynced(book_id=book_id)

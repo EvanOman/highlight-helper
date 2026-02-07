@@ -24,8 +24,8 @@ class BookRepository:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_or_404(self, book_id: int) -> Book:
-        """Get a book by ID, raising HTTP 404 if not found."""
+    async def get_or_raise(self, book_id: int) -> Book:
+        """Get a book by ID, raising NotFoundError if not found."""
         book = await self.get_by_id(book_id)
         if not book:
             raise NotFoundError("Book not found")
