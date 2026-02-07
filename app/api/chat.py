@@ -2,20 +2,14 @@
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from app.core.config import get_settings
+from app.api.views._common import templates
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.chat import ChatService, get_chat_service
 
 router = APIRouter(tags=["chat"])
-
-# Set up templates with base_path for subpath deployments
-templates = Jinja2Templates(directory="app/templates")
-settings = get_settings()
-templates.env.globals["base_path"] = settings.root_path
 
 
 class ChatMessageRequest(BaseModel):
