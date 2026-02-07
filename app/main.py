@@ -2,7 +2,7 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -46,8 +46,17 @@ app = FastAPI(
 
 
 @app.exception_handler(NotFoundError)
-async def not_found_handler(request, exc: NotFoundError):
-    return JSONResponse(status_code=404, content={"detail": exc.detail})
+async def not_found_handler(request: Request, exc: NotFoundError):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=404, content={"detail": exc.detail})
+    from app.api.views._common import templates
+
+    return templates.TemplateResponse(
+        request,
+        "error.html",
+        {"status_code": 404, "detail": exc.detail},
+        status_code=404,
+    )
 
 
 # Instrument FastAPI for tracing
