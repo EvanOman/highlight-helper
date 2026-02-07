@@ -125,11 +125,7 @@ async def update_book(
     book = await book_repo.get_or_404(book_id)
 
     update_data = book_data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(book, field, value)
-
-    await book_repo.db.flush()
-    await book_repo.db.refresh(book)
+    book = await book_repo.update(book, **update_data)
 
     highlight_count = await book_repo.get_highlight_count(book_id)
 

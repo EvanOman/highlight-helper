@@ -20,7 +20,6 @@ from app.api.schemas import (
     HighlightWithBookResponse,
     NoteCreate,
 )
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.highlight import AnnotationType
 from app.repositories.book import BookRepository, get_book_repo
@@ -29,6 +28,7 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.settings import get_settings_service
 
 router = APIRouter(prefix="/api/highlights", tags=["highlights"])
 
@@ -108,15 +108,17 @@ async def create_highlight(
         page_number=highlight_data.page_number,
     )
 
-    # Schedule auto-sync to Readwise if enabled
-    settings = get_settings()
-    if settings.readwise_auto_sync and settings.readwise_api_token:
-        from app.services.readwise import sync_highlight_background
+    # Schedule auto-sync to Readwise if enabled in app settings
+    app_settings = await get_settings_service(highlight_repo.db)
+    auto_sync = await app_settings.get_readwise_auto_sync()
+    token = await app_settings.get_readwise_token()
+    if auto_sync and token:
+        from app.services.readwise import sync_highlight_background_with_token
 
         # ty type checker has a ParamSpec bug: even str() casts are reported as str|None
         # See: book.author is Mapped[str] (non-nullable), function accepts str|None
         background_tasks.add_task(
-            sync_highlight_background,
+            sync_highlight_background_with_token,
             highlight_id=highlight.id,
             book_title=book.title,
             book_author=book.author,  # type: ignore[arg-type]
@@ -124,6 +126,7 @@ async def create_highlight(
             note=highlight.note,
             page_number=highlight.page_number,
             created_at=highlight.created_at,
+            api_token=token,
         )
 
     return HighlightResponse(
@@ -259,11 +262,7 @@ async def update_highlight(
     highlight = await highlight_repo.get_or_404(highlight_id)
 
     update_data = highlight_data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(highlight, field, value)
-
-    await highlight_repo.db.flush()
-    await highlight_repo.db.refresh(highlight)
+    highlight = await highlight_repo.update(highlight, **update_data)
 
     return HighlightResponse(
         id=highlight.id,

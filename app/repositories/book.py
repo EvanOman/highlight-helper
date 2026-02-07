@@ -1,5 +1,7 @@
 """Book repository for database access."""
 
+from typing import Any
+
 from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,10 +65,24 @@ class BookRepository:
         total_result = await self.db.execute(total_query)
         return total_result.scalar() or 0
 
-    async def create(self, **kwargs) -> Book:
+    async def create(
+        self,
+        title: str,
+        author: str,
+        isbn: str | None = None,
+        cover_url: str | None = None,
+    ) -> Book:
         """Create a new book."""
-        book = Book(**kwargs)
+        book = Book(title=title, author=author, isbn=isbn, cover_url=cover_url)
         self.db.add(book)
+        await self.db.flush()
+        await self.db.refresh(book)
+        return book
+
+    async def update(self, book: Book, **fields: Any) -> Book:
+        """Update a book's fields."""
+        for key, value in fields.items():
+            setattr(book, key, value)
         await self.db.flush()
         await self.db.refresh(book)
         return book

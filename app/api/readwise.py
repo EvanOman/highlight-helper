@@ -109,7 +109,7 @@ async def sync_all_highlights(
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
 
-    await highlight_repo.db.flush()
+    await highlight_repo.flush()
 
     return ReadwiseBatchSyncResponse(
         total=batch_result.total,
@@ -176,7 +176,7 @@ async def sync_highlight(
         if sync_result.readwise_id:
             highlight.readwise_id = sync_result.readwise_id
         highlight.synced_at = datetime.now(tz=UTC)
-        await highlight_repo.db.flush()
+        await highlight_repo.flush()
 
     return ReadwiseSyncResponse(
         success=sync_result.success,
@@ -242,7 +242,7 @@ async def sync_book_highlights(
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
 
-    await highlight_repo.db.flush()
+    await highlight_repo.flush()
 
     return ReadwiseBatchSyncResponse(
         total=batch_result.total,

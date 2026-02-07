@@ -1,5 +1,7 @@
 """Highlight repository for database access."""
 
+from typing import Any
+
 from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,13 +124,38 @@ class HighlightRepository:
         result = await self.db.execute(query)
         return result.scalar() or 0
 
-    async def create(self, **kwargs) -> Highlight:
+    async def create(
+        self,
+        book_id: int,
+        text: str | None = None,
+        note: str | None = None,
+        page_number: str | None = None,
+        type: AnnotationType = AnnotationType.HIGHLIGHT,
+    ) -> Highlight:
         """Create a new highlight."""
-        highlight = Highlight(**kwargs)
+        highlight = Highlight(
+            book_id=book_id,
+            text=text,
+            note=note,
+            page_number=page_number,
+            type=type,
+        )
         self.db.add(highlight)
         await self.db.flush()
         await self.db.refresh(highlight)
         return highlight
+
+    async def update(self, highlight: Highlight, **fields: Any) -> Highlight:
+        """Update a highlight's fields."""
+        for key, value in fields.items():
+            setattr(highlight, key, value)
+        await self.db.flush()
+        await self.db.refresh(highlight)
+        return highlight
+
+    async def flush(self) -> None:
+        """Flush pending changes to the database."""
+        await self.db.flush()
 
     async def delete(self, highlight: Highlight) -> None:
         """Delete a highlight."""
