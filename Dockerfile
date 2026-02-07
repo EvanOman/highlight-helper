@@ -13,7 +13,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Copy dependency files first (for better caching)
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock readwise_sdk-0.1.0-py3-none-any.whl ./
 
 # Install dependencies into a virtual environment
 RUN uv sync --frozen --no-dev --no-install-project

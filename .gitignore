@@ -65,6 +65,12 @@ uploads/
 .DS_Store
 Thumbs.db
 
+# Temporary files
+tmp/
+
+# Local docs (planning, ideation, notes)
+docs/
+
 # Claude Code
 .claude/
 prompt.md
