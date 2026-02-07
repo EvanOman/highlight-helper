@@ -33,7 +33,7 @@ class ChatMessageRequest(BaseModel):
 # View endpoints for HTML pages
 
 
-@router.get("/chat/", response_class=HTMLResponse)
+@router.get("/chat", response_class=HTMLResponse)
 async def chat_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -53,7 +53,7 @@ async def chat_page(
     )
 
 
-@router.get("/books/{book_id}/chat/", response_class=HTMLResponse)
+@router.get("/books/{book_id}/chat", response_class=HTMLResponse)
 async def book_chat_page(
     request: Request,
     book_id: int,
