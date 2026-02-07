@@ -4,17 +4,15 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import (
     ReadwiseBatchSyncResponse,
     ReadwiseStatusResponse,
     ReadwiseSyncResponse,
 )
-from app.core.database import get_db
-from app.models.book import Book
-from app.models.highlight import AnnotationType, Highlight
+from app.models.highlight import AnnotationType
+from app.repositories.book import BookRepository, get_book_repo
+from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.readwise import ReadwiseService, get_readwise_service
 
 logger = logging.getLogger(__name__)
@@ -53,7 +51,7 @@ async def validate_readwise_token(
 
 @router.post("/sync/all", response_model=ReadwiseBatchSyncResponse)
 async def sync_all_highlights(
-    db: AsyncSession = Depends(get_db),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
     readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseBatchSyncResponse:
     """Sync all unsynced highlights to Readwise."""
@@ -64,23 +62,10 @@ async def sync_all_highlights(
         )
 
     # Get all unsynced highlights with their books (excluding notes)
-    query = (
-        select(Highlight, Book)
-        .join(Book)
-        .where(Highlight.synced_at.is_(None))
-        .where(Highlight.type == AnnotationType.HIGHLIGHT)
-    )
-    result = await db.execute(query)
-    rows = result.all()
+    rows = await highlight_repo.list_unsynced()
 
     # Log if there are notes being excluded
-    notes_query = (
-        select(Highlight)
-        .where(Highlight.synced_at.is_(None))
-        .where(Highlight.type == AnnotationType.NOTE)
-    )
-    notes_result = await db.execute(notes_query)
-    notes_count = len(notes_result.all())
+    notes_count = await highlight_repo.count_unsynced_notes()
     if notes_count > 0:
         logger.info(
             "Skipping %d note(s) during sync - notes are not supported by Readwise",
@@ -113,7 +98,7 @@ async def sync_all_highlights(
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
 
-    await db.flush()
+    await highlight_repo.db.flush()
 
     return ReadwiseBatchSyncResponse(
         total=batch_result.total,
@@ -125,7 +110,7 @@ async def sync_all_highlights(
 @router.post("/sync/{highlight_id}", response_model=ReadwiseSyncResponse)
 async def sync_highlight(
     highlight_id: int,
-    db: AsyncSession = Depends(get_db),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
     readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseSyncResponse:
     """Sync a single highlight to Readwise.
@@ -140,17 +125,7 @@ async def sync_highlight(
         )
 
     # Get highlight with book
-    query = select(Highlight, Book).join(Book).where(Highlight.id == highlight_id)
-    result = await db.execute(query)
-    row = result.first()
-
-    if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found",
-        )
-
-    highlight, book = row
+    highlight, book = await highlight_repo.get_with_book_or_404(highlight_id)
 
     # Notes cannot be synced to Readwise
     if highlight.type == AnnotationType.NOTE:
@@ -175,7 +150,7 @@ async def sync_highlight(
     else:
         # Create new highlight on Readwise
         sync_result = await readwise.send_highlight(
-            text=highlight.text,
+            text=highlight.text or "",
             title=book.title,
             author=book.author,
             note=highlight.note,
@@ -188,7 +163,7 @@ async def sync_highlight(
         if sync_result.readwise_id:
             highlight.readwise_id = sync_result.readwise_id
         highlight.synced_at = datetime.now(tz=UTC)
-        await db.flush()
+        await highlight_repo.db.flush()
 
     return ReadwiseSyncResponse(
         success=sync_result.success,
@@ -200,7 +175,8 @@ async def sync_highlight(
 @router.post("/sync/book/{book_id}", response_model=ReadwiseBatchSyncResponse)
 async def sync_book_highlights(
     book_id: int,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
     readwise: ReadwiseService = Depends(get_readwise_service),
 ) -> ReadwiseBatchSyncResponse:
     """Sync all unsynced highlights for a book to Readwise."""
@@ -211,35 +187,13 @@ async def sync_book_highlights(
         )
 
     # Verify book exists
-    book_query = select(Book).where(Book.id == book_id)
-    book_result = await db.execute(book_query)
-    book = book_result.scalar_one_or_none()
-
-    if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found",
-        )
+    book = await book_repo.get_or_404(book_id)
 
     # Get unsynced highlights for this book (excluding notes)
-    query = (
-        select(Highlight)
-        .where(Highlight.book_id == book_id)
-        .where(Highlight.synced_at.is_(None))
-        .where(Highlight.type == AnnotationType.HIGHLIGHT)
-    )
-    result = await db.execute(query)
-    highlights = result.scalars().all()
+    rows = await highlight_repo.list_unsynced(book_id=book_id)
 
     # Log if there are notes being excluded
-    notes_query = (
-        select(Highlight)
-        .where(Highlight.book_id == book_id)
-        .where(Highlight.synced_at.is_(None))
-        .where(Highlight.type == AnnotationType.NOTE)
-    )
-    notes_result = await db.execute(notes_query)
-    notes_count = len(notes_result.scalars().all())
+    notes_count = await highlight_repo.count_unsynced_notes(book_id=book_id)
     if notes_count > 0:
         logger.info(
             "Skipping %d note(s) for book id=%d during sync - notes are not supported by Readwise",
@@ -247,7 +201,7 @@ async def sync_book_highlights(
             book_id,
         )
 
-    if not highlights:
+    if not rows:
         return ReadwiseBatchSyncResponse(total=0, synced=0, failed=0)
 
     # Build highlight data for batch sync
@@ -260,7 +214,7 @@ async def sync_book_highlights(
             "page_number": h.page_number,
             "highlighted_at": h.created_at,
         }
-        for h in highlights
+        for h, _b in rows
     ]
 
     # Send to Readwise
@@ -268,12 +222,12 @@ async def sync_book_highlights(
 
     # Update synced highlights
     now = datetime.now(tz=UTC)
-    for highlight, sync_result in zip(highlights, batch_result.results, strict=False):
+    for (highlight, _), sync_result in zip(rows, batch_result.results, strict=False):
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
 
-    await db.flush()
+    await highlight_repo.db.flush()
 
     return ReadwiseBatchSyncResponse(
         total=batch_result.total,

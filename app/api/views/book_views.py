@@ -1,13 +1,10 @@
 """Book-related views (add, detail, search, create, delete)."""
 
-from fastapi import Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.models.book import Book
-from app.models.highlight import Highlight
+from app.repositories.book import BookRepository, get_book_repo
+from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.book_lookup import BookLookupService, get_book_lookup_service
 from app.services.isbn_extractor import (
     ISBNExtractorService,
@@ -137,18 +134,15 @@ async def create_book_form(
     author: str = Form(...),
     isbn: str = Form(""),
     cover_url: str = Form(""),
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Create a new book from form submission."""
-    book = Book(
+    book = await book_repo.create(
         title=title,
         author=author,
         isbn=isbn if isbn else None,
         cover_url=cover_url if cover_url else None,
     )
-    db.add(book)
-    await db.flush()
-    await db.refresh(book)
 
     return RedirectResponse(
         url=f"{settings.root_path}/books/{book.id}", status_code=status.HTTP_303_SEE_OTHER
@@ -159,22 +153,12 @@ async def create_book_form(
 async def book_detail(
     request: Request,
     book_id: int,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Book detail page showing all highlights."""
-    query = select(Book).where(Book.id == book_id)
-    result = await db.execute(query)
-    book = result.scalar_one_or_none()
-
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    # Get highlights
-    highlights_query = (
-        select(Highlight).where(Highlight.book_id == book_id).order_by(Highlight.created_at.desc())
-    )
-    highlights_result = await db.execute(highlights_query)
-    highlights = highlights_result.scalars().all()
+    book = await book_repo.get_or_404(book_id)
+    highlights = await highlight_repo.list_for_book(book_id)
 
     # Build timeline data for highlights with page numbers
     timeline_items = []
@@ -238,16 +222,10 @@ async def book_detail(
 @router.post("/books/{book_id}/delete")
 async def delete_book_form(
     book_id: int,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Delete a book."""
-    query = select(Book).where(Book.id == book_id)
-    result = await db.execute(query)
-    book = result.scalar_one_or_none()
-
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    await db.delete(book)
+    book = await book_repo.get_or_404(book_id)
+    await book_repo.delete(book)
 
     return RedirectResponse(url=f"{settings.root_path}/", status_code=status.HTTP_303_SEE_OTHER)

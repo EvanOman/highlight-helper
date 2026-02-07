@@ -10,7 +10,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas import (
@@ -23,8 +22,9 @@ from app.api.schemas import (
 )
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.book import Book
-from app.models.highlight import AnnotationType, Highlight
+from app.models.highlight import AnnotationType
+from app.repositories.book import BookRepository, get_book_repo
+from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
@@ -36,24 +36,12 @@ router = APIRouter(prefix="/api/highlights", tags=["highlights"])
 @router.get("/book/{book_id}", response_model=list[HighlightResponse])
 async def list_highlights_for_book(
     book_id: int,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> list[HighlightResponse]:
     """List all highlights for a specific book."""
-    # Verify book exists
-    book_query = select(Book).where(Book.id == book_id)
-    book_result = await db.execute(book_query)
-    if not book_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found",
-        )
-
-    query = (
-        select(Highlight).where(Highlight.book_id == book_id).order_by(Highlight.created_at.desc())
-    )
-
-    result = await db.execute(query)
-    highlights = result.scalars().all()
+    await book_repo.get_or_404(book_id)
+    highlights = await highlight_repo.list_for_book(book_id)
 
     return [
         HighlightResponse(
@@ -75,19 +63,10 @@ async def list_highlights_for_book(
 async def list_all_highlights(
     skip: int = 0,
     limit: int = 50,
-    db: AsyncSession = Depends(get_db),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> list[HighlightWithBookResponse]:
     """List all highlights across all books."""
-    query = (
-        select(Highlight, Book)
-        .join(Book)
-        .order_by(Highlight.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
-
-    result = await db.execute(query)
-    rows = result.all()
+    rows = await highlight_repo.list_all_with_books(skip=skip, limit=limit)
 
     return [
         HighlightWithBookResponse(
@@ -116,28 +95,18 @@ async def create_highlight(
     book_id: int,
     highlight_data: HighlightCreate,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Create a new highlight for a book."""
-    # Verify book exists
-    book_query = select(Book).where(Book.id == book_id)
-    book_result = await db.execute(book_query)
-    book = book_result.scalar_one_or_none()
-    if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found",
-        )
+    book = await book_repo.get_or_404(book_id)
 
-    highlight = Highlight(
+    highlight = await highlight_repo.create(
         book_id=book_id,
         text=highlight_data.text,
         note=highlight_data.note,
         page_number=highlight_data.page_number,
     )
-    db.add(highlight)
-    await db.flush()
-    await db.refresh(highlight)
 
     # Schedule auto-sync to Readwise if enabled
     settings = get_settings()
@@ -178,29 +147,19 @@ async def create_highlight(
 async def create_note(
     book_id: int,
     note_data: NoteCreate,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Create a standalone note for a book."""
-    # Verify book exists
-    book_query = select(Book).where(Book.id == book_id)
-    book_result = await db.execute(book_query)
-    book = book_result.scalar_one_or_none()
-    if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found",
-        )
+    await book_repo.get_or_404(book_id)
 
-    note = Highlight(
+    note = await highlight_repo.create(
         book_id=book_id,
-        text=note_data.text,  # Optional quote/highlight text
-        note=note_data.note,  # Required note content
+        text=note_data.text,
+        note=note_data.note,
         page_number=note_data.page_number,
         type=AnnotationType.NOTE,
     )
-    db.add(note)
-    await db.flush()
-    await db.refresh(note)
 
     return HighlightResponse(
         id=note.id,
@@ -224,6 +183,7 @@ async def extract_highlight_from_image(
     instructions: str = Form(...),
     image: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
 ) -> ExtractHighlightResponse:
     """
@@ -232,14 +192,7 @@ async def extract_highlight_from_image(
     This endpoint uses OpenAI Vision to extract text from a book page image
     based on the provided instructions.
     """
-    # Verify book exists
-    book_query = select(Book).where(Book.id == book_id)
-    book_result = await db.execute(book_query)
-    if not book_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Book not found",
-        )
+    await book_repo.get_or_404(book_id)
 
     # Validate file type
     if not image.content_type or not image.content_type.startswith("image/"):
@@ -278,18 +231,10 @@ async def extract_highlight_from_image(
 @router.get("/{highlight_id}", response_model=HighlightResponse)
 async def get_highlight(
     highlight_id: int,
-    db: AsyncSession = Depends(get_db),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Get a specific highlight by ID."""
-    query = select(Highlight).where(Highlight.id == highlight_id)
-    result = await db.execute(query)
-    highlight = result.scalar_one_or_none()
-
-    if not highlight:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found",
-        )
+    highlight = await highlight_repo.get_or_404(highlight_id)
 
     return HighlightResponse(
         id=highlight.id,
@@ -308,25 +253,17 @@ async def get_highlight(
 async def update_highlight(
     highlight_id: int,
     highlight_data: HighlightUpdate,
-    db: AsyncSession = Depends(get_db),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
     """Update a highlight."""
-    query = select(Highlight).where(Highlight.id == highlight_id)
-    result = await db.execute(query)
-    highlight = result.scalar_one_or_none()
-
-    if not highlight:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found",
-        )
+    highlight = await highlight_repo.get_or_404(highlight_id)
 
     update_data = highlight_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(highlight, field, value)
 
-    await db.flush()
-    await db.refresh(highlight)
+    await highlight_repo.db.flush()
+    await highlight_repo.db.refresh(highlight)
 
     return HighlightResponse(
         id=highlight.id,
@@ -344,17 +281,8 @@ async def update_highlight(
 @router.delete("/{highlight_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_highlight(
     highlight_id: int,
-    db: AsyncSession = Depends(get_db),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> None:
     """Delete a highlight."""
-    query = select(Highlight).where(Highlight.id == highlight_id)
-    result = await db.execute(query)
-    highlight = result.scalar_one_or_none()
-
-    if not highlight:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Highlight not found",
-        )
-
-    await db.delete(highlight)
+    highlight = await highlight_repo.get_or_404(highlight_id)
+    await highlight_repo.delete(highlight)

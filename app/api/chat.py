@@ -1,16 +1,13 @@
 """API endpoints and views for chat functionality."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.database import get_db
-from app.models.book import Book
-from app.models.highlight import Highlight
+from app.repositories.book import BookRepository, get_book_repo
+from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.chat import ChatService, get_chat_service
 
 router = APIRouter(tags=["chat"])
@@ -36,11 +33,12 @@ class ChatMessageRequest(BaseModel):
 @router.get("/chat", response_class=HTMLResponse)
 async def chat_page(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Global chat page for all highlights."""
-    book_count = await db.scalar(select(func.count(Book.id)))
-    highlight_count = await db.scalar(select(func.count(Highlight.id)))
+    book_count = await book_repo.get_total_count()
+    highlight_count = await highlight_repo.get_total_count()
 
     return templates.TemplateResponse(
         request,
@@ -57,19 +55,11 @@ async def chat_page(
 async def book_chat_page(
     request: Request,
     book_id: int,
-    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Book-specific chat page."""
-    query = select(Book).where(Book.id == book_id)
-    result = await db.execute(query)
-    book = result.scalar_one_or_none()
-
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
-    highlight_count = await db.scalar(
-        select(func.count(Highlight.id)).where(Highlight.book_id == book_id)
-    )
+    book = await book_repo.get_or_404(book_id)
+    highlight_count = await book_repo.get_highlight_count(book_id)
 
     return templates.TemplateResponse(
         request,
