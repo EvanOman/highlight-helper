@@ -1,10 +1,11 @@
 """Book repository for database access."""
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.exceptions import NotFoundError
 from app.models.book import Book
 from app.models.highlight import Highlight
 
@@ -25,10 +26,7 @@ class BookRepository:
         """Get a book by ID, raising HTTP 404 if not found."""
         book = await self.get_by_id(book_id)
         if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Book not found",
-            )
+            raise NotFoundError("Book not found")
         return book
 
     async def list_with_highlight_counts(

@@ -1,10 +1,11 @@
 """Highlight repository for database access."""
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.exceptions import NotFoundError
 from app.models.book import Book
 from app.models.highlight import AnnotationType, Highlight
 
@@ -25,10 +26,7 @@ class HighlightRepository:
         """Get a highlight by ID, raising HTTP 404 if not found."""
         highlight = await self.get_by_id(highlight_id)
         if not highlight:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Highlight not found",
-            )
+            raise NotFoundError("Highlight not found")
         return highlight
 
     async def get_with_book_or_404(
@@ -52,10 +50,7 @@ class HighlightRepository:
         if book_id is not None:
             highlight = result.scalar_one_or_none()
             if not highlight:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Highlight not found",
-                )
+                raise NotFoundError("Highlight not found")
             # Need to fetch the book separately since we queried just the highlight
             from app.repositories.book import BookRepository
 
@@ -65,10 +60,7 @@ class HighlightRepository:
         else:
             row = result.first()
             if not row:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Highlight not found",
-                )
+                raise NotFoundError("Highlight not found")
             return row[0], row[1]
 
     async def list_for_book(self, book_id: int) -> list[Highlight]:

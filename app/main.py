@@ -2,7 +2,7 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from app.api.books import router as books_router
@@ -13,6 +13,7 @@ from app.api.settings import router as settings_router
 from app.api.views import router as views_router
 from app.core.config import get_settings
 from app.core.database import init_db
+from app.core.exceptions import NotFoundError
 from app.core.telemetry import instrument_fastapi, instrument_httpx, setup_telemetry
 from app.services.book_lookup import book_lookup_service
 
@@ -41,6 +42,12 @@ app = FastAPI(
     lifespan=lifespan,
     root_path=settings.root_path,
 )
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_handler(request, exc: NotFoundError):
+    raise HTTPException(status_code=404, detail=exc.detail)
+
 
 # Instrument FastAPI for tracing
 instrument_fastapi(app)
