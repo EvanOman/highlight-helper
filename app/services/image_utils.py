@@ -16,9 +16,7 @@ def convert_to_jpeg(image_bytes: bytes) -> bytes:
     try:
         img = Image.open(io.BytesIO(image_bytes))
         # Convert to RGB if necessary (handles RGBA, P mode, etc.)
-        if img.mode in ("RGBA", "P", "LA"):
-            img = img.convert("RGB")
-        elif img.mode != "RGB":
+        if img.mode != "RGB":
             img = img.convert("RGB")
 
         # Save as JPEG

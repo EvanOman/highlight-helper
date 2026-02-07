@@ -1,6 +1,6 @@
 """Highlight-related views (add, extract, create, edit, update, delete, list all)."""
 
-from datetime import UTC
+from datetime import UTC, datetime
 
 from fastapi import (
     BackgroundTasks,
@@ -14,14 +14,15 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.database import get_db
+from app.models.highlight import AnnotationType
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.readwise import ReadwiseService
 from app.services.settings import get_settings_service
 
 from ._common import router, settings, templates
@@ -191,8 +192,6 @@ async def create_note_form(
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Create a new note for a book."""
-    from app.models.highlight import AnnotationType
-
     await book_repo.get_or_404(book_id)
 
     await highlight_repo.create(
@@ -228,14 +227,15 @@ async def edit_highlight_page(
     request: Request,
     book_id: int,
     highlight_id: int,
+    db: AsyncSession = Depends(get_db),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Page for editing an existing highlight."""
     highlight, book = await highlight_repo.get_with_book_or_404(highlight_id, book_id)
 
-    # Check if Readwise is configured
-    env_settings = get_settings()
-    readwise_configured = bool(env_settings.readwise_api_token)
+    # Check if Readwise is configured in app settings
+    app_settings = await get_settings_service(db)
+    readwise_configured = bool(await app_settings.get_readwise_token())
 
     return templates.TemplateResponse(
         request,
@@ -255,13 +255,10 @@ async def update_highlight_form(
     text: str = Form(...),
     note: str = Form(""),
     page_number: str = Form(""),
+    db: AsyncSession = Depends(get_db),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Update an existing highlight from form submission."""
-    from datetime import datetime
-
-    from app.services.readwise import ReadwiseService
-
     highlight, _book = await highlight_repo.get_with_book_or_404(highlight_id, book_id)
 
     # Update local fields
@@ -271,9 +268,10 @@ async def update_highlight_form(
 
     # If highlight was previously synced, try to update on Readwise
     if highlight.readwise_id:
-        app_settings = get_settings()
-        if app_settings.readwise_api_token:
-            service = ReadwiseService(app_settings.readwise_api_token)
+        settings_service = await get_settings_service(db)
+        token = await settings_service.get_readwise_token()
+        if token:
+            service = ReadwiseService(token)
             try:
                 result = await service.update_highlight(
                     readwise_id=highlight.readwise_id,
