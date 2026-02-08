@@ -219,32 +219,43 @@ chatForm.addEventListener('submit', async (e) => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullResponse = '';
+        let buffer = '';
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-            let eventType = null;
-            for (const line of lines) {
-                if (line.startsWith('event: ')) {
-                    eventType = line.slice(7).trim();
-                } else if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (eventType === 'done') {
-                        // data is the thread_id
-                        const threadId = parseInt(data);
-                        if (!currentThreadId && threadId) {
-                            addThreadButton(threadId, message.slice(0, 50));
-                            setActiveThread(threadId);
-                        }
-                    } else {
-                        fullResponse += data;
-                        assistantBubble.textContent = fullResponse;
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+            buffer += decoder.decode(value, { stream: true });
+            // Process complete events (terminated by blank line = double newline)
+            const events = buffer.split('\n\n');
+            // Last element is incomplete (or empty); keep it in the buffer
+            buffer = events.pop();
+
+            for (const event of events) {
+                if (!event.trim()) continue;
+                const lines = event.split('\n');
+                let eventType = null;
+                const dataLines = [];
+                for (const line of lines) {
+                    if (line.startsWith('event: ')) {
+                        eventType = line.slice(7).trim();
+                    } else if (line.startsWith('data: ')) {
+                        dataLines.push(line.slice(6));
+                    } else if (line === 'data:') {
+                        dataLines.push('');
                     }
-                    eventType = null;
+                }
+                const data = dataLines.join('\n');
+                if (eventType === 'done') {
+                    const threadId = parseInt(data);
+                    if (!currentThreadId && threadId) {
+                        addThreadButton(threadId, message.slice(0, 50));
+                        setActiveThread(threadId);
+                    }
+                } else if (dataLines.length > 0) {
+                    fullResponse += data;
+                    assistantBubble.textContent = fullResponse;
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
             }
         }

@@ -204,7 +204,9 @@ async def send_chat_message(
             book_id=request.book_id,
         ):
             full_response += chunk
-            yield f"data: {chunk}\n\n"
+            for line in chunk.split("\n"):
+                yield f"data: {line}\n"
+            yield "\n"
 
         # Save assistant response using independent session
         try:
