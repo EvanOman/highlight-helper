@@ -47,6 +47,10 @@ def _configure_sqlite_pragmas(dbapi_connection, connection_record):
     # Wait 5 seconds on locks before failing
     cursor.execute("PRAGMA busy_timeout=5000")
 
+    # Enforce foreign key constraints (required for ON DELETE CASCADE)
+    cursor.execute("PRAGMA foreign_keys=ON")
+    logger.debug("SQLite foreign key enforcement enabled")
+
     cursor.close()
 
 
