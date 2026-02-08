@@ -1,9 +1,10 @@
 """Chat service for conversing with highlights using Anthropic API."""
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterable
 
 from anthropic import AsyncAnthropic
+from anthropic.types import MessageParam
 from fastapi import Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -174,6 +175,39 @@ Here are all the user's highlights:
                 max_tokens=2048,
                 system=system_prompt,
                 messages=messages,
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+        except Exception as e:
+            logger.error(f"Error in chat stream: {e}")
+            yield f"I apologize, but I encountered an error: {str(e)}"
+
+    async def send_message_from_history(
+        self,
+        history: Iterable[MessageParam],
+        book_id: int | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream a response given a pre-built conversation history.
+
+        Used by the thread-based chat flow where the API layer loads
+        history from the database (already includes the latest user message).
+
+        Args:
+            history: Full conversation history as list of {role, content} dicts
+            book_id: Optional book ID to scope the conversation
+
+        Yields:
+            Chunks of the response text
+        """
+        highlights_context = await self._get_highlights_context(book_id)
+        system_prompt = self._build_system_prompt(highlights_context, book_id)
+
+        try:
+            async with self._client.messages.stream(
+                model=self._chat_model,
+                max_tokens=2048,
+                system=system_prompt,
+                messages=history,
             ) as stream:
                 async for text in stream.text_stream:
                     yield text

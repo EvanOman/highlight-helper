@@ -2,6 +2,7 @@
 
 from app.models.api_usage import APIUsage, calculate_cost
 from app.models.book import Book
+from app.models.chat import ChatMessage, ChatThread
 from app.models.highlight import AnnotationType, Highlight, SyncStatus
 from app.models.settings import AppSetting
 
@@ -10,6 +11,8 @@ __all__ = [
     "AnnotationType",
     "AppSetting",
     "Book",
+    "ChatMessage",
+    "ChatThread",
     "Highlight",
     "SyncStatus",
     "calculate_cost",

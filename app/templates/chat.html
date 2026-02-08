@@ -15,6 +15,21 @@
         </p>
     </div>
 
+    <!-- Thread selector -->
+    <div class="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
+        <button id="new-chat-btn"
+                class="shrink-0 px-3 py-1.5 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition font-medium">
+            + New Chat
+        </button>
+        {% for thread in threads %}
+        <button class="thread-btn shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition truncate max-w-[200px]"
+                data-thread-id="{{ thread.id }}"
+                title="{{ thread.title }}">
+            {{ thread.title }}
+        </button>
+        {% endfor %}
+    </div>
+
     <!-- Chat messages container -->
     <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
         <div id="chat-placeholder" class="text-center text-gray-500 dark:text-gray-400 py-8">
@@ -51,15 +66,34 @@ const chatPlaceholder = document.getElementById('chat-placeholder');
 const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
+const newChatBtn = document.getElementById('new-chat-btn');
 
-// Store conversation history for multi-turn chat
-let conversationHistory = [];
+let currentThreadId = null;
 const bookId = {{ book.id if book else 'null' }};
+
+function clearMessages() {
+    chatMessages.innerHTML = '';
+    const placeholder = document.createElement('div');
+    placeholder.id = 'chat-placeholder';
+    placeholder.className = 'text-center text-gray-500 dark:text-gray-400 py-8';
+    placeholder.innerHTML = `
+        <p>Ask me about your highlights!</p>
+        <p class="text-sm mt-2">
+            {% if book %}
+            Try: "What are the main themes?" or "Summarize my highlights"
+            {% else %}
+            Try: "What themes appear across my books?" or "Find highlights about leadership"
+            {% endif %}
+        </p>
+    `;
+    chatMessages.appendChild(placeholder);
+}
 
 function addMessage(role, content) {
     // Remove placeholder on first message
-    if (chatPlaceholder && chatPlaceholder.parentNode) {
-        chatPlaceholder.remove();
+    const placeholder = document.getElementById('chat-placeholder');
+    if (placeholder && placeholder.parentNode) {
+        placeholder.remove();
     }
 
     const messageDiv = document.createElement('div');
@@ -90,14 +124,77 @@ function setLoading(loading) {
     }
 }
 
+function setActiveThread(threadId) {
+    currentThreadId = threadId;
+    document.querySelectorAll('.thread-btn').forEach(btn => {
+        const isActive = parseInt(btn.dataset.threadId) === threadId;
+        if (isActive) {
+            btn.classList.remove('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+            btn.classList.add('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300', 'border-primary-400', 'dark:border-primary-600');
+        } else {
+            btn.classList.remove('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300', 'border-primary-400', 'dark:border-primary-600');
+            btn.classList.add('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+        }
+    });
+}
+
+function addThreadButton(threadId, title) {
+    // Check if button already exists
+    if (document.querySelector(`.thread-btn[data-thread-id="${threadId}"]`)) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'thread-btn shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition truncate max-w-[200px]';
+    btn.dataset.threadId = threadId;
+    btn.title = title;
+    btn.textContent = title;
+    btn.addEventListener('click', () => loadThread(parseInt(btn.dataset.threadId)));
+
+    // Insert after the New Chat button
+    newChatBtn.insertAdjacentElement('afterend', btn);
+}
+
+async function loadThread(threadId) {
+    try {
+        const response = await fetch(`{{ base_path }}/api/chat/threads/${threadId}/messages`);
+        if (!response.ok) throw new Error('Failed to load thread');
+
+        const messages = await response.json();
+        chatMessages.innerHTML = '';
+
+        if (messages.length === 0) {
+            clearMessages();
+        } else {
+            for (const msg of messages) {
+                addMessage(msg.role, msg.content);
+            }
+        }
+
+        setActiveThread(threadId);
+    } catch (error) {
+        console.error('Error loading thread:', error);
+    }
+}
+
+// Thread button click handlers
+document.querySelectorAll('.thread-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadThread(parseInt(btn.dataset.threadId)));
+});
+
+// New chat button
+newChatBtn.addEventListener('click', () => {
+    currentThreadId = null;
+    clearMessages();
+    setActiveThread(null);
+    chatInput.focus();
+});
+
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const message = chatInput.value.trim();
     if (!message) return;
 
-    // Add user message to UI and history
+    // Add user message to UI
     addMessage('user', message);
-    conversationHistory.push({ role: 'user', content: message });
     chatInput.value = '';
 
     // Add assistant placeholder
@@ -111,7 +208,7 @@ chatForm.addEventListener('submit', async (e) => {
             body: JSON.stringify({
                 message,
                 book_id: bookId,
-                history: conversationHistory.slice(0, -1)  // Exclude the message we just added
+                thread_id: currentThreadId,
             }),
         });
 
@@ -128,20 +225,29 @@ chatForm.addEventListener('submit', async (e) => {
             if (done) break;
 
             const chunk = decoder.decode(value);
-            // Parse SSE format: data: <content>\n\n
             const lines = chunk.split('\n');
+            let eventType = null;
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const content = line.slice(6);
-                    fullResponse += content;
-                    assistantBubble.textContent = fullResponse;
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                if (line.startsWith('event: ')) {
+                    eventType = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    if (eventType === 'done') {
+                        // data is the thread_id
+                        const threadId = parseInt(data);
+                        if (!currentThreadId && threadId) {
+                            addThreadButton(threadId, message.slice(0, 50));
+                            setActiveThread(threadId);
+                        }
+                    } else {
+                        fullResponse += data;
+                        assistantBubble.textContent = fullResponse;
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                    eventType = null;
                 }
             }
         }
-
-        // Add assistant response to history
-        conversationHistory.push({ role: 'assistant', content: fullResponse });
     } catch (error) {
         console.error('Chat error:', error);
         assistantBubble.textContent = 'Error: Could not get response. Please try again.';
