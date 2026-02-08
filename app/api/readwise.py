@@ -12,7 +12,7 @@ from app.api.schemas import (
     ReadwiseSyncResponse,
 )
 from app.core.database import get_db
-from app.models.highlight import AnnotationType
+from app.models.highlight import AnnotationType, SyncStatus
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.readwise import ReadwiseService
@@ -108,6 +108,7 @@ async def sync_all_highlights(
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
+            highlight.sync_status = SyncStatus.SYNCED
 
     await highlight_repo.flush()
 
@@ -176,6 +177,7 @@ async def sync_highlight(
         if sync_result.readwise_id:
             highlight.readwise_id = sync_result.readwise_id
         highlight.synced_at = datetime.now(tz=UTC)
+        highlight.sync_status = SyncStatus.SYNCED
         await highlight_repo.flush()
 
     return ReadwiseSyncResponse(
@@ -241,6 +243,7 @@ async def sync_book_highlights(
         if sync_result.success:
             highlight.readwise_id = sync_result.readwise_id
             highlight.synced_at = now
+            highlight.sync_status = SyncStatus.SYNCED
 
     await highlight_repo.flush()
 
