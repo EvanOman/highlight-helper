@@ -246,7 +246,12 @@ chatForm.addEventListener('submit', async (e) => {
                     }
                 }
                 const data = dataLines.join('\n');
-                if (eventType === 'done') {
+                if (eventType === 'error') {
+                    const warning = document.createElement('div');
+                    warning.className = 'text-xs text-amber-500 dark:text-amber-400 mt-1';
+                    warning.textContent = 'Warning: Response may not have been saved';
+                    assistantBubble.parentElement.appendChild(warning);
+                } else if (eventType === 'done') {
                     const threadId = parseInt(data);
                     if (!currentThreadId && threadId) {
                         addThreadButton(threadId, message.slice(0, 50));
