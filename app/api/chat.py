@@ -218,6 +218,7 @@ async def send_chat_message(
                 await repo.update_thread_timestamp(thread_id)
         except Exception:
             logger.exception("Failed to save assistant message for thread %s", thread_id)
+            yield "event: error\ndata: Failed to save response\n\n"
 
         # Signal completion with thread_id
         yield f"event: done\ndata: {thread_id}\n\n"

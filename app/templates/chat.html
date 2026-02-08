@@ -232,7 +232,12 @@ chatForm.addEventListener('submit', async (e) => {
                     eventType = line.slice(7).trim();
                 } else if (line.startsWith('data: ')) {
                     const data = line.slice(6);
-                    if (eventType === 'done') {
+                    if (eventType === 'error') {
+                        const warning = document.createElement('div');
+                        warning.className = 'text-xs text-amber-500 dark:text-amber-400 mt-1';
+                        warning.textContent = 'Warning: Response may not have been saved';
+                        assistantBubble.parentElement.appendChild(warning);
+                    } else if (eventType === 'done') {
                         // data is the thread_id
                         const threadId = parseInt(data);
                         if (!currentThreadId && threadId) {
