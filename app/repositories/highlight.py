@@ -59,11 +59,10 @@ class HighlightRepository:
             book_repo = BookRepository(self.db)
             book = await book_repo.get_or_raise(book_id)
             return highlight, book
-        else:
-            row = result.first()
-            if not row:
-                raise NotFoundError("Highlight not found")
-            return row[0], row[1]
+        row = result.first()
+        if not row:
+            raise NotFoundError("Highlight not found")
+        return row[0], row[1]
 
     async def list_for_book(self, book_id: int) -> list[Highlight]:
         """List all highlights for a book, ordered by creation date descending."""

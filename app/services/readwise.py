@@ -1,6 +1,7 @@
 """Readwise integration service for syncing highlights."""
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -229,14 +230,13 @@ class ReadwiseService:
                         success=True,
                         readwise_id=readwise_id,
                     )
-                else:
-                    error = result.error or "Unknown error"
-                    add_span_attributes(readwise_error=error)
-                    set_span_status(False, error)
-                    return ReadwiseSyncResult(
-                        success=False,
-                        error=error,
-                    )
+                error = result.error or "Unknown error"
+                add_span_attributes(readwise_error=error)
+                set_span_status(False, error)
+                return ReadwiseSyncResult(
+                    success=False,
+                    error=error,
+                )
             except Exception as e:
                 error = f"Error syncing to Readwise: {e}"
                 add_span_attributes(readwise_error=error)
@@ -349,10 +349,8 @@ class ReadwiseService:
                 for h in highlights:
                     location = None
                     if h.get("page_number"):
-                        try:
+                        with contextlib.suppress(ValueError, TypeError):
                             location = int(h["page_number"])
-                        except (ValueError, TypeError):
-                            pass
 
                     simple_highlights.append(
                         SimpleHighlight(
@@ -441,17 +439,16 @@ class ReadwiseService:
                     if export_book.category != "books":
                         continue
 
-                    highlights = []
-                    for h in export_book.highlights:
-                        highlights.append(
-                            ReadwiseHighlight(
-                                id=str(h.id),
-                                text=h.text or "",
-                                note=h.note,
-                                location=h.location,
-                                highlighted_at=h.highlighted_at,
-                            )
+                    highlights = [
+                        ReadwiseHighlight(
+                            id=str(h.id),
+                            text=h.text or "",
+                            note=h.note,
+                            location=h.location,
+                            highlighted_at=h.highlighted_at,
                         )
+                        for h in export_book.highlights
+                    ]
                     books.append(
                         ReadwiseBook(
                             id=str(export_book.user_book_id),

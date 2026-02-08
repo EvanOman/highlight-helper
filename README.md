@@ -3,6 +3,7 @@
 A mobile-friendly web app for collecting and organizing book highlights using AI-powered text extraction.
 
 [![CI](https://github.com/EvanOman/highlight-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/EvanOman/highlight-helper/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/EvanOman/highlight-helper/branch/main/graph/badge.svg)](https://codecov.io/gh/EvanOman/highlight-helper)
 
 ## Overview
 

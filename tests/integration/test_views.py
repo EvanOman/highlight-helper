@@ -138,6 +138,27 @@ class TestBookDetailView:
         """Test book detail page for non-existent book."""
         response = await client.get("/books/99999")
         assert response.status_code == 404
+        assert "text/html" in response.headers["content-type"]
+
+    async def test_api_not_found_returns_json(self, client: AsyncClient):
+        """Test that API 404s return JSON, not HTML."""
+        response = await client.get("/api/chat/threads/99999/messages")
+        assert response.status_code == 404
+        assert "application/json" in response.headers["content-type"]
+        assert "detail" in response.json()
+
+    async def test_api_not_found_returns_json_with_root_path(self, client: AsyncClient):
+        """Test API 404s return JSON even when request path includes root_path prefix."""
+        from httpx import ASGITransport
+
+        from app.main import app
+
+        transport = ASGITransport(app=app, root_path="/highlights")
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.get("/api/chat/threads/99999/messages")
+            assert response.status_code == 404
+            assert "application/json" in response.headers["content-type"]
+            assert "detail" in response.json()
 
     async def test_delete_book_form(self, client: AsyncClient, sample_book):
         """Test deleting a book via form."""

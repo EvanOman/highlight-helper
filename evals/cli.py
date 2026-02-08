@@ -113,9 +113,8 @@ Examples:
     if report.pass_rate >= args.threshold:
         print(f"\n✓ PASSED (pass rate >= {args.threshold}%)")
         return 0
-    else:
-        print(f"\n✗ FAILED (pass rate < {args.threshold}%)")
-        return 1
+    print(f"\n✗ FAILED (pass rate < {args.threshold}%)")
+    return 1
 
 
 if __name__ == "__main__":

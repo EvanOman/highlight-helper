@@ -143,18 +143,17 @@ async def sync_all_highlights(
         )
 
     # Build highlights list for batch sync
-    highlights_data = []
-    for h in pending:
-        highlights_data.append(
-            {
-                "text": h.text,
-                "title": h.book.title,
-                "author": h.book.author,
-                "note": h.note,
-                "page_number": h.page_number,
-                "highlighted_at": h.created_at,
-            }
-        )
+    highlights_data = [
+        {
+            "text": h.text,
+            "title": h.book.title,
+            "author": h.book.author,
+            "note": h.note,
+            "page_number": h.page_number,
+            "highlighted_at": h.created_at,
+        }
+        for h in pending
+    ]
 
     # Send to Readwise
     async with ReadwiseService(api_token=token) as service:

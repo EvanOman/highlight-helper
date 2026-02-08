@@ -114,7 +114,7 @@ async def extract_highlight_form(
                 confidence = result.confidence
                 page_number = result.page_number or ""
             except Exception as e:
-                error_message = f"Error extracting text: {str(e)}"
+                error_message = f"Error extracting text: {e!s}"
 
     return templates.TemplateResponse(
         request,

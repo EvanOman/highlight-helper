@@ -1,5 +1,6 @@
 """Tests for database durability configuration."""
 
+import contextlib
 import tempfile
 from unittest.mock import MagicMock, patch
 
@@ -141,7 +142,5 @@ class TestWALModeIntegration:
         os.unlink(db_path)
         # WAL files may have been created
         for suffix in ["-wal", "-shm"]:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 os.unlink(db_path + suffix)
-            except FileNotFoundError:
-                pass

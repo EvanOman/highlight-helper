@@ -54,7 +54,20 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "N", "W"]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "N",    # pep8-naming
+    "W",    # pycodestyle warnings
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return
+    "PERF", # performance anti-patterns
+    "RUF",  # ruff-specific rules
+]
 ignore = ["E501", "B008"]  # B008: Allow Depends() in FastAPI function defaults
 
 [tool.ruff.lint.isort]
@@ -66,6 +79,12 @@ indent-style = "space"
 
 [tool.ty.environment]
 python-version = "3.12"
+
+[tool.ty.src]
+exclude = [
+    "app/services/highlight_extractor.py",
+    "app/services/isbn_extractor.py",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

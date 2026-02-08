@@ -1,5 +1,6 @@
 """End-to-end tests for user flows using Playwright."""
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -57,10 +58,8 @@ def server():
             server_process.kill()
             server_process.wait(timeout=2)
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 server_process.kill()
-            except Exception:
-                pass
 
 
 @pytest.fixture(scope="module")

@@ -113,7 +113,7 @@ async def scan_isbn_page(
                         "Could not extract ISBN from image. Try a clearer photo of the barcode."
                     )
             except Exception as e:
-                error_message = f"Error extracting ISBN: {str(e)}"
+                error_message = f"Error extracting ISBN: {e!s}"
 
     return templates.TemplateResponse(
         request,

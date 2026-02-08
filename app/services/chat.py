@@ -74,33 +74,32 @@ class ChatService:
                 context_parts.append(entry)
 
             return "\n".join(context_parts)
-        else:
-            # Get all highlights with book info
-            query = select(Highlight, Book).join(Book).order_by(Highlight.created_at.desc())
-            result = await self.db.execute(query)
-            rows = result.all()
+        # Get all highlights with book info
+        query = select(Highlight, Book).join(Book).order_by(Highlight.created_at.desc())
+        result = await self.db.execute(query)
+        rows = result.all()
 
-            if not rows:
-                return "No highlights found in the library."
+        if not rows:
+            return "No highlights found in the library."
 
-            context_parts = ["All Highlights:\n"]
-            current_book = None
+        context_parts = ["All Highlights:\n"]
+        current_book = None
 
-            for highlight, book in rows:
-                if current_book != book.id:
-                    context_parts.append(f'\n--- "{book.title}" by {book.author} ---')
-                    current_book = book.id
+        for highlight, book in rows:
+            if current_book != book.id:
+                context_parts.append(f'\n--- "{book.title}" by {book.author} ---')
+                current_book = book.id
 
-                entry = "\n- "
-                if highlight.text:
-                    entry += f'"{highlight.text}"'
-                if highlight.page_number:
-                    entry += f" (page {highlight.page_number})"
-                if highlight.note:
-                    entry += f"\n  Note: {highlight.note}"
-                context_parts.append(entry)
+            entry = "\n- "
+            if highlight.text:
+                entry += f'"{highlight.text}"'
+            if highlight.page_number:
+                entry += f" (page {highlight.page_number})"
+            if highlight.note:
+                entry += f"\n  Note: {highlight.note}"
+            context_parts.append(entry)
 
-            return "\n".join(context_parts)
+        return "\n".join(context_parts)
 
     def _build_system_prompt(self, highlights_context: str, book_id: int | None = None) -> str:
         """Build the system prompt with highlights context.
@@ -180,7 +179,7 @@ Here are all the user's highlights:
                     yield text
         except Exception as e:
             logger.error(f"Error in chat stream: {e}")
-            yield f"I apologize, but I encountered an error: {str(e)}"
+            yield f"I apologize, but I encountered an error: {e!s}"
 
     async def send_message_from_history(
         self,
@@ -213,7 +212,7 @@ Here are all the user's highlights:
                     yield text
         except Exception as e:
             logger.error(f"Error in chat stream: {e}")
-            yield f"I apologize, but I encountered an error: {str(e)}"
+            yield f"I apologize, but I encountered an error: {e!s}"
 
 
 async def get_chat_service(db: AsyncSession = Depends(get_db)) -> ChatService:

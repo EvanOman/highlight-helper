@@ -176,17 +176,19 @@ class TestHighlightExtractorService:
         async def mock_async_extract(*args, **kwargs):
             return mock_result
 
-        with patch("app.services.highlight_extractor.dspy.Image"):
-            with patch(
+        with (
+            patch("app.services.highlight_extractor.dspy.Image"),
+            patch(
                 "app.services.highlight_extractor.dspy.asyncify",
                 return_value=mock_async_extract,
-            ):
-                with patch("app.services.highlight_extractor.dspy.context"):
-                    result = await service.extract_highlight(
-                        image_bytes=b"fake image data",
-                        filename="test.jpg",
-                        instructions="Extract the highlighted text",
-                    )
+            ),
+            patch("app.services.highlight_extractor.dspy.context"),
+        ):
+            result = await service.extract_highlight(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+                instructions="Extract the highlighted text",
+            )
 
         assert result.highlight_text == "Extracted text"
         assert result.full_text == "Page text before. Extracted text. Page text after."
@@ -201,17 +203,19 @@ class TestHighlightExtractorService:
         service = HighlightExtractorService(lm=mock_lm)
 
         # Make asyncify raise an exception
-        with patch("app.services.highlight_extractor.dspy.Image"):
-            with patch(
+        with (
+            patch("app.services.highlight_extractor.dspy.Image"),
+            patch(
                 "app.services.highlight_extractor.dspy.asyncify",
                 side_effect=Exception("API Error"),
-            ):
-                with patch("app.services.highlight_extractor.dspy.context"):
-                    result = await service.extract_highlight(
-                        image_bytes=b"fake image data",
-                        filename="test.jpg",
-                        instructions="Extract the highlighted text",
-                    )
+            ),
+            patch("app.services.highlight_extractor.dspy.context"),
+        ):
+            result = await service.extract_highlight(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+                instructions="Extract the highlighted text",
+            )
 
         assert result.highlight_text == ""
         assert result.full_text == ""
@@ -310,17 +314,19 @@ class TestHighlightExtractorService:
         async def mock_async_extract(*args, **kwargs):
             return mock_result
 
-        with patch("app.services.highlight_extractor.dspy.Image"):
-            with patch(
+        with (
+            patch("app.services.highlight_extractor.dspy.Image"),
+            patch(
                 "app.services.highlight_extractor.dspy.asyncify",
                 return_value=mock_async_extract,
-            ):
-                with patch("app.services.highlight_extractor.dspy.context"):
-                    result = await service.extract_highlight(
-                        image_bytes=b"fake image data",
-                        filename="test.jpg",
-                        instructions="grab the sentence about love",
-                    )
+            ),
+            patch("app.services.highlight_extractor.dspy.context"),
+        ):
+            result = await service.extract_highlight(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+                instructions="grab the sentence about love",
+            )
 
         assert result.highlight_text == "The sentence about love from the book"
         assert (
@@ -355,16 +361,18 @@ class TestISBNExtractorService:
         async def mock_async_extract(*args, **kwargs):
             return mock_result
 
-        with patch("app.services.isbn_extractor.dspy.Image"):
-            with patch(
+        with (
+            patch("app.services.isbn_extractor.dspy.Image"),
+            patch(
                 "app.services.isbn_extractor.dspy.asyncify",
                 return_value=mock_async_extract,
-            ):
-                with patch("app.services.isbn_extractor.dspy.context"):
-                    result = await service.extract_isbn(
-                        image_bytes=b"fake image data",
-                        filename="test.jpg",
-                    )
+            ),
+            patch("app.services.isbn_extractor.dspy.context"),
+        ):
+            result = await service.extract_isbn(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+            )
 
         assert result.isbn == "9781234567890"
         assert result.confidence == "high"
@@ -385,16 +393,18 @@ class TestISBNExtractorService:
         async def mock_async_extract(*args, **kwargs):
             return mock_result
 
-        with patch("app.services.isbn_extractor.dspy.Image"):
-            with patch(
+        with (
+            patch("app.services.isbn_extractor.dspy.Image"),
+            patch(
                 "app.services.isbn_extractor.dspy.asyncify",
                 return_value=mock_async_extract,
-            ):
-                with patch("app.services.isbn_extractor.dspy.context"):
-                    result = await service.extract_isbn(
-                        image_bytes=b"fake image data",
-                        filename="test.jpg",
-                    )
+            ),
+            patch("app.services.isbn_extractor.dspy.context"),
+        ):
+            result = await service.extract_isbn(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+            )
 
         assert result.isbn == "9781234567890"
 
@@ -403,16 +413,18 @@ class TestISBNExtractorService:
         mock_lm = MagicMock()
         service = ISBNExtractorService(lm=mock_lm)
 
-        with patch("app.services.isbn_extractor.dspy.Image"):
-            with patch(
+        with (
+            patch("app.services.isbn_extractor.dspy.Image"),
+            patch(
                 "app.services.isbn_extractor.dspy.asyncify",
                 side_effect=Exception("API Error"),
-            ):
-                with patch("app.services.isbn_extractor.dspy.context"):
-                    result = await service.extract_isbn(
-                        image_bytes=b"fake image data",
-                        filename="test.jpg",
-                    )
+            ),
+            patch("app.services.isbn_extractor.dspy.context"),
+        ):
+            result = await service.extract_isbn(
+                image_bytes=b"fake image data",
+                filename="test.jpg",
+            )
 
         assert result.isbn == ""
         assert result.confidence == "low"
@@ -563,6 +575,7 @@ class TestReadwiseService:
             )
 
             assert result.success is False
+            assert result.error is not None
             assert "not configured" in result.error
 
     async def test_send_highlight_api_error(self):
@@ -592,6 +605,7 @@ class TestReadwiseService:
             )
 
         assert result.success is False
+        assert result.error is not None
         assert "API error" in result.error
 
     async def test_send_highlight_network_error(self):
@@ -616,6 +630,7 @@ class TestReadwiseService:
             )
 
         assert result.success is False
+        assert result.error is not None
         assert "Error syncing" in result.error
 
     async def test_send_highlights_batch_success(self):
@@ -752,6 +767,7 @@ class TestReadwiseService:
             )
 
             assert result.success is False
+            assert result.error is not None
             assert "not configured" in result.error
 
     async def test_update_highlight_no_fields(self):
@@ -763,6 +779,7 @@ class TestReadwiseService:
         )
 
         assert result.success is False
+        assert result.error is not None
         assert "No fields to update" in result.error
 
     async def test_update_highlight_api_error(self):
@@ -784,6 +801,7 @@ class TestReadwiseService:
             )
 
         assert result.success is False
+        assert result.error is not None
         assert "Not found" in result.error
 
     async def test_update_highlight_network_error(self):
@@ -805,6 +823,7 @@ class TestReadwiseService:
             )
 
         assert result.success is False
+        assert result.error is not None
         assert "Error updating" in result.error
 
     async def test_update_highlight_clears_note(self):

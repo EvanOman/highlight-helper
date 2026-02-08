@@ -123,13 +123,12 @@ class EvalRunner:
                     cached.get("confidence", "medium"),
                     cached.get("latency_ms", 0.0),
                 )
-            else:
-                # Warn about missing cache key in offline mode
-                print(
-                    f"Warning: No cached result for '{case.id}' in offline mode",
-                    file=sys.stderr,
-                )
-                return "", None, "low", 0.0
+            # Warn about missing cache key in offline mode
+            print(
+                f"Warning: No cached result for '{case.id}' in offline mode",
+                file=sys.stderr,
+            )
+            return "", None, "low", 0.0
 
         # Online mode - call the actual extractor
         from app.services.highlight_extractor import HighlightExtractorService

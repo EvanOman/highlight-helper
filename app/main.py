@@ -47,7 +47,11 @@ app = FastAPI(
 
 @app.exception_handler(NotFoundError)
 async def not_found_handler(request: Request, exc: NotFoundError):
-    if request.url.path.startswith("/api/"):
+    path = request.scope["path"]
+    root_path = request.scope.get("root_path", "")
+    if root_path and path.startswith(root_path):
+        path = path[len(root_path) :]
+    if path.startswith("/api/"):
         return JSONResponse(status_code=404, content={"detail": exc.detail})
     from app.api.views._common import templates
 

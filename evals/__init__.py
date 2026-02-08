@@ -3,4 +3,4 @@
 from evals.models import EvalCase, EvalReport, EvalResult
 from evals.runner import EvalRunner
 
-__all__ = ["EvalCase", "EvalResult", "EvalReport", "EvalRunner"]
+__all__ = ["EvalCase", "EvalReport", "EvalResult", "EvalRunner"]
