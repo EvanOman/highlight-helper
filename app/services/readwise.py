@@ -564,35 +564,39 @@ class ReadwiseService:
                     # Import each highlight
                     for rw_highlight in rw_book.highlights:
                         try:
-                            # Check if highlight already exists by readwise_id
-                            existing_query = select(Highlight).where(
-                                Highlight.readwise_id == rw_highlight.id
-                            )
-                            existing_result = await db_session.execute(existing_query)
-                            if existing_result.scalar_one_or_none():
-                                highlights_skipped += 1
-                                continue
+                            # Use a savepoint so a failure on one highlight
+                            # only rolls back that highlight, not the whole batch.
+                            async with db_session.begin_nested():
+                                # Check if highlight already exists by readwise_id
+                                existing_query = select(Highlight).where(
+                                    Highlight.readwise_id == rw_highlight.id
+                                )
+                                existing_result = await db_session.execute(existing_query)
+                                if existing_result.scalar_one_or_none():
+                                    highlights_skipped += 1
+                                    continue
 
-                            # Create new highlight
-                            highlight = Highlight(
-                                book_id=book.id,
-                                text=rw_highlight.text,
-                                note=rw_highlight.note,
-                                page_number=(
-                                    str(rw_highlight.location) if rw_highlight.location else None
-                                ),
-                                type=AnnotationType.HIGHLIGHT,
-                                readwise_id=rw_highlight.id,
-                                synced_at=datetime.now(tz=UTC),
-                                sync_status=SyncStatus.SYNCED,
-                                created_at=rw_highlight.highlighted_at or datetime.now(tz=UTC),
-                            )
-                            db_session.add(highlight)
-                            highlights_imported += 1
+                                # Create new highlight
+                                highlight = Highlight(
+                                    book_id=book.id,
+                                    text=rw_highlight.text,
+                                    note=rw_highlight.note,
+                                    page_number=(
+                                        str(rw_highlight.location)
+                                        if rw_highlight.location
+                                        else None
+                                    ),
+                                    type=AnnotationType.HIGHLIGHT,
+                                    readwise_id=rw_highlight.id,
+                                    synced_at=datetime.now(tz=UTC),
+                                    sync_status=SyncStatus.SYNCED,
+                                    created_at=rw_highlight.highlighted_at or datetime.now(tz=UTC),
+                                )
+                                db_session.add(highlight)
+                                highlights_imported += 1
 
                         except IntegrityError:
-                            # Unique constraint violation - highlight already exists
-                            await db_session.rollback()
+                            # Savepoint was rolled back; only this highlight is affected
                             highlights_skipped += 1
                         except Exception as e:
                             error_msg = f"Error importing highlight: {e}"
