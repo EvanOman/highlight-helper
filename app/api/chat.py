@@ -112,8 +112,11 @@ async def list_threads(
 async def create_thread(
     request: CreateThreadRequest,
     chat_repo: ChatRepository = Depends(get_chat_repo),
+    book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Create a new chat thread."""
+    if request.book_id is not None:
+        await book_repo.get_or_raise(request.book_id)
     thread = await chat_repo.create_thread(title=request.title, book_id=request.book_id)
     return {
         "id": thread.id,
@@ -162,6 +165,7 @@ async def send_chat_message(
     request: ChatMessageRequest,
     chat_service: ChatService = Depends(get_chat_service),
     chat_repo: ChatRepository = Depends(get_chat_repo),
+    book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Send a message and get a streaming response.
 
@@ -174,6 +178,8 @@ async def send_chat_message(
 
     # Create thread if needed
     if thread_id is None:
+        if request.book_id is not None:
+            await book_repo.get_or_raise(request.book_id)
         title = request.message[:50]
         thread = await chat_repo.create_thread(title=title, book_id=request.book_id)
         thread_id = thread.id

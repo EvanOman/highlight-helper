@@ -78,6 +78,14 @@ class TestChatThreadCRUD:
         response = await client.delete("/api/chat/threads/99999")
         assert response.status_code == 404
 
+    async def test_create_thread_with_invalid_book_returns_404(self, client: AsyncClient):
+        """Test creating a thread with a non-existent book_id returns 404."""
+        response = await client.post(
+            "/api/chat/threads",
+            json={"title": "Bad Book Thread", "book_id": 99999},
+        )
+        assert response.status_code == 404
+
 
 class TestChatThreadMessages:
     """Tests for thread message endpoints."""
@@ -97,6 +105,14 @@ class TestChatThreadMessages:
     async def test_get_messages_not_found(self, client: AsyncClient):
         """Test getting messages for a non-existent thread returns 404."""
         response = await client.get("/api/chat/threads/99999/messages")
+        assert response.status_code == 404
+
+    async def test_send_message_with_invalid_book_returns_404(self, client: AsyncClient):
+        """Test sending a message with a non-existent book_id (no thread) returns 404."""
+        response = await client.post(
+            "/api/chat/message",
+            json={"message": "Hello", "book_id": 99999},
+        )
         assert response.status_code == 404
 
 
