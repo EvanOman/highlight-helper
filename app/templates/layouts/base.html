@@ -113,16 +113,20 @@
     </header>
 
     <!-- Main content -->
+    {% block main_content %}
     <main class="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {% block content %}{% endblock %}
     </main>
+    {% endblock %}
 
     <!-- Footer -->
+    {% block footer %}
     <footer class="bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto py-4 text-center text-gray-600 dark:text-gray-400 text-xs sm:text-sm">
         <div class="max-w-4xl mx-auto px-2 sm:px-4">
             Highlight Helper - Collect and organize your book highlights
         </div>
     </footer>
+    {% endblock %}
 
     <script>
         // Theme toggle functionality

@@ -2,62 +2,105 @@
 
 {% block title %}Chat with Your Highlights - Highlight Helper{% endblock %}
 
-{% block content %}
-<div class="flex flex-col h-[calc(100vh-12rem)]">
-    <div class="mb-4">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Chat with Your Highlights</h1>
-        <p class="text-gray-600 dark:text-gray-400">
+{% block footer %}{% endblock %}
+
+{% block main_content %}
+<style>
+    @media (pointer: coarse) {
+        .thread-item .delete-btn { opacity: 1; }
+    }
+</style>
+<div class="flex" style="height: calc(100vh - 3.5rem)">
+
+    <!-- Mobile backdrop -->
+    <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden" onclick="closeSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="fixed top-[3.5rem] bottom-0 left-0 w-72 z-40 flex flex-col bg-gray-100 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform -translate-x-full transition-transform duration-200 ease-in-out md:static md:translate-x-0 md:z-0 md:shrink-0">
+        <!-- New Chat button -->
+        <div class="p-3 border-b border-gray-200 dark:border-gray-800">
+            <button id="new-chat-btn"
+                    class="w-full px-3 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition font-medium flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                New Chat
+            </button>
+        </div>
+
+        <!-- Thread list -->
+        <div id="thread-list" class="flex-1 overflow-y-auto p-2 space-y-0.5">
+            {% for thread in threads %}
+            <div class="thread-item group flex items-center gap-1 px-3 py-2 text-sm rounded-lg cursor-pointer text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition"
+                 data-thread-id="{{ thread.id }}"
+                 title="{{ thread.title }}">
+                <span class="flex-1 truncate">{{ thread.title }}</span>
+                <button class="delete-btn opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition"
+                        onclick="event.stopPropagation(); deleteThread({{ thread.id }})"
+                        title="Delete thread">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Context info footer -->
+        <div class="p-3 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
             {% if book %}
-                Chatting about: <a href="{{ base_path }}/books/{{ book.id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ book.title }}</a> ({{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %})
+                <a href="{{ base_path }}/books/{{ book.id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ book.title }}</a>
+                <span class="block mt-0.5">{{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %}</span>
             {% else %}
                 {{ book_count }} book{% if book_count != 1 %}s{% endif %}, {{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %}
             {% endif %}
-        </p>
-    </div>
+        </div>
+    </aside>
 
-    <!-- Thread selector -->
-    <div class="mb-3 flex items-center gap-2 overflow-x-auto pb-1">
-        <button id="new-chat-btn"
-                class="shrink-0 px-3 py-1.5 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition font-medium">
-            + New Chat
-        </button>
-        {% for thread in threads %}
-        <button class="thread-btn shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition truncate max-w-[200px]"
-                data-thread-id="{{ thread.id }}"
-                title="{{ thread.title }}">
-            {{ thread.title }}
-        </button>
-        {% endfor %}
-    </div>
+    <!-- Main chat area -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <!-- Chat header -->
+        <div class="shrink-0 flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <button id="sidebar-toggle" class="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <h1 class="text-base font-semibold text-gray-900 dark:text-white truncate">Chat with Your Highlights</h1>
+        </div>
 
-    <!-- Chat messages container -->
-    <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 mb-4 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-        <div id="chat-placeholder" class="text-center text-gray-500 dark:text-gray-400 py-8">
-            <p>Ask me about your highlights!</p>
-            <p class="text-sm mt-2">
-                {% if book %}
-                Try: "What are the main themes?" or "Summarize my highlights"
-                {% else %}
-                Try: "What themes appear across my books?" or "Find highlights about leadership"
-                {% endif %}
-            </p>
+        <!-- Chat messages container -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div id="chat-placeholder" class="text-center text-gray-500 dark:text-gray-400 py-8">
+                <p>Ask me about your highlights!</p>
+                <p class="text-sm mt-2">
+                    {% if book %}
+                    Try: "What are the main themes?" or "Summarize my highlights"
+                    {% else %}
+                    Try: "What themes appear across my books?" or "Find highlights about leadership"
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Input form -->
+        <div class="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <form id="chat-form" class="flex gap-2 max-w-3xl mx-auto">
+                <input type="text"
+                       id="chat-input"
+                       name="message"
+                       placeholder="Ask about your highlights..."
+                       class="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                       autocomplete="off">
+                <button type="submit"
+                        id="send-button"
+                        class="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    Send
+                </button>
+            </form>
         </div>
     </div>
 
-    <!-- Input form -->
-    <form id="chat-form" class="flex gap-2">
-        <input type="text"
-               id="chat-input"
-               name="message"
-               placeholder="Ask about your highlights..."
-               class="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-               autocomplete="off">
-        <button type="submit"
-                id="send-button"
-                class="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-            Send
-        </button>
-    </form>
 </div>
 
 <script>
@@ -67,9 +110,37 @@ const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
 const newChatBtn = document.getElementById('new-chat-btn');
+const sidebar = document.getElementById('sidebar');
+const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+const threadList = document.getElementById('thread-list');
 
 let currentThreadId = null;
 const bookId = {{ book.id if book else 'null' }};
+
+// Sidebar controls
+function openSidebar() {
+    sidebar.classList.remove('-translate-x-full');
+    sidebar.classList.add('translate-x-0');
+    sidebarBackdrop.classList.remove('hidden');
+}
+
+function closeSidebar() {
+    sidebar.classList.add('-translate-x-full');
+    sidebar.classList.remove('translate-x-0');
+    sidebarBackdrop.classList.add('hidden');
+}
+
+function toggleSidebar() {
+    if (sidebar.classList.contains('-translate-x-full')) {
+        openSidebar();
+    } else {
+        closeSidebar();
+    }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+});
 
 function clearMessages() {
     chatMessages.innerHTML = '';
@@ -90,7 +161,6 @@ function clearMessages() {
 }
 
 function addMessage(role, content) {
-    // Remove placeholder on first message
     const placeholder = document.getElementById('chat-placeholder');
     if (placeholder && placeholder.parentNode) {
         placeholder.remove();
@@ -126,31 +196,64 @@ function setLoading(loading) {
 
 function setActiveThread(threadId) {
     currentThreadId = threadId;
-    document.querySelectorAll('.thread-btn').forEach(btn => {
-        const isActive = parseInt(btn.dataset.threadId) === threadId;
+    document.querySelectorAll('.thread-item').forEach(item => {
+        const isActive = parseInt(item.dataset.threadId) === threadId;
         if (isActive) {
-            btn.classList.remove('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
-            btn.classList.add('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300', 'border-primary-400', 'dark:border-primary-600');
+            item.classList.add('bg-gray-200', 'dark:bg-gray-800', 'font-medium');
+            item.classList.remove('hover:bg-gray-200', 'dark:hover:bg-gray-800');
         } else {
-            btn.classList.remove('bg-primary-100', 'dark:bg-primary-900', 'text-primary-700', 'dark:text-primary-300', 'border-primary-400', 'dark:border-primary-600');
-            btn.classList.add('bg-white', 'dark:bg-gray-800', 'text-gray-700', 'dark:text-gray-300');
+            item.classList.remove('bg-gray-200', 'dark:bg-gray-800', 'font-medium');
+            item.classList.add('hover:bg-gray-200', 'dark:hover:bg-gray-800');
         }
     });
 }
 
-function addThreadButton(threadId, title) {
-    // Check if button already exists
-    if (document.querySelector(`.thread-btn[data-thread-id="${threadId}"]`)) return;
+function addThreadItem(threadId, title) {
+    if (document.querySelector(`.thread-item[data-thread-id="${threadId}"]`)) return;
 
-    const btn = document.createElement('button');
-    btn.className = 'thread-btn shrink-0 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition truncate max-w-[200px]';
-    btn.dataset.threadId = threadId;
-    btn.title = title;
-    btn.textContent = title;
-    btn.addEventListener('click', () => loadThread(parseInt(btn.dataset.threadId)));
+    const item = document.createElement('div');
+    item.className = 'thread-item group flex items-center gap-1 px-3 py-2 text-sm rounded-lg cursor-pointer text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition';
+    item.dataset.threadId = threadId;
+    item.title = title;
 
-    // Insert after the New Chat button
-    newChatBtn.insertAdjacentElement('afterend', btn);
+    const span = document.createElement('span');
+    span.className = 'flex-1 truncate';
+    span.textContent = title;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition';
+    deleteBtn.title = 'Delete thread';
+    deleteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteThread(threadId);
+    });
+
+    item.appendChild(span);
+    item.appendChild(deleteBtn);
+    item.addEventListener('click', () => loadThread(parseInt(item.dataset.threadId)));
+
+    threadList.prepend(item);
+}
+
+async function deleteThread(threadId) {
+    if (!confirm('Delete this thread?')) return;
+
+    try {
+        const response = await fetch(`{{ base_path }}/api/chat/threads/${threadId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete thread');
+
+        const item = document.querySelector(`.thread-item[data-thread-id="${threadId}"]`);
+        if (item) item.remove();
+
+        if (currentThreadId === threadId) {
+            currentThreadId = null;
+            clearMessages();
+            setActiveThread(null);
+        }
+    } catch (error) {
+        console.error('Error deleting thread:', error);
+    }
 }
 
 async function loadThread(threadId) {
@@ -170,14 +273,16 @@ async function loadThread(threadId) {
         }
 
         setActiveThread(threadId);
+
+        if (window.innerWidth < 768) closeSidebar();
     } catch (error) {
         console.error('Error loading thread:', error);
     }
 }
 
-// Thread button click handlers
-document.querySelectorAll('.thread-btn').forEach(btn => {
-    btn.addEventListener('click', () => loadThread(parseInt(btn.dataset.threadId)));
+// Thread item click handlers
+document.querySelectorAll('.thread-item').forEach(item => {
+    item.addEventListener('click', () => loadThread(parseInt(item.dataset.threadId)));
 });
 
 // New chat button
@@ -186,6 +291,7 @@ newChatBtn.addEventListener('click', () => {
     clearMessages();
     setActiveThread(null);
     chatInput.focus();
+    if (window.innerWidth < 768) closeSidebar();
 });
 
 chatForm.addEventListener('submit', async (e) => {
@@ -193,11 +299,9 @@ chatForm.addEventListener('submit', async (e) => {
     const message = chatInput.value.trim();
     if (!message) return;
 
-    // Add user message to UI
     addMessage('user', message);
     chatInput.value = '';
 
-    // Add assistant placeholder
     const assistantBubble = addMessage('assistant', '');
     setLoading(true);
 
@@ -226,9 +330,7 @@ chatForm.addEventListener('submit', async (e) => {
             if (done) break;
 
             buffer += decoder.decode(value, { stream: true });
-            // Process complete events (terminated by blank line = double newline)
             const events = buffer.split('\n\n');
-            // Last element is incomplete (or empty); keep it in the buffer
             buffer = events.pop();
 
             for (const event of events) {
@@ -254,7 +356,7 @@ chatForm.addEventListener('submit', async (e) => {
                 } else if (eventType === 'done') {
                     const threadId = parseInt(data);
                     if (!currentThreadId && threadId) {
-                        addThreadButton(threadId, message.slice(0, 50));
+                        addThreadItem(threadId, message.slice(0, 50));
                         setActiveThread(threadId);
                     }
                 } else if (dataLines.length > 0) {
@@ -274,7 +376,6 @@ chatForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Focus input on load
 chatInput.focus();
 </script>
 {% endblock %}
