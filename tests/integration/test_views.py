@@ -559,3 +559,66 @@ class TestHighlightsPagination:
         response = await client.get("/highlights")
         assert response.status_code == 200
         assert 'aria-label="Pagination"' in response.text
+
+
+class TestBookStarring:
+    """Tests for the book starring/pinning feature."""
+
+    async def test_star_book_via_api(self, client: AsyncClient, sample_book):
+        """Test starring a book via the API returns correct response."""
+        response = await client.post(f"/api/books/{sample_book.id}/star")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == {"starred": True}
+
+    async def test_unstar_book_via_api(self, client: AsyncClient, sample_book):
+        """Test toggling star state: star then unstar."""
+        # Star the book
+        response = await client.post(f"/api/books/{sample_book.id}/star")
+        assert response.status_code == 200
+        assert response.json()["starred"] is True
+
+        # Unstar the book
+        response = await client.post(f"/api/books/{sample_book.id}/star")
+        assert response.status_code == 200
+        assert response.json()["starred"] is False
+
+    async def test_star_nonexistent_book_returns_404(self, client: AsyncClient):
+        """Test starring a non-existent book returns 404."""
+        response = await client.post("/api/books/99999/star")
+        assert response.status_code == 404
+
+    async def test_starred_books_appear_first_in_home(self, client: AsyncClient, test_session):
+        """Test that starred books appear before unstarred books on the home page."""
+        from app.models.book import Book
+
+        # Create two books: first created (unstarred) and second created (starred)
+        book_old = Book(title="Old Unstarred Book", author="Author A")
+        test_session.add(book_old)
+        await test_session.flush()
+
+        book_new = Book(title="New Starred Book", author="Author B", is_starred=True)
+        test_session.add(book_new)
+        await test_session.flush()
+
+        response = await client.get("/")
+        assert response.status_code == 200
+        content = response.text
+        # The starred book should appear before the unstarred one
+        starred_pos = content.index("New Starred Book")
+        unstarred_pos = content.index("Old Unstarred Book")
+        assert starred_pos < unstarred_pos
+
+    async def test_home_page_shows_star_button(self, client: AsyncClient, sample_book):
+        """Test that star buttons are rendered on the home page."""
+        response = await client.get("/")
+        assert response.status_code == 200
+        assert "toggleStar" in response.text
+        assert "star-btn" in response.text
+
+    async def test_book_detail_shows_star_button(self, client: AsyncClient, sample_book):
+        """Test that star button is rendered on the book detail page."""
+        response = await client.get(f"/books/{sample_book.id}")
+        assert response.status_code == 200
+        assert "toggleStarDetail" in response.text
+        assert "detail-star-btn" in response.text

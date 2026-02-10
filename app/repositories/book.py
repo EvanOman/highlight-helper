@@ -44,7 +44,7 @@ class BookRepository:
         query = (
             select(Book, func.coalesce(highlight_count_subq.c.count, 0).label("highlight_count"))
             .outerjoin(highlight_count_subq, Book.id == highlight_count_subq.c.book_id)
-            .order_by(Book.created_at.desc())
+            .order_by(Book.is_starred.desc(), Book.created_at.desc())
             .offset(skip)
         )
         if limit is not None:
@@ -83,6 +83,13 @@ class BookRepository:
         """Update a book's fields."""
         for key, value in fields.items():
             setattr(book, key, value)
+        await self.db.flush()
+        await self.db.refresh(book)
+        return book
+
+    async def toggle_star(self, book: Book) -> Book:
+        """Toggle a book's starred state and return the updated book."""
+        book.is_starred = not book.is_starred
         await self.db.flush()
         await self.db.refresh(book)
         return book

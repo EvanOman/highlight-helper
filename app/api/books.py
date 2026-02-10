@@ -140,6 +140,17 @@ async def update_book(
     )
 
 
+@router.post("/{book_id}/star")
+async def toggle_star(
+    book_id: int,
+    book_repo: BookRepository = Depends(get_book_repo),
+):
+    """Toggle the starred state of a book."""
+    book = await book_repo.get_or_raise(book_id)
+    book = await book_repo.toggle_star(book)
+    return {"starred": book.is_starred}
+
+
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(
     book_id: int,

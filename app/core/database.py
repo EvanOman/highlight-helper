@@ -152,6 +152,12 @@ def _run_migrations(conn) -> None:
         """)
         )
 
+    # Migration 4: Add is_starred column to books table
+    if "books" in inspector.get_table_names():
+        book_columns = {c["name"]: c for c in inspector.get_columns("books")}
+        if "is_starred" not in book_columns:
+            conn.execute(text("ALTER TABLE books ADD COLUMN is_starred BOOLEAN NOT NULL DEFAULT 0"))
+
 
 @asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

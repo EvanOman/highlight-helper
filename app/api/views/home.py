@@ -28,6 +28,7 @@ async def home(
             "title": book.title,
             "author": book.author,
             "cover_url": book.cover_url,
+            "is_starred": book.is_starred,
             "highlight_count": highlight_count,
         }
         for book, highlight_count in rows

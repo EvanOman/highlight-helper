@@ -2,6 +2,7 @@
 
 from app.models.book import Book
 from app.models.highlight import Highlight
+from app.repositories.book import BookRepository
 
 
 class TestBookModel:
@@ -35,6 +36,14 @@ class TestBookModel:
         assert book.author == "Unknown"
         assert book.isbn is None
         assert book.cover_url is None
+
+    async def test_book_is_starred_defaults_to_false(self, test_session):
+        """Test that is_starred defaults to False."""
+        book = Book(title="Unstarred Book", author="Author")
+        test_session.add(book)
+        await test_session.flush()
+
+        assert book.is_starred is False
 
     async def test_book_repr(self, sample_book):
         """Test book string representation."""
@@ -115,3 +124,44 @@ class TestHighlightModel:
         # Verify cascade includes 'all' and 'delete-orphan'
         assert "delete" in highlights_rel.cascade
         assert "delete-orphan" in highlights_rel.cascade
+
+
+class TestBookRepositoryToggleStar:
+    """Tests for the BookRepository toggle_star method."""
+
+    async def test_toggle_star_stars_unstarred_book(self, test_session):
+        """Test that toggle_star stars an unstarred book."""
+        book = Book(title="Unstarred Book", author="Author")
+        test_session.add(book)
+        await test_session.flush()
+        await test_session.refresh(book)
+        assert book.is_starred is False
+
+        repo = BookRepository(test_session)
+        updated = await repo.toggle_star(book)
+        assert updated.is_starred is True
+
+    async def test_toggle_star_unstars_starred_book(self, test_session):
+        """Test that toggle_star unstars a starred book."""
+        book = Book(title="Starred Book", author="Author", is_starred=True)
+        test_session.add(book)
+        await test_session.flush()
+        await test_session.refresh(book)
+        assert book.is_starred is True
+
+        repo = BookRepository(test_session)
+        updated = await repo.toggle_star(book)
+        assert updated.is_starred is False
+
+    async def test_toggle_star_double_toggle_returns_to_original(self, test_session):
+        """Test that toggling star twice returns to the original state."""
+        book = Book(title="Toggle Book", author="Author")
+        test_session.add(book)
+        await test_session.flush()
+        await test_session.refresh(book)
+
+        repo = BookRepository(test_session)
+        await repo.toggle_star(book)
+        assert book.is_starred is True
+        await repo.toggle_star(book)
+        assert book.is_starred is False
