@@ -3,7 +3,7 @@
 {% block title %}All Highlights - Highlight Helper{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">All Highlights</h1>
+<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">{% if total_highlights %}All Highlights ({{ total_highlights }}){% else %}All Highlights{% endif %}</h1>
 
 {% if highlights %}
 <div class="space-y-4">
@@ -76,6 +76,9 @@
     </div>
     {% endfor %}
 </div>
+{% if total_pages > 1 %}
+{% include "partials/pagination.html" %}
+{% endif %}
 {% else %}
 <div class="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

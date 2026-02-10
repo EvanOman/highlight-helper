@@ -1,0 +1,176 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Chat Metrics - Highlight Helper{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Chat Metrics</h1>
+    <div class="flex items-center gap-2">
+        <button onclick="refreshMetrics()"
+                id="refresh-btn"
+                class="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+            Refresh
+        </button>
+        <a href="/jaeger-mobile/search?service=highlight-helper"
+           target="_blank" rel="noopener"
+           class="px-3 py-1.5 text-sm bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-800 transition">
+            View in Jaeger
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div id="summary-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-requests" class="text-2xl font-bold text-gray-900 dark:text-white">{{ summary.total_requests }}</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Total Requests</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-cost" class="text-2xl font-bold text-gray-900 dark:text-white">${{ "%.4f"|format(summary.total_cost) }}</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-ttft" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "%.0f"|format(summary.avg_ttft_ms) }}ms</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Avg TTFT</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-latency" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "%.0f"|format(summary.avg_latency_ms) }}ms</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Avg Latency</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-tps" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "%.1f"|format(summary.avg_tokens_per_sec) }}</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Avg Tok/s</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-tokens" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "{:,}".format(summary.total_tokens) }}</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Total Tokens</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-avg-cost" class="text-2xl font-bold text-gray-900 dark:text-white">${{ "%.4f"|format(summary.avg_cost_per_request) }}</div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Avg Cost/Req</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div id="stat-io-tokens" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            In: {{ "{:,}".format(summary.total_input_tokens) }}<br>
+            Out: {{ "{:,}".format(summary.total_output_tokens) }}
+        </div>
+        <div class="text-sm text-gray-500 dark:text-gray-400">Token Breakdown</div>
+    </div>
+</div>
+
+<!-- Trace Table -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+    {% if metrics %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left" id="metrics-table">
+            <thead class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                <tr>
+                    <th class="px-3 py-2">Time</th>
+                    <th class="px-3 py-2">Thread</th>
+                    <th class="px-3 py-2">Model</th>
+                    <th class="px-3 py-2 text-right">TTFT</th>
+                    <th class="px-3 py-2 text-right">Latency</th>
+                    <th class="px-3 py-2 text-right">Tok/s</th>
+                    <th class="px-3 py-2 text-right">In/Out</th>
+                    <th class="px-3 py-2 text-right">Cost</th>
+                    <th class="px-3 py-2">Stop</th>
+                    <th class="px-3 py-2 text-right">Ctx%</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="metrics-tbody">
+                {% for m in metrics %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td class="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ m.timestamp.strftime('%m/%d %H:%M') if m.timestamp else '-' }}</td>
+                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ m.thread_id or '-' }}</td>
+                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ m.model.split('-')[1] if '-' in m.model else m.model }}</td>
+                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.0f"|format(m.ttft_ms) if m.ttft_ms else '-' }}ms</td>
+                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.1f"|format(m.total_latency_ms / 1000) if m.total_latency_ms else '-' }}s</td>
+                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.1f"|format(m.tokens_per_sec) if m.tokens_per_sec else '-' }}</td>
+                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ "{:,}".format(m.input_tokens) }}/{{ "{:,}".format(m.output_tokens) }}</td>
+                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${{ "%.4f"|format(m.cost_usd) }}</td>
+                    <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ m.stop_reason or '-' }}</td>
+                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.1f"|format(m.context_utilization_pct) if m.context_utilization_pct else '-' }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-500 dark:text-gray-400" id="empty-state">
+        <p class="text-lg font-medium mb-1">No chat metrics yet</p>
+        <p class="text-sm">Send a message in <a href="{{ base_path }}/chat" class="text-primary-600 dark:text-primary-400 hover:underline">Chat</a> to start collecting metrics.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function refreshMetrics() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+
+    try {
+        const response = await fetch('{{ base_path }}/api/metrics/chat');
+        const data = await response.json();
+        const s = data.summary;
+
+        document.getElementById('stat-requests').textContent = s.total_requests;
+        document.getElementById('stat-cost').textContent = '$' + s.total_cost.toFixed(4);
+        document.getElementById('stat-ttft').textContent = Math.round(s.avg_ttft_ms) + 'ms';
+        document.getElementById('stat-latency').textContent = Math.round(s.avg_latency_ms) + 'ms';
+        document.getElementById('stat-tps').textContent = s.avg_tokens_per_sec.toFixed(1);
+        document.getElementById('stat-tokens').textContent = s.total_tokens.toLocaleString();
+        document.getElementById('stat-avg-cost').textContent = '$' + s.avg_cost_per_request.toFixed(4);
+        document.getElementById('stat-io-tokens').innerHTML =
+            'In: ' + s.total_input_tokens.toLocaleString() + '<br>Out: ' + s.total_output_tokens.toLocaleString();
+
+        // Rebuild table
+        const emptyState = document.getElementById('empty-state');
+        if (data.metrics.length === 0) {
+            if (emptyState) emptyState.style.display = '';
+            const table = document.getElementById('metrics-table');
+            if (table) table.style.display = 'none';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+
+        let tbody = document.getElementById('metrics-tbody');
+        if (!tbody) {
+            // Table didn't exist yet (was empty state), rebuild
+            location.reload();
+            return;
+        }
+
+        tbody.innerHTML = data.metrics.map(m => {
+            const ts = m.timestamp ? new Date(m.timestamp) : null;
+            const timeStr = ts ? ((ts.getMonth()+1) + '/' + ts.getDate().toString().padStart(2,'0') + ' ' + ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0')) : '-';
+            const modelShort = m.model.includes('-') ? m.model.split('-')[1] : m.model;
+            const ttft = m.ttft_ms != null ? Math.round(m.ttft_ms) + 'ms' : '-';
+            const latency = m.total_latency_ms != null ? (m.total_latency_ms / 1000).toFixed(1) + 's' : '-';
+            const tps = m.tokens_per_sec != null ? m.tokens_per_sec.toFixed(1) : '-';
+            const ctx = m.context_utilization_pct != null ? m.context_utilization_pct.toFixed(1) + '%' : '-';
+
+            return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                <td class="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">${timeStr}</td>
+                <td class="px-3 py-2 text-gray-700 dark:text-gray-300">${m.thread_id || '-'}</td>
+                <td class="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">${modelShort}</td>
+                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${ttft}</td>
+                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${latency}</td>
+                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${tps}</td>
+                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">${m.input_tokens.toLocaleString()}/${m.output_tokens.toLocaleString()}</td>
+                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">$${m.cost_usd.toFixed(4)}</td>
+                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">${m.stop_reason || '-'}</td>
+                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${ctx}</td>
+            </tr>`;
+        }).join('');
+    } catch (error) {
+        console.error('Error refreshing metrics:', error);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Refresh';
+    }
+}
+</script>
+{% endblock %}

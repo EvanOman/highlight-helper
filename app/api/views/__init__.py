@@ -4,6 +4,7 @@
 from . import book_views as _book_views  # noqa: F401
 from . import highlight_views as _highlight_views  # noqa: F401
 from . import home as _home  # noqa: F401
+from . import metrics_views as _metrics_views  # noqa: F401
 from . import settings_views as _settings_views  # noqa: F401
 from ._common import router
 

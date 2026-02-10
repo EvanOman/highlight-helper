@@ -7,6 +7,7 @@ from fastapi import (
     Depends,
     File,
     Form,
+    Query,
     Request,
     UploadFile,
     status,
@@ -299,10 +300,16 @@ async def update_highlight_form(
 @router.get("/highlights", response_class=HTMLResponse)
 async def all_highlights(
     request: Request,
+    page: int = Query(1, ge=1),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ):
     """Page showing all highlights across all books."""
-    rows = await highlight_repo.list_all_with_books()
+    per_page = 20
+    total = await highlight_repo.get_total_count()
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
+    rows = await highlight_repo.list_all_with_books(skip=(page - 1) * per_page, limit=per_page)
 
     highlights = [
         {
@@ -323,5 +330,11 @@ async def all_highlights(
     return templates.TemplateResponse(
         request,
         "all_highlights.html",
-        {"highlights": highlights},
+        {
+            "highlights": highlights,
+            "current_page": page,
+            "total_pages": total_pages,
+            "total_highlights": total,
+            "page_path": "/highlights",
+        },
     )

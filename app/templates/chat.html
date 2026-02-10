@@ -56,6 +56,17 @@
             </button>
         </div>
 
+        <!-- Scope indicator -->
+        {% if book %}
+        <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
+            Threads for "{{ book.title }}"
+        </div>
+        {% else %}
+        <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
+            All conversations
+        </div>
+        {% endif %}
+
         <!-- Thread list -->
         <div id="thread-list" class="flex-1 overflow-y-auto p-2 space-y-0.5">
             {% for thread in threads %}
@@ -72,6 +83,12 @@
                 </button>
             </div>
             {% endfor %}
+            {% if not threads %}
+            <div class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                <p>No conversations yet.</p>
+                <p class="mt-1 text-xs">Click "New Chat" to start one.</p>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Model picker -->
@@ -100,10 +117,11 @@
     <div class="flex-1 flex flex-col min-w-0">
         <!-- Chat header -->
         <div class="shrink-0 flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <button id="sidebar-toggle" class="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300" aria-label="Toggle sidebar">
+            <button id="sidebar-toggle" class="md:hidden flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300" aria-label="Toggle sidebar">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
                 </svg>
+                <span class="text-sm font-medium">Chats{% if threads %} ({{ threads|length }}){% endif %}</span>
             </button>
             <h1 class="text-base font-semibold text-gray-900 dark:text-white truncate">Chat with Your Highlights</h1>
         </div>

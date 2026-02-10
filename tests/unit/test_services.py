@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.book_lookup import BookLookupService
+from app.services.chat import ChatService
 from app.services.highlight_extractor import (
     ExtractedHighlight,
     HighlightExtractorService,
@@ -950,3 +951,100 @@ class TestSyncHighlightBackground:
                 page_number=None,
                 created_at=datetime.now(tz=UTC),
             )
+
+
+class TestChatService:
+    """Tests for the ChatService metrics capture."""
+
+    async def test_last_metrics_populated_after_streaming(self):
+        """Test that last_metrics is populated after streaming completes."""
+        # Create a mock usage object
+        mock_usage = MagicMock()
+        mock_usage.input_tokens = 100
+        mock_usage.output_tokens = 50
+
+        # Create a mock final message
+        mock_final_message = MagicMock()
+        mock_final_message.usage = mock_usage
+        mock_final_message.stop_reason = "end_turn"
+
+        # Create a mock text_stream (async iterator)
+        async def mock_text_stream():
+            yield "Hello"
+            yield " world"
+
+        # Create a mock stream context manager
+        mock_stream = MagicMock()
+        mock_stream.text_stream = mock_text_stream()
+        mock_stream.get_final_message = AsyncMock(return_value=mock_final_message)
+        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
+
+        # Create mock client
+        mock_client = MagicMock()
+        mock_client.messages.stream = MagicMock(return_value=mock_stream)
+
+        # Create mock db session
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=mock_client,
+            chat_model="claude-haiku-4-5-20251001",
+        )
+
+        # Consume the generator
+        chunks = [
+            chunk
+            async for chunk in service.send_message_from_history(
+                history=[{"role": "user", "content": "Hello"}],
+            )
+        ]
+
+        assert chunks == ["Hello", " world"]
+        assert service.last_metrics is not None
+        assert service.last_metrics["model"] == "claude-haiku-4-5-20251001"
+        assert service.last_metrics["input_tokens"] == 100
+        assert service.last_metrics["output_tokens"] == 50
+        assert service.last_metrics["total_tokens"] == 150
+        assert service.last_metrics["stop_reason"] == "end_turn"
+        assert service.last_metrics["ttft_ms"] is not None
+        assert service.last_metrics["total_latency_ms"] is not None
+        assert service.last_metrics["tokens_per_sec"] is not None
+        assert service.last_metrics["cost_usd"] is not None
+        assert service.last_metrics["context_utilization_pct"] is not None
+
+    async def test_last_metrics_none_on_error(self):
+        """Test that last_metrics stays None when stream errors."""
+        # Create a mock stream that raises
+        mock_stream = MagicMock()
+        mock_stream.__aenter__ = AsyncMock(side_effect=Exception("API Error"))
+        mock_stream.__aexit__ = AsyncMock(return_value=False)
+
+        mock_client = MagicMock()
+        mock_client.messages.stream = MagicMock(return_value=mock_stream)
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=mock_client,
+            chat_model="claude-haiku-4-5-20251001",
+        )
+
+        chunks = [
+            chunk
+            async for chunk in service.send_message_from_history(
+                history=[{"role": "user", "content": "Hello"}],
+            )
+        ]
+
+        assert len(chunks) == 1
+        assert "error" in chunks[0].lower()
+        assert service.last_metrics is None

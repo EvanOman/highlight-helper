@@ -233,16 +233,26 @@ async def send_chat_message(
                 yield f"data: {line}\n"
             yield "\n"
 
-        # Save assistant response using independent session
+        # Save assistant response and metrics using independent session
         try:
             async with get_async_session() as session:
                 from app.repositories.chat import ChatRepository as ChatRepo
+                from app.repositories.chat_metric import ChatMetricRepository
 
                 repo = ChatRepo(session)
                 await repo.create_message(
                     thread_id=thread_id, role="assistant", content=full_response
                 )
                 await repo.update_thread_timestamp(thread_id)
+
+                if chat_service.last_metrics:
+                    metric_repo = ChatMetricRepository(session)
+                    await metric_repo.create(
+                        thread_id=thread_id,
+                        book_id=request.book_id,
+                        message_count=len(history),
+                        **chat_service.last_metrics,
+                    )
         except Exception:
             logger.exception("Failed to save assistant message for thread %s", thread_id)
             yield "event: error\ndata: Failed to save response\n\n"

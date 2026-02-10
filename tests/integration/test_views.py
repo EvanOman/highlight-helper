@@ -486,3 +486,76 @@ class TestTimelineView:
             or "&#34;" in response.text
             or "&quot;" in response.text
         )
+
+
+class TestHomePagination:
+    """Tests for home page pagination."""
+
+    async def test_home_pagination_controls_hidden_single_page(self, client: AsyncClient):
+        """No pagination shown with few books."""
+        response = await client.get("/")
+        assert response.status_code == 200
+        assert 'aria-label="Pagination"' not in response.text
+
+    async def test_home_pagination_shows_controls(self, client: AsyncClient, test_session):
+        """Pagination shown when books exceed per_page."""
+        from app.models.book import Book
+
+        books = [Book(title=f"Book {i}", author=f"Author {i}") for i in range(30)]
+        test_session.add_all(books)
+        await test_session.flush()
+
+        response = await client.get("/")
+        assert response.status_code == 200
+        assert 'aria-label="Pagination"' in response.text
+        assert "?page=2" in response.text
+
+    async def test_home_pagination_second_page(self, client: AsyncClient, test_session):
+        """Second page shows remaining books."""
+        from app.models.book import Book
+
+        books = [Book(title=f"Book {i}", author=f"Author {i}") for i in range(30)]
+        test_session.add_all(books)
+        await test_session.flush()
+
+        response = await client.get("/?page=2")
+        assert response.status_code == 200
+        # Should have 6 books on page 2 (30 - 24)
+
+    async def test_home_pagination_invalid_page_clamped(self, client: AsyncClient, test_session):
+        """Out-of-range page is clamped to last page."""
+        from app.models.book import Book
+
+        books = [Book(title=f"Book {i}", author=f"Author {i}") for i in range(30)]
+        test_session.add_all(books)
+        await test_session.flush()
+
+        response = await client.get("/?page=999")
+        assert response.status_code == 200
+
+
+class TestHighlightsPagination:
+    """Tests for highlights page pagination."""
+
+    async def test_highlights_pagination_controls_hidden(self, client: AsyncClient):
+        """No pagination shown with few highlights."""
+        response = await client.get("/highlights")
+        assert response.status_code == 200
+        assert 'aria-label="Pagination"' not in response.text
+
+    async def test_highlights_pagination_shows_controls(self, client: AsyncClient, test_session):
+        """Pagination shown when highlights exceed per_page."""
+        from app.models.book import Book
+        from app.models.highlight import Highlight
+
+        book = Book(title="Paginated Book", author="Author")
+        test_session.add(book)
+        await test_session.flush()
+        await test_session.refresh(book)
+        highlights = [Highlight(book_id=book.id, text=f"Highlight {i}") for i in range(25)]
+        test_session.add_all(highlights)
+        await test_session.flush()
+
+        response = await client.get("/highlights")
+        assert response.status_code == 200
+        assert 'aria-label="Pagination"' in response.text

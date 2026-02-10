@@ -41,7 +41,18 @@ MODEL_PRICING = {
         "input": 1.75,  # $1.75 per 1M input tokens
         "output": 14.0,  # $14.00 per 1M output tokens
     },
-    # Add other models as needed
+    "claude-opus-4-6": {
+        "input": 15.0,  # $15.00 per 1M input tokens
+        "output": 75.0,  # $75.00 per 1M output tokens
+    },
+    "claude-sonnet-4-5-20250929": {
+        "input": 3.0,  # $3.00 per 1M input tokens
+        "output": 15.0,  # $15.00 per 1M output tokens
+    },
+    "claude-haiku-4-5-20251001": {
+        "input": 0.80,  # $0.80 per 1M input tokens
+        "output": 4.0,  # $4.00 per 1M output tokens
+    },
     "default": {
         "input": 2.0,
         "output": 15.0,

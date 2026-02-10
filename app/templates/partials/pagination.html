@@ -1,0 +1,85 @@
+{# Pagination partial - expects: current_page, total_pages, page_path #}
+{# Uses base_path from global template vars #}
+<nav aria-label="Pagination" class="mt-6 flex justify-center">
+    <ul class="inline-flex items-center gap-1">
+        {# Previous button #}
+        {% if current_page > 1 %}
+        <li>
+            <a href="{{ base_path }}{{ page_path }}?page={{ current_page - 1 }}"
+               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                &laquo; Prev
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span class="px-3 py-2 rounded-lg text-sm font-medium text-gray-400 dark:text-gray-600 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-not-allowed">
+                &laquo; Prev
+            </span>
+        </li>
+        {% endif %}
+
+        {# Page numbers with ellipsis window #}
+        {% set window = 2 %}
+        {% set start_page = [current_page - window, 1] | max %}
+        {% set end_page = [current_page + window, total_pages] | min %}
+
+        {% if start_page > 1 %}
+        <li>
+            <a href="{{ base_path }}{{ page_path }}?page=1"
+               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                1
+            </a>
+        </li>
+        {% if start_page > 2 %}
+        <li>
+            <span class="px-2 py-2 text-sm text-gray-400 dark:text-gray-500">&hellip;</span>
+        </li>
+        {% endif %}
+        {% endif %}
+
+        {% for p in range(start_page, end_page + 1) %}
+        <li>
+            {% if p == current_page %}
+            <span class="px-3 py-2 rounded-lg text-sm font-medium bg-primary-600 text-white border border-primary-600">
+                {{ p }}
+            </span>
+            {% else %}
+            <a href="{{ base_path }}{{ page_path }}?page={{ p }}"
+               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                {{ p }}
+            </a>
+            {% endif %}
+        </li>
+        {% endfor %}
+
+        {% if end_page < total_pages %}
+        {% if end_page < total_pages - 1 %}
+        <li>
+            <span class="px-2 py-2 text-sm text-gray-400 dark:text-gray-500">&hellip;</span>
+        </li>
+        {% endif %}
+        <li>
+            <a href="{{ base_path }}{{ page_path }}?page={{ total_pages }}"
+               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                {{ total_pages }}
+            </a>
+        </li>
+        {% endif %}
+
+        {# Next button #}
+        {% if current_page < total_pages %}
+        <li>
+            <a href="{{ base_path }}{{ page_path }}?page={{ current_page + 1 }}"
+               class="px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                Next &raquo;
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span class="px-3 py-2 rounded-lg text-sm font-medium text-gray-400 dark:text-gray-600 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-not-allowed">
+                Next &raquo;
+            </span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
