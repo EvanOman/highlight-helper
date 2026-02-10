@@ -53,6 +53,36 @@ class BookRepository:
         result = await self.db.execute(query)
         return [(row[0], row[1]) for row in result.all()]
 
+    async def search_with_highlight_counts(
+        self, query: str, limit: int = 10
+    ) -> list[tuple[Book, int]]:
+        """Search books by title/author with highlight counts.
+
+        If query is empty, returns the most recent books.
+        Uses case-insensitive LIKE matching on title and author.
+        """
+        highlight_count_subq = (
+            select(Highlight.book_id, func.count(Highlight.id).label("count"))
+            .group_by(Highlight.book_id)
+            .subquery()
+        )
+
+        stmt = select(
+            Book, func.coalesce(highlight_count_subq.c.count, 0).label("highlight_count")
+        ).outerjoin(highlight_count_subq, Book.id == highlight_count_subq.c.book_id)
+
+        if query.strip():
+            pattern = f"%{query.strip()}%"
+            stmt = stmt.where(
+                (func.lower(Book.title).like(func.lower(pattern)))
+                | (func.lower(Book.author).like(func.lower(pattern)))
+            )
+
+        stmt = stmt.order_by(Book.created_at.desc()).limit(limit)
+
+        result = await self.db.execute(stmt)
+        return [(row[0], row[1]) for row in result.all()]
+
     async def get_highlight_count(self, book_id: int) -> int:
         """Get the highlight count for a book."""
         count_query = select(func.count(Highlight.id)).where(Highlight.book_id == book_id)

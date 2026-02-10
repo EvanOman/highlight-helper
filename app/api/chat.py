@@ -105,6 +105,33 @@ async def book_chat_page(
     )
 
 
+# Book search endpoint
+
+
+@router.get("/api/chat/books")
+async def search_books_for_chat(
+    q: str = "",
+    book_repo: BookRepository = Depends(get_book_repo),
+):
+    """Search local books by title/author for chat scope selection.
+
+    Returns up to 10 results with highlight counts. If q is empty,
+    returns the 10 most recent books.
+    """
+    results = await book_repo.search_with_highlight_counts(query=q, limit=10)
+    return {
+        "books": [
+            {
+                "id": book.id,
+                "title": book.title,
+                "author": book.author,
+                "highlight_count": count,
+            }
+            for book, count in results
+        ]
+    }
+
+
 # Thread CRUD endpoints
 
 

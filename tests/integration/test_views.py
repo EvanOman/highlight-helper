@@ -622,3 +622,78 @@ class TestBookStarring:
         assert response.status_code == 200
         assert "toggleStarDetail" in response.text
         assert "detail-star-btn" in response.text
+
+
+class TestBookSearchAPI:
+    """Tests for the book search API endpoint."""
+
+    async def test_empty_query_returns_recent_books(self, client: AsyncClient, sample_book):
+        """Empty query returns recent books."""
+        response = await client.get("/api/chat/books")
+        assert response.status_code == 200
+        data = response.json()
+        assert "books" in data
+        assert len(data["books"]) >= 1
+        assert data["books"][0]["title"] == sample_book.title
+
+    async def test_empty_q_param_returns_recent_books(self, client: AsyncClient, sample_book):
+        """Explicitly empty q= returns recent books."""
+        response = await client.get("/api/chat/books?q=")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["books"]) >= 1
+
+    async def test_search_by_title(self, client: AsyncClient, sample_book):
+        """Query matching title returns correct results."""
+        response = await client.get("/api/chat/books?q=Test+Book")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["books"]) == 1
+        assert data["books"][0]["title"] == "Test Book"
+        assert data["books"][0]["id"] == sample_book.id
+
+    async def test_search_by_author(self, client: AsyncClient, sample_book):
+        """Query matching author returns correct results."""
+        response = await client.get("/api/chat/books?q=Test+Author")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["books"]) == 1
+        assert data["books"][0]["author"] == "Test Author"
+
+    async def test_search_case_insensitive(self, client: AsyncClient, sample_book):
+        """Search is case-insensitive."""
+        response = await client.get("/api/chat/books?q=test+book")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["books"]) == 1
+        assert data["books"][0]["title"] == "Test Book"
+
+    async def test_search_no_match(self, client: AsyncClient, sample_book):
+        """Query that does not match any book returns empty list."""
+        response = await client.get("/api/chat/books?q=nonexistent+xyz")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["books"] == []
+
+    async def test_results_include_highlight_count(
+        self, client: AsyncClient, sample_book, sample_highlight
+    ):
+        """Results include highlight_count field."""
+        response = await client.get("/api/chat/books?q=Test")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["books"]) == 1
+        assert data["books"][0]["highlight_count"] == 1
+
+    async def test_results_limited_to_ten(self, client: AsyncClient, test_session):
+        """Results are limited to 10 books."""
+        from app.models.book import Book
+
+        books = [Book(title=f"Search Book {i}", author=f"Author {i}") for i in range(15)]
+        test_session.add_all(books)
+        await test_session.flush()
+
+        response = await client.get("/api/chat/books?q=Search+Book")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["books"]) == 10
