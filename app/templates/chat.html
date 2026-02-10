@@ -432,13 +432,35 @@ chatForm.addEventListener('submit', async (e) => {
                     }
                 }
                 const data = dataLines.join('\n');
-                if (eventType === 'error') {
+                if (eventType === 'tool_use') {
+                    try {
+                        const toolData = JSON.parse(data);
+                        const toolNames = {
+                            search_books: 'Searching books',
+                            search_highlights: 'Searching highlights',
+                            get_book_highlights: 'Loading highlights',
+                        };
+                        const label = toolNames[toolData.tool] || `Using ${toolData.tool}`;
+                        // Show or update the tool indicator
+                        let indicator = assistantBubble.parentElement.querySelector('.tool-indicator');
+                        if (!indicator) {
+                            indicator = document.createElement('div');
+                            indicator.className = 'tool-indicator text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1.5';
+                            assistantBubble.parentElement.appendChild(indicator);
+                        }
+                        indicator.innerHTML = `<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> ${label}...`;
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } catch (_) { /* ignore parse errors */ }
+                } else if (eventType === 'error') {
                     const warning = document.createElement('div');
                     warning.className = 'text-xs text-amber-500 dark:text-amber-400 mt-1';
                     warning.textContent = 'Warning: Response may not have been saved';
                     assistantBubble.parentElement.appendChild(warning);
                 } else if (eventType === 'done') {
                     smd.parser_end(smdParser);
+                    // Remove tool indicator if present
+                    const toolInd = assistantBubble.parentElement.querySelector('.tool-indicator');
+                    if (toolInd) toolInd.remove();
                     const threadId = parseInt(data);
                     if (!currentThreadId && threadId) {
                         addThreadItem(threadId, message.slice(0, 50));

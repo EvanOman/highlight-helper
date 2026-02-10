@@ -228,6 +228,12 @@ async def send_chat_message(
             history=history,
             book_id=request.book_id,
         ):
+            # Detect tool-use markers emitted by ChatService
+            if chunk.startswith("__tool_use__:"):
+                payload = chunk[len("__tool_use__:") :]
+                yield f"event: tool_use\ndata: {payload}\n\n"
+                continue
+
             full_response += chunk
             for line in chunk.split("\n"):
                 yield f"data: {line}\n"
