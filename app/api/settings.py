@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.schemas import ReadwiseSyncDownResponse
 from app.core.database import get_db
 from app.models.highlight import AnnotationType, Highlight, SyncStatus
 from app.services.readwise import ReadwiseService
@@ -197,23 +196,24 @@ async def sync_down_from_readwise(
     Uses Server-Sent Events (SSE) to stream progress updates.
     The final event contains the complete result.
     """
-    settings = await get_settings_service(db)
-    token = await settings.get_readwise_token()
 
     async def generate_events():
-        if not token:
-            # Send error and complete
-            error_data = ReadwiseSyncDownResponse(
-                success=False,
-                books_processed=0,
-                highlights_imported=0,
-                highlights_skipped=0,
-                errors=["Readwise API token not configured"],
-            )
-            yield f"data: {json.dumps(error_data.model_dump())}\n\n"
-            return
-
-        async with ReadwiseService(api_token=token) as service:
+        async with ReadwiseService() as service:
+            if not service.is_configured:
+                # Send error and complete
+                event_data = {
+                    "phase": "complete",
+                    "message": "Readwise API token not configured",
+                    "books_processed": 0,
+                    "books_total": 0,
+                    "highlights_imported": 0,
+                    "highlights_skipped": 0,
+                    "errors": [
+                        "Readwise API token not configured. Set READWISE_API_TOKEN environment variable."
+                    ],
+                }
+                yield f"data: {json.dumps(event_data)}\n\n"
+                return
             try:
                 async for progress in service.sync_down(db):
                     event_data = {

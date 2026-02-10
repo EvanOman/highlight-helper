@@ -1,5 +1,6 @@
 """Main FastAPI application."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -17,6 +18,9 @@ from app.core.database import init_db
 from app.core.exceptions import NotFoundError
 from app.core.telemetry import instrument_fastapi, instrument_httpx, setup_telemetry
 from app.services.book_lookup import book_lookup_service
+
+# Configure root logger so app module loggers (readwise, chat, etc.) are visible
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
 
 @asynccontextmanager

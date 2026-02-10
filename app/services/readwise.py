@@ -17,6 +17,34 @@ from app.core.telemetry import add_span_attributes, create_span, set_span_status
 
 logger = logging.getLogger(__name__)
 
+
+# Monkey-patch readwise_sdk paginate() to handle integer cursors.
+# The Readwise API returns integer nextPageCursor values, but the SDK
+# assumes they are strings and calls .startswith("http") on them.
+def _patched_paginate(self, url, params=None, results_key="results", cursor_key="next"):
+    params = params.copy() if params else {}
+    while True:
+        response = self.get(url, params=params)
+        data = response.json()
+        results = data.get(results_key, [])
+        yield from results
+        next_cursor = data.get(cursor_key)
+        if not next_cursor:
+            break
+        next_cursor = str(next_cursor)
+        if next_cursor.startswith("http"):
+            from urllib.parse import parse_qs, urlparse
+
+            parsed = urlparse(next_cursor)
+            url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+            params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+        else:
+            params["pageCursor"] = next_cursor
+
+
+ReadwiseClient.paginate = _patched_paginate  # type: ignore[assignment]
+
+
 # Readwise API field length limits
 READWISE_MAX_TEXT_LENGTH = 8191
 READWISE_MAX_TITLE_LENGTH = 511
@@ -432,9 +460,16 @@ class ReadwiseService:
         def _fetch_books() -> list[ReadwiseBook]:
             books = []
             client = self._create_client()
+            logger.info("Starting Readwise export_highlights fetch...")
             try:
                 # Use export_highlights which returns books with their highlights
                 for export_book in client.v2.export_highlights():
+                    logger.info(
+                        "Fetched: %s (%s) - %d highlights",
+                        export_book.title,
+                        export_book.category,
+                        len(export_book.highlights),
+                    )
                     # Filter to only books category
                     if export_book.category != "books":
                         continue
@@ -459,15 +494,16 @@ class ReadwiseService:
                             highlights=highlights,
                         )
                     )
+            except Exception as e:
+                logger.error("Error during Readwise export iteration: %s", e, exc_info=True)
+                raise
             finally:
                 client.close()
+            logger.info("Readwise fetch complete: %d books", len(books))
             return books
 
-        try:
-            return await asyncio.to_thread(_fetch_books)
-        except Exception as e:
-            logger.error(f"Error fetching books from Readwise: {e}")
-            return []
+        logger.info("Calling fetch_books via asyncio.to_thread...")
+        return await asyncio.to_thread(_fetch_books)
 
     async def sync_down(
         self,
@@ -499,14 +535,80 @@ class ReadwiseService:
                 )
                 return
 
-            # Phase 1: Fetching books from Readwise
+            # Phase 1: Fetching books from Readwise (streaming via queue)
             yield SyncDownProgress(
                 phase="fetching",
                 message="Fetching books from Readwise...",
             )
 
+            book_queue: asyncio.Queue[ReadwiseBook | None] = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+
+            def _fetch_books_streaming() -> int:
+                """Fetch books in a thread, putting each on the queue as it arrives."""
+                count = 0
+                client = self._create_client()
+                logger.info("Starting Readwise export_highlights fetch...")
+                try:
+                    for export_book in client.v2.export_highlights():
+                        logger.info(
+                            "Fetched: %s (%s) - %d highlights",
+                            export_book.title,
+                            export_book.category,
+                            len(export_book.highlights),
+                        )
+                        if export_book.category != "books":
+                            continue
+
+                        highlights = [
+                            ReadwiseHighlight(
+                                id=str(h.id),
+                                text=h.text or "",
+                                note=h.note,
+                                location=h.location,
+                                highlighted_at=h.highlighted_at,
+                            )
+                            for h in export_book.highlights
+                        ]
+                        rw_book = ReadwiseBook(
+                            id=str(export_book.user_book_id),
+                            title=export_book.title or "Unknown Title",
+                            author=export_book.author or "Unknown Author",
+                            category=export_book.category or "books",
+                            cover_url=export_book.cover_image_url,
+                            highlights=highlights,
+                        )
+                        loop.call_soon_threadsafe(book_queue.put_nowait, rw_book)
+                        count += 1
+                except Exception as e:
+                    logger.error("Error during Readwise export iteration: %s", e, exc_info=True)
+                    raise
+                finally:
+                    client.close()
+                    loop.call_soon_threadsafe(book_queue.put_nowait, None)
+                logger.info("Readwise fetch complete: %d books", count)
+                return count
+
+            # Launch fetch in background thread
+            fetch_task = loop.run_in_executor(None, _fetch_books_streaming)
+
+            # Collect books as they arrive, yielding progress
+            readwise_books: list[ReadwiseBook] = []
             try:
-                readwise_books = await self.fetch_books()
+                while True:
+                    book = await book_queue.get()
+                    if book is None:
+                        break
+                    readwise_books.append(book)
+                    yield SyncDownProgress(
+                        phase="fetching",
+                        message=f"Fetching: {book.title} ({len(readwise_books)} books found...)",
+                        books_processed=0,
+                        books_total=len(readwise_books),
+                    )
+
+                # Wait for the thread to finish and check for exceptions
+                await fetch_task
             except Exception as e:
                 error_msg = f"Failed to fetch from Readwise: {e}"
                 logger.error(error_msg)
