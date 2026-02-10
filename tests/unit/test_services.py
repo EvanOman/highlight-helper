@@ -1023,10 +1023,12 @@ class TestChatService:
         mock_client = MagicMock()
         mock_client.messages.stream = MagicMock(return_value=mock_stream)
 
-        # Create mock db session
+        # Create mock db session — scalar() returns 0 for count queries,
+        # all() returns [] for list queries (used by _get_highlights_context)
         mock_db = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
+        mock_result.scalar.return_value = 0
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         service = ChatService(
@@ -1069,6 +1071,7 @@ class TestChatService:
         mock_db = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
+        mock_result.scalar.return_value = 0
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         service = ChatService(
@@ -1130,10 +1133,11 @@ class TestChatService:
         mock_client = MagicMock()
         mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
 
-        # Mock DB
+        # Mock DB — scalar() returns 0 for count queries
         mock_db = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
+        mock_result.scalar.return_value = 0
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         service = ChatService(
@@ -1174,7 +1178,8 @@ class TestChatService:
         tool_data = json.loads(tool_use_chunks[0].replace("__tool_use__:", ""))
         assert tool_data["tool"] == "search_highlights"
 
-        assert text_chunks == ["Here are ", "your results"]
+        # Round separator ("\n\n") is yielded before round 2's text
+        assert text_chunks == ["\n\n", "Here are ", "your results"]
 
         # Metrics should aggregate both calls
         assert service.last_metrics is not None

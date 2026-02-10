@@ -195,6 +195,15 @@ const modelSelect = document.getElementById('model-select');
 let currentThreadId = null;
 const bookId = {{ book.id if book else 'null' }};
 
+function isNearBottom(el, threshold = 80) {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+}
+function scrollToBottom(force = false) {
+    if (force || isNearBottom(chatMessages)) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
 // Sidebar controls
 function openSidebar() {
     sidebar.classList.remove('-translate-x-full');
@@ -279,7 +288,7 @@ function addMessage(role, content, opts = {}) {
 
     messageDiv.appendChild(bubble);
     chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    scrollToBottom();
 
     return bubble;
 }
@@ -402,9 +411,11 @@ chatForm.addEventListener('submit', async (e) => {
     if (!message) return;
 
     addMessage('user', message);
+    scrollToBottom(true);
     chatInput.value = '';
 
     const assistantBubble = addMessage('assistant', '', { streaming: true });
+    scrollToBottom(true);
     const smdRenderer = smd.default_renderer(assistantBubble);
     const smdParser = smd.parser(smdRenderer);
     setLoading(true);
@@ -468,7 +479,7 @@ chatForm.addEventListener('submit', async (e) => {
                             assistantBubble.parentElement.appendChild(indicator);
                         }
                         indicator.innerHTML = `<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> ${label}...`;
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                        scrollToBottom();
                     } catch (_) { /* ignore parse errors */ }
                 } else if (eventType === 'error') {
                     const warning = document.createElement('div');
@@ -486,8 +497,12 @@ chatForm.addEventListener('submit', async (e) => {
                         setActiveThread(threadId);
                     }
                 } else if (dataLines.length > 0) {
+                    // Remove tool indicator when text starts arriving
+                    const toolInd = assistantBubble.parentElement.querySelector('.tool-indicator');
+                    if (toolInd) toolInd.remove();
+
                     smd.parser_write(smdParser, data);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    scrollToBottom();
                 }
             }
         }

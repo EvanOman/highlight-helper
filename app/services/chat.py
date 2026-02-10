@@ -183,32 +183,43 @@ class ChatService:
                 context_parts.append(entry)
 
             return "\n".join(context_parts)
-        # Get all highlights with book info
-        query = select(Highlight, Book).join(Book).order_by(Highlight.created_at.desc())
-        result = await self.db.execute(query)
-        rows = result.all()
+        # For global chat, don't load all highlights into context.
+        # The model has search tools to find relevant content on demand.
+        # Just provide a summary of what's available.
+        from sqlalchemy import func
 
-        if not rows:
-            return "No highlights found in the library."
+        book_count_result = await self.db.execute(select(func.count(Book.id)))
+        book_count = book_count_result.scalar() or 0
+        highlight_count_result = await self.db.execute(select(func.count(Highlight.id)))
+        highlight_count = highlight_count_result.scalar() or 0
 
-        context_parts = ["All Highlights:\n"]
-        current_book = None
+        if book_count == 0:
+            return ""
 
-        for highlight, book in rows:
-            if current_book != book.id:
-                context_parts.append(f'\n--- "{book.title}" by {book.author} ---')
-                current_book = book.id
+        # Get list of book titles for orientation
+        books_result = await self.db.execute(
+            select(Book.title, Book.author, func.count(Highlight.id))
+            .outerjoin(Highlight)
+            .group_by(Book.id)
+            .order_by(Book.is_starred.desc(), Book.title)
+            .limit(50)
+        )
+        book_list = books_result.all()
 
-            entry = "\n- "
-            if highlight.text:
-                entry += f'"{highlight.text}"'
-            if highlight.page_number:
-                entry += f" (page {highlight.page_number})"
-            if highlight.note:
-                entry += f"\n  Note: {highlight.note}"
-            context_parts.append(entry)
+        lines = [
+            f"Your library contains {book_count} books with {highlight_count} total highlights.\n"
+        ]
+        lines.append("Available books:")
+        for title, author, hl_count in book_list:
+            lines.append(f'- "{title}" by {author} ({hl_count} highlights)')
+        if book_count > 50:
+            lines.append(f"  ... and {book_count - 50} more books")
+        lines.append(
+            "\nUse the search_books, search_highlights, and get_book_highlights tools "
+            "to find specific content."
+        )
 
-        return "\n".join(context_parts)
+        return "\n".join(lines)
 
     def _build_system_prompt(self, highlights_context: str, book_id: int | None = None) -> str:
         """Build the system prompt with highlights context.
@@ -224,7 +235,18 @@ class ChatService:
             base_prompt = """You are a helpful assistant that helps users explore and discuss \
 their book highlights. You are currently focused on a specific book.
 
-Be conversational and insightful. Help users:
+Response Style:
+- Be concise and conversational. This is a chat, not an essay.
+- For open-ended questions (themes, summaries, recommendations), start with 3-4 key points \
+at a high level.
+- Keep initial responses brief (~150-200 words). Use bullet points and bold for scannability.
+- After your initial response, invite the user to go deeper: "Want me to explore any of \
+these further?" or "I can go deeper on any of these — which interests you?"
+- Only give lengthy, detailed responses when the user explicitly asks for depth (e.g., \
+"tell me more about X", "give me a detailed analysis", "expand on that").
+- When quoting highlights, cite 1-2 key quotes per point, not every relevant highlight.
+
+Help users:
 - Recall specific passages they've highlighted
 - Find connections between ideas within the book
 - Explore themes and patterns in their highlights
@@ -240,18 +262,30 @@ Here are the user's highlights from this book:
             base_prompt = """You are a helpful assistant that helps users explore and discuss \
 their book highlights across all their books.
 
-Be conversational and insightful. Help users:
+Response Style:
+- Be concise and conversational. This is a chat, not an essay.
+- For open-ended questions (themes, summaries, recommendations), start with 3-4 key points \
+at a high level.
+- Keep initial responses brief (~150-200 words). Use bullet points and bold for scannability.
+- After your initial response, invite the user to go deeper: "Want me to explore any of \
+these further?" or "I can go deeper on any of these — which interests you?"
+- Only give lengthy, detailed responses when the user explicitly asks for depth (e.g., \
+"tell me more about X", "give me a detailed analysis", "expand on that").
+- When quoting highlights, cite 1-2 key quotes per point, not every relevant highlight.
+
+Help users:
 - Find connections between ideas across different books
 - Recall specific passages they've highlighted
 - Explore themes and patterns in their reading
 - Compare perspectives from different authors
 - Reflect on their reading journey
 
-You have access to search tools that can find books and highlights. Use them when the user \
-asks about specific topics, books, or wants to find particular passages. Prefer using search \
-tools over relying only on the context below, especially for specific queries.
+You have access to search tools (search_books, search_highlights, get_book_highlights) \
+that can find books and highlights in the user's library. ALWAYS use these tools to look up \
+specific content — the library summary below lists what's available, but the actual highlight \
+text is only accessible through the tools.
 
-Here are all the user's highlights:
+Here is a summary of the user's library:
 
 """
         return base_prompt + highlights_context
@@ -287,7 +321,7 @@ Here are all the user's highlights:
         try:
             async with self._client.messages.stream(
                 model=self._chat_model,
-                max_tokens=2048,
+                max_tokens=16384,
                 system=system_prompt,
                 messages=messages,
                 tools=CHAT_TOOLS,
@@ -346,10 +380,14 @@ Here are all the user's highlights:
             messages: list = list(history)  # copy so we can append tool results
 
             max_tool_rounds = 5
+            final_message = None
             for _round in range(max_tool_rounds):
+                if _round > 0:
+                    yield "\n\n"
+
                 async with self._client.messages.stream(
                     model=self._chat_model,
-                    max_tokens=2048,
+                    max_tokens=16384,
                     system=system_prompt,
                     messages=messages,
                     tools=CHAT_TOOLS,
@@ -402,6 +440,14 @@ Here are all the user's highlights:
                     continue  # loop back to stream again with tool results
                 else:
                     break  # got a final text response, we're done
+
+            # Warn user if response was truncated
+            if final_message and final_message.stop_reason == "max_tokens":
+                yield "\n\n---\n*[Response truncated due to length limit]*"
+
+            # Warn if all rounds used tools without a final text response
+            if final_message and final_message.stop_reason == "tool_use":
+                yield "\n\n---\n*[Reached maximum tool use rounds. Try a more specific question.]*"
 
             t_end = time.monotonic()
 
