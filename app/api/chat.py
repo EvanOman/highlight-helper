@@ -7,13 +7,15 @@ from anthropic.types import MessageParam
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.views._common import templates
-from app.core.database import get_async_session
+from app.core.database import get_async_session, get_db
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.chat import ChatRepository, get_chat_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.chat import ChatService, get_chat_service
+from app.services.settings import SettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +40,27 @@ class CreateThreadRequest(BaseModel):
 # View endpoints for HTML pages
 
 
+CHAT_MODELS = [
+    ("claude-opus-4-20250514", "Claude Opus 4"),
+    ("claude-sonnet-4-20250514", "Claude Sonnet 4"),
+    ("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
+]
+
+
 @router.get("/chat", response_class=HTMLResponse)
 async def chat_page(
     request: Request,
     book_repo: BookRepository = Depends(get_book_repo),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
     chat_repo: ChatRepository = Depends(get_chat_repo),
+    db: AsyncSession = Depends(get_db),
 ):
     """Global chat page for all highlights."""
     book_count = await book_repo.get_total_count()
     highlight_count = await highlight_repo.get_total_count()
     threads = await chat_repo.list_threads(book_id=None)
+    settings_svc = SettingsService(db)
+    chat_model = await settings_svc.get_chat_model()
 
     return templates.TemplateResponse(
         request,
@@ -58,6 +70,8 @@ async def chat_page(
             "book_count": book_count,
             "highlight_count": highlight_count,
             "threads": threads,
+            "chat_model": chat_model,
+            "chat_models": CHAT_MODELS,
         },
     )
 
@@ -68,11 +82,14 @@ async def book_chat_page(
     book_id: int,
     book_repo: BookRepository = Depends(get_book_repo),
     chat_repo: ChatRepository = Depends(get_chat_repo),
+    db: AsyncSession = Depends(get_db),
 ):
     """Book-specific chat page."""
     book = await book_repo.get_or_raise(book_id)
     highlight_count = await book_repo.get_highlight_count(book_id)
     threads = await chat_repo.list_threads(book_id=book_id)
+    settings_svc = SettingsService(db)
+    chat_model = await settings_svc.get_chat_model()
 
     return templates.TemplateResponse(
         request,
@@ -82,6 +99,8 @@ async def book_chat_page(
             "book_count": None,
             "highlight_count": highlight_count,
             "threads": threads,
+            "chat_model": chat_model,
+            "chat_models": CHAT_MODELS,
         },
     )
 

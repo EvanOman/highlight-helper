@@ -24,6 +24,7 @@ class SettingsResponse(BaseModel):
 
     readwise_token_configured: bool
     readwise_auto_sync: bool
+    chat_model: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -31,6 +32,7 @@ class UpdateSettingsRequest(BaseModel):
 
     readwise_token: str | None = None
     readwise_auto_sync: bool | None = None
+    chat_model: str | None = None
 
 
 class SyncAllResponse(BaseModel):
@@ -51,10 +53,12 @@ async def get_settings(
 
     token = await settings.get_readwise_token()
     auto_sync = await settings.get_readwise_auto_sync()
+    chat_model = await settings.get_chat_model()
 
     return SettingsResponse(
         readwise_token_configured=bool(token),
         readwise_auto_sync=auto_sync,
+        chat_model=chat_model,
     )
 
 
@@ -74,13 +78,18 @@ async def update_settings(
     if request.readwise_auto_sync is not None:
         await settings.set_readwise_auto_sync(request.readwise_auto_sync)
 
+    if request.chat_model is not None:
+        await settings.set_chat_model(request.chat_model)
+
     # Return updated settings
     token = await settings.get_readwise_token()
     auto_sync = await settings.get_readwise_auto_sync()
+    chat_model = await settings.get_chat_model()
 
     return SettingsResponse(
         readwise_token_configured=bool(token),
         readwise_auto_sync=auto_sync,
+        chat_model=chat_model,
     )
 
 

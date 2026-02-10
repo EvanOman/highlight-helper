@@ -20,17 +20,23 @@ logger = logging.getLogger(__name__)
 class ChatService:
     """Service for chatting with highlights using Claude."""
 
-    def __init__(self, db: AsyncSession, client: AsyncAnthropic | None = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        client: AsyncAnthropic | None = None,
+        chat_model: str | None = None,
+    ):
         """Initialize the chat service.
 
         Args:
             db: Database session for querying highlights
             client: Optional Anthropic client for dependency injection in tests
+            chat_model: Model ID to use for chat completions
         """
         self.db = db
         settings = get_settings()
         self._client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
-        self._chat_model = settings.chat_model
+        self._chat_model = chat_model or settings.chat_model
 
     async def _get_highlights_context(self, book_id: int | None = None) -> str:
         """Fetch highlights from the database and format as context.
@@ -217,4 +223,8 @@ Here are all the user's highlights:
 
 async def get_chat_service(db: AsyncSession = Depends(get_db)) -> ChatService:
     """Dependency that provides the chat service."""
-    return ChatService(db)
+    from app.services.settings import SettingsService
+
+    settings_svc = SettingsService(db)
+    chat_model = await settings_svc.get_chat_model()
+    return ChatService(db, chat_model=chat_model)

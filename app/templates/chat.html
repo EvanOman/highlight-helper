@@ -46,6 +46,18 @@
             {% endfor %}
         </div>
 
+        <!-- Model picker -->
+        <div class="p-3 border-t border-gray-200 dark:border-gray-800">
+            <label for="model-select" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Model</label>
+            <select id="model-select"
+                    onchange="changeModel(this.value)"
+                    class="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500">
+                {% for model_id, model_name in chat_models %}
+                <option value="{{ model_id }}" {{ 'selected' if model_id == chat_model else '' }}>{{ model_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <!-- Context info footer -->
         <div class="p-3 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
             {% if book %}
@@ -141,6 +153,18 @@ function toggleSidebar() {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSidebar();
 });
+
+async function changeModel(model) {
+    try {
+        await fetch('{{ base_path }}/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_model: model }),
+        });
+    } catch (error) {
+        console.error('Error changing model:', error);
+    }
+}
 
 function clearMessages() {
     chatMessages.innerHTML = '';

@@ -22,6 +22,7 @@ class APIUsageMetrics(BaseModel):
 # Setting keys
 READWISE_API_TOKEN = "readwise_api_token"
 READWISE_AUTO_SYNC = "readwise_auto_sync"
+CHAT_MODEL = "chat_model"
 
 
 class SettingsService:
@@ -67,6 +68,16 @@ class SettingsService:
     async def set_readwise_token(self, token: str | None) -> None:
         """Set the Readwise API token."""
         await self.set(READWISE_API_TOKEN, token)
+
+    async def get_chat_model(self) -> str:
+        """Get the configured chat model."""
+        return (
+            await self.get(CHAT_MODEL, default="claude-opus-4-20250514") or "claude-opus-4-20250514"
+        )
+
+    async def set_chat_model(self, model: str) -> None:
+        """Set the chat model."""
+        await self.set(CHAT_MODEL, model)
 
     async def get_readwise_auto_sync(self) -> bool:
         """Get the Readwise auto-sync setting."""
