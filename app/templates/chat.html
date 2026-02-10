@@ -5,7 +5,6 @@
 {% block footer %}{% endblock %}
 
 {% block main_content %}
-<script src="https://cdn.jsdelivr.net/npm/streaming-markdown@0.0.22/smd.min.js"></script>
 <style>
     @media (pointer: coarse) {
         .thread-item .delete-btn { opacity: 1; }
@@ -42,7 +41,7 @@
 <div class="flex" style="height: calc(100vh - 3.5rem)">
 
     <!-- Mobile backdrop -->
-    <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden" onclick="closeSidebar()"></div>
+    <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden"></div>
 
     <!-- Sidebar -->
     <aside id="sidebar" class="fixed top-[3.5rem] bottom-0 left-0 w-72 z-40 flex flex-col bg-gray-100 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform -translate-x-full transition-transform duration-200 ease-in-out md:static md:translate-x-0 md:z-0 md:shrink-0">
@@ -64,8 +63,8 @@
                  data-thread-id="{{ thread.id }}"
                  title="{{ thread.title }}">
                 <span class="flex-1 truncate">{{ thread.title }}</span>
-                <button class="delete-btn opacity-0 group-hover:opacity-100 shrink-0 p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition"
-                        onclick="event.stopPropagation(); deleteThread({{ thread.id }})"
+                <button class="delete-btn shrink-0 p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100"
+                        data-delete-thread="{{ thread.id }}"
                         title="Delete thread">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -79,7 +78,6 @@
         <div class="p-3 border-t border-gray-200 dark:border-gray-800">
             <label for="model-select" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Model</label>
             <select id="model-select"
-                    onchange="changeModel(this.value)"
                     class="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500">
                 {% for model_id, model_name in chat_models %}
                 <option value="{{ model_id }}" {{ 'selected' if model_id == chat_model else '' }}>{{ model_name }}</option>
@@ -102,7 +100,7 @@
     <div class="flex-1 flex flex-col min-w-0">
         <!-- Chat header -->
         <div class="shrink-0 flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <button id="sidebar-toggle" class="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+            <button id="sidebar-toggle" class="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300" aria-label="Toggle sidebar">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
                 </svg>
@@ -144,9 +142,10 @@
 
 </div>
 
-<script>
+<script type="module">
+import * as smd from 'https://cdn.jsdelivr.net/npm/streaming-markdown/smd.min.js';
+
 const chatMessages = document.getElementById('chat-messages');
-const chatPlaceholder = document.getElementById('chat-placeholder');
 const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
@@ -154,6 +153,7 @@ const newChatBtn = document.getElementById('new-chat-btn');
 const sidebar = document.getElementById('sidebar');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const threadList = document.getElementById('thread-list');
+const modelSelect = document.getElementById('model-select');
 
 let currentThreadId = null;
 const bookId = {{ book.id if book else 'null' }};
@@ -171,29 +171,31 @@ function closeSidebar() {
     sidebarBackdrop.classList.add('hidden');
 }
 
-function toggleSidebar() {
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
     if (sidebar.classList.contains('-translate-x-full')) {
         openSidebar();
     } else {
         closeSidebar();
     }
-}
+});
+
+sidebarBackdrop.addEventListener('click', closeSidebar);
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSidebar();
 });
 
-async function changeModel(model) {
+modelSelect.addEventListener('change', async () => {
     try {
         await fetch('{{ base_path }}/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_model: model }),
+            body: JSON.stringify({ chat_model: modelSelect.value }),
         });
     } catch (error) {
         console.error('Error changing model:', error);
     }
-}
+});
 
 function clearMessages() {
     chatMessages.innerHTML = '';
@@ -231,7 +233,6 @@ function addMessage(role, content, opts = {}) {
     } else {
         bubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
         if (content && !opts.streaming) {
-            // Render saved message markdown using smd in one shot
             const renderer = smd.default_renderer(bubble);
             const parser = smd.parser(renderer);
             smd.parser_write(parser, content);
@@ -249,11 +250,7 @@ function addMessage(role, content, opts = {}) {
 function setLoading(loading) {
     sendButton.disabled = loading;
     chatInput.disabled = loading;
-    if (loading) {
-        sendButton.textContent = '...';
-    } else {
-        sendButton.textContent = 'Send';
-    }
+    sendButton.textContent = loading ? '...' : 'Send';
 }
 
 function setActiveThread(threadId) {
@@ -342,9 +339,15 @@ async function loadThread(threadId) {
     }
 }
 
-// Thread item click handlers
+// Thread item click handlers (including delete buttons)
 document.querySelectorAll('.thread-item').forEach(item => {
     item.addEventListener('click', () => loadThread(parseInt(item.dataset.threadId)));
+});
+document.querySelectorAll('[data-delete-thread]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteThread(parseInt(btn.dataset.deleteThread));
+    });
 });
 
 // New chat button
