@@ -1170,13 +1170,23 @@ class TestChatService:
             )
         ]
 
-        # Should have tool_use marker + text chunks
+        # Should have tool_use + tool_done markers + text chunks
         tool_use_chunks = [c for c in chunks if c.startswith("__tool_use__:")]
-        text_chunks = [c for c in chunks if not c.startswith("__tool_use__:")]
+        tool_done_chunks = [c for c in chunks if c.startswith("__tool_done__:")]
+        text_chunks = [
+            c
+            for c in chunks
+            if not c.startswith("__tool_use__:") and not c.startswith("__tool_done__:")
+        ]
 
         assert len(tool_use_chunks) == 1
         tool_data = json.loads(tool_use_chunks[0].replace("__tool_use__:", ""))
         assert tool_data["tool"] == "search_highlights"
+
+        assert len(tool_done_chunks) == 1
+        done_data = json.loads(tool_done_chunks[0].replace("__tool_done__:", ""))
+        assert done_data["tool"] == "search_highlights"
+        assert "Found" in done_data["summary"]
 
         # Round separator ("\n\n") is yielded before round 2's text
         assert text_chunks == ["\n\n", "Here are ", "your results"]

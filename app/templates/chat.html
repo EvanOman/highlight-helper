@@ -38,6 +38,10 @@
     .dark .msg-prose th, .dark .msg-prose td { border-color: #374151; }
     .msg-prose th { background: rgba(0,0,0,0.04); font-weight: 600; }
     .dark .msg-prose th { background: rgba(255,255,255,0.05); }
+    /* Tool call card styling */
+    .tool-card { transition: all 0.2s ease; }
+    .tool-card .tool-spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 <div class="flex" style="height: calc(100vh - 3.5rem)">
 
@@ -406,6 +410,74 @@ newChatBtn.addEventListener('click', () => {
     if (window.innerWidth < 768) closeSidebar();
 });
 
+// Tool call UI helpers
+const TOOL_META = {
+    search_books: {
+        label: 'Searching books',
+        doneLabel: 'Searched books',
+        icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>`,
+    },
+    search_highlights: {
+        label: 'Searching highlights',
+        doneLabel: 'Searched highlights',
+        icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>`,
+    },
+    get_book_highlights: {
+        label: 'Loading highlights',
+        doneLabel: 'Loaded highlights',
+        icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/></svg>`,
+    },
+};
+
+function createToolCard(toolName, query) {
+    const meta = TOOL_META[toolName] || { label: `Using ${toolName}`, doneLabel: toolName, icon: '' };
+    const card = document.createElement('div');
+    card.className = 'tool-card flex items-center gap-2.5 px-3 py-2 my-1 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/50 text-sm';
+    card.dataset.tool = toolName;
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'tool-icon shrink-0 text-primary-500 dark:text-primary-400';
+    iconWrap.innerHTML = `<svg class="tool-spinner h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>`;
+    card.appendChild(iconWrap);
+
+    const text = document.createElement('div');
+    text.className = 'tool-text flex-1 min-w-0';
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'tool-label text-gray-600 dark:text-gray-300 font-medium';
+    labelSpan.textContent = meta.label;
+    text.appendChild(labelSpan);
+    if (query) {
+        const querySpan = document.createElement('span');
+        querySpan.className = 'text-gray-400 dark:text-gray-500 ml-1.5';
+        querySpan.textContent = `"${query}"`;
+        text.appendChild(querySpan);
+    }
+    card.appendChild(text);
+
+    const status = document.createElement('div');
+    status.className = 'tool-status shrink-0 text-xs text-gray-400 dark:text-gray-500';
+    card.appendChild(status);
+
+    return card;
+}
+
+function completeToolCard(card, toolName, summary) {
+    const meta = TOOL_META[toolName] || { label: toolName, doneLabel: toolName, icon: '' };
+    // Replace spinner with static icon
+    const iconWrap = card.querySelector('.tool-icon');
+    if (iconWrap) {
+        iconWrap.innerHTML = meta.icon || `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>`;
+    }
+    // Update label
+    const label = card.querySelector('.tool-label');
+    if (label) label.textContent = meta.doneLabel;
+    // Show summary
+    const status = card.querySelector('.tool-status');
+    if (status && summary) status.textContent = summary;
+    // Fade slightly to indicate completion
+    card.classList.add('opacity-75');
+}
+
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const message = chatInput.value.trim();
@@ -415,10 +487,22 @@ chatForm.addEventListener('submit', async (e) => {
     scrollToBottom(true);
     chatInput.value = '';
 
-    const assistantBubble = addMessage('assistant', '', { streaming: true });
+    // Container for the entire assistant response (text bubbles + tool cards)
+    const responseContainer = document.createElement('div');
+    responseContainer.className = 'flex flex-col items-start gap-1';
+    chatMessages.appendChild(responseContainer);
+
+    // Create the first text bubble
+    let currentBubble = document.createElement('div');
+    currentBubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
+    responseContainer.appendChild(currentBubble);
+
+    let smdRenderer = smd.default_renderer(currentBubble);
+    let smdParser = smd.parser(smdRenderer);
+    let hasTextInCurrentBubble = false;
+    let activeToolCard = null;
+
     scrollToBottom(true);
-    const smdRenderer = smd.default_renderer(assistantBubble);
-    const smdParser = smd.parser(smdRenderer);
     setLoading(true);
 
     try {
@@ -463,45 +547,59 @@ chatForm.addEventListener('submit', async (e) => {
                     }
                 }
                 const data = dataLines.join('\n');
+
                 if (eventType === 'tool_use') {
                     try {
                         const toolData = JSON.parse(data);
-                        const toolNames = {
-                            search_books: 'Searching books',
-                            search_highlights: 'Searching highlights',
-                            get_book_highlights: 'Loading highlights',
-                        };
-                        const label = toolNames[toolData.tool] || `Using ${toolData.tool}`;
-                        // Show or update the tool indicator
-                        let indicator = assistantBubble.parentElement.querySelector('.tool-indicator');
-                        if (!indicator) {
-                            indicator = document.createElement('div');
-                            indicator.className = 'tool-indicator text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1.5';
-                            assistantBubble.parentElement.appendChild(indicator);
+                        const query = toolData.input?.query || '';
+                        // If the current bubble has text, finalize it before showing tool card
+                        if (hasTextInCurrentBubble) {
+                            smd.parser_end(smdParser);
+                        } else {
+                            // Empty bubble before any text arrived — hide it
+                            currentBubble.style.display = 'none';
                         }
-                        indicator.innerHTML = `<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> ${label}...`;
+                        activeToolCard = createToolCard(toolData.tool, query);
+                        responseContainer.appendChild(activeToolCard);
                         scrollToBottom();
                     } catch (_) { /* ignore parse errors */ }
+                } else if (eventType === 'tool_done') {
+                    try {
+                        const toolData = JSON.parse(data);
+                        if (activeToolCard) {
+                            completeToolCard(activeToolCard, toolData.tool, toolData.summary);
+                            activeToolCard = null;
+                        }
+                        // Create a fresh bubble for the next text round
+                        currentBubble = document.createElement('div');
+                        currentBubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
+                        responseContainer.appendChild(currentBubble);
+                        smdRenderer = smd.default_renderer(currentBubble);
+                        smdParser = smd.parser(smdRenderer);
+                        hasTextInCurrentBubble = false;
+                        scrollToBottom();
+                    } catch (_) { /* ignore */ }
                 } else if (eventType === 'error') {
                     const warning = document.createElement('div');
                     warning.className = 'text-xs text-amber-500 dark:text-amber-400 mt-1';
                     warning.textContent = 'Warning: Response may not have been saved';
-                    assistantBubble.parentElement.appendChild(warning);
+                    responseContainer.appendChild(warning);
                 } else if (eventType === 'done') {
                     smd.parser_end(smdParser);
-                    // Remove tool indicator if present
-                    const toolInd = assistantBubble.parentElement.querySelector('.tool-indicator');
-                    if (toolInd) toolInd.remove();
+                    // Clean up empty trailing bubble
+                    if (!hasTextInCurrentBubble) currentBubble.style.display = 'none';
                     const threadId = parseInt(data);
                     if (!currentThreadId && threadId) {
                         addThreadItem(threadId, message.slice(0, 50));
                         setActiveThread(threadId);
                     }
                 } else if (dataLines.length > 0) {
-                    // Remove tool indicator when text starts arriving
-                    const toolInd = assistantBubble.parentElement.querySelector('.tool-indicator');
-                    if (toolInd) toolInd.remove();
-
+                    // Text data — skip the "\n\n" round separators
+                    if (data === '\n\n' || data.trim() === '') {
+                        continue;
+                    }
+                    hasTextInCurrentBubble = true;
+                    currentBubble.style.display = '';
                     smd.parser_write(smdParser, data);
                     scrollToBottom();
                 }
@@ -510,10 +608,11 @@ chatForm.addEventListener('submit', async (e) => {
     } catch (error) {
         console.error('Chat error:', error);
         smd.parser_end(smdParser);
-        assistantBubble.innerHTML = '';
-        assistantBubble.textContent = 'Error: Could not get response. Please try again.';
-        assistantBubble.classList.remove('msg-prose');
-        assistantBubble.classList.add('text-red-500', 'dark:text-red-400');
+        currentBubble.innerHTML = '';
+        currentBubble.style.display = '';
+        currentBubble.textContent = 'Error: Could not get response. Please try again.';
+        currentBubble.classList.remove('msg-prose');
+        currentBubble.classList.add('text-red-500', 'dark:text-red-400');
     } finally {
         setLoading(false);
         chatInput.focus();

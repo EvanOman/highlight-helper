@@ -260,6 +260,10 @@ async def send_chat_message(
                 payload = chunk[len("__tool_use__:") :]
                 yield f"event: tool_use\ndata: {payload}\n\n"
                 continue
+            if chunk.startswith("__tool_done__:"):
+                payload = chunk[len("__tool_done__:") :]
+                yield f"event: tool_done\ndata: {payload}\n\n"
+                continue
 
             full_response += chunk
             for line in chunk.split("\n"):

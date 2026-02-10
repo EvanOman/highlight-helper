@@ -113,6 +113,22 @@ class ChatService:
         self._search_repo = SearchRepository(db)
         self._highlight_repo = HighlightRepository(db)
 
+    @staticmethod
+    def _tool_result_summary(tool_name: str, result: dict) -> str:
+        """Build a short human-readable summary of a tool result."""
+        if "error" in result:
+            return result["error"]
+        if tool_name == "search_books":
+            n = len(result.get("books", []))
+            return f"Found {n} book{'s' if n != 1 else ''}"
+        if tool_name == "search_highlights":
+            n = len(result.get("highlights", []))
+            return f"Found {n} highlight{'s' if n != 1 else ''}"
+        if tool_name == "get_book_highlights":
+            n = len(result.get("highlights", []))
+            return f"Loaded {n} highlight{'s' if n != 1 else ''}"
+        return "Done"
+
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> dict:
         """Execute a tool call and return the result.
 
@@ -427,17 +443,17 @@ Here is a summary of the user's library:
                         cast(Any, b) for b in final_message.content if b.type == "tool_use"
                     ]
 
-                    for block in tool_use_blocks:
-                        # Yield a special marker the SSE handler can detect
-                        yield f"__tool_use__:{json.dumps({'tool': block.name, 'input': block.input})}"
-
                     # Append the full assistant message (with both text + tool_use blocks)
                     messages.append({"role": "assistant", "content": final_message.content})
 
-                    # Execute each tool and build tool_result entries
+                    # Execute each tool, yielding status markers for the SSE layer
                     tool_result_content = []
                     for block in tool_use_blocks:
+                        yield f"__tool_use__:{json.dumps({'tool': block.name, 'input': block.input})}"
                         tool_result = await self._execute_tool(block.name, block.input)
+                        # Build a human-readable summary of the result
+                        summary = self._tool_result_summary(block.name, tool_result)
+                        yield f"__tool_done__:{json.dumps({'tool': block.name, 'summary': summary})}"
                         tool_result_content.append(
                             {
                                 "type": "tool_result",
