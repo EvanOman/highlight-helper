@@ -1225,7 +1225,7 @@ class TestChatService:
 
         result = await service._execute_tool("search_highlights", {"query": "topic"})
         assert "highlights" in result
-        service._search_repo.search_highlights.assert_called_once_with("topic")
+        service._search_repo.search_highlights.assert_called_once_with("topic", limit=20)
 
     async def test_execute_tool_get_book_highlights(self):
         """Test _execute_tool dispatches get_book_highlights correctly."""

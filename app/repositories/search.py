@@ -120,13 +120,16 @@ class SearchRepository:
         """Prepare a user query for FTS5 MATCH.
 
         Wraps each word in double quotes to avoid FTS5 syntax errors from
-        special characters, and joins with spaces (implicit AND).
+        special characters, and joins with OR for better recall.
+        Using OR instead of implicit AND means any matching word will return
+        results, which is important for agentic search where the model may
+        use broad topic queries like "personal growth self-improvement".
         """
         words = query.strip().split()
         if not words:
             return '""'
-        # Quote each token to escape any FTS5 special characters
-        return " ".join(f'"{w}"' for w in words)
+        # Quote each token and join with OR for broader matching
+        return " OR ".join(f'"{w}"' for w in words)
 
 
 async def get_search_repo(db: AsyncSession = Depends(get_db)) -> SearchRepository:

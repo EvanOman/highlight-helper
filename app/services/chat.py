@@ -54,14 +54,16 @@ CHAT_TOOLS: list[ToolParam] = [
         "description": (
             "Search through all highlights and notes across all books. "
             "Use when the user asks about specific topics, concepts, or "
-            "wants to find passages they highlighted."
+            "wants to find passages they highlighted. Use short, focused "
+            "queries (1-3 words) for best results. Call multiple times with "
+            "different keywords rather than one long query."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query for highlight text or notes",
+                    "description": "Short search query (1-3 words) for highlight text or notes",
                 }
             },
             "required": ["query"],
@@ -121,14 +123,22 @@ class ChatService:
         Returns:
             Dict containing the tool result.
         """
+        logger.info("Tool call: %s(%s)", tool_name, tool_input)
         if tool_name == "search_books":
             results = await self._search_repo.search_books(tool_input["query"])
+            logger.info("search_books returned %d results", len(results))
             return {"books": results}
         if tool_name == "search_highlights":
-            results = await self._search_repo.search_highlights(tool_input["query"])
+            results = await self._search_repo.search_highlights(tool_input["query"], limit=20)
+            logger.info("search_highlights returned %d results", len(results))
             return {"highlights": results}
         if tool_name == "get_book_highlights":
             highlights = await self._highlight_repo.list_for_book(tool_input["book_id"])
+            logger.info(
+                "get_book_highlights(%s) returned %d highlights",
+                tool_input["book_id"],
+                len(highlights),
+            )
             return {
                 "highlights": [
                     {
