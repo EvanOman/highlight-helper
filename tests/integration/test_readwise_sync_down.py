@@ -1,6 +1,7 @@
 """Integration tests for the Readwise sync-down SSE endpoint."""
 
 import json
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,31 @@ from sqlalchemy import select
 from app.models.book import Book
 from app.models.highlight import Highlight, SyncStatus
 from app.services.readwise import ReadwiseService
+
+
+@contextmanager
+def _configured_readwise_patch():
+    """Patch that ensures ReadwiseService is configured in the endpoint.
+
+    The sync-down endpoint creates ReadwiseService() directly (not via DI),
+    which reads READWISE_API_TOKEN from the environment via get_settings().
+    In CI this env var doesn't exist, so the service is unconfigured.
+
+    We can't just patch os.environ because get_settings() is @lru_cache'd
+    and may already be cached without the token. Instead, we patch the
+    ReadwiseService class in the endpoint module so it always creates a
+    configured instance.
+    """
+    original_cls = ReadwiseService
+
+    def _make_configured(*args, **kwargs):
+        # Force the api_token so the service is always configured
+        kwargs.setdefault("api_token", "test-token-for-ci")
+        return original_cls(*args, **kwargs)
+
+    with patch("app.api.settings.ReadwiseService", side_effect=_make_configured):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -78,9 +104,12 @@ class TestSyncDownEndpointSSE:
         mock_client.v2.export_highlights.return_value = iter([])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
         assert response.status_code == 200
@@ -92,9 +121,12 @@ class TestSyncDownEndpointSSE:
         mock_client.v2.export_highlights.return_value = iter([])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
         assert response.status_code == 200
@@ -109,9 +141,12 @@ class TestSyncDownEndpointSSE:
         mock_client.v2.export_highlights.return_value = iter([])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
         events = _parse_sse_events(response.text)
@@ -175,9 +210,12 @@ class TestSyncDownSuccessfulEndpoint:
         mock_client.v2.export_highlights.return_value = iter([export_book])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
 
@@ -210,9 +248,12 @@ class TestSyncDownSuccessfulEndpoint:
         mock_client.v2.export_highlights.return_value = iter([export_book])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
 
@@ -246,9 +287,12 @@ class TestSyncDownSuccessfulEndpoint:
         mock_client.v2.export_highlights.return_value = iter([export_book])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
 
@@ -289,9 +333,12 @@ class TestSyncDownSuccessfulEndpoint:
         mock_client.v2.export_highlights.return_value = iter([book_a, book_b])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
 
@@ -334,9 +381,12 @@ class TestSyncDownErrorSchema:
         mock_client.v2.export_highlights.side_effect = ConnectionError("API unreachable")
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
 
@@ -363,6 +413,7 @@ class TestSyncDownTokenSource:
         mock_client.close = MagicMock()
 
         with (
+            _configured_readwise_patch(),
             patch(
                 "app.services.readwise.ReadwiseService._create_client",
                 return_value=mock_client,
@@ -385,9 +436,12 @@ class TestSyncDownCacheHeaders:
         mock_client.v2.export_highlights.return_value = iter([])
         mock_client.close = MagicMock()
 
-        with patch(
-            "app.services.readwise.ReadwiseService._create_client",
-            return_value=mock_client,
+        with (
+            _configured_readwise_patch(),
+            patch(
+                "app.services.readwise.ReadwiseService._create_client",
+                return_value=mock_client,
+            ),
         ):
             response = await client.post("/api/settings/readwise/sync-down")
         assert response.headers.get("cache-control") == "no-cache"
