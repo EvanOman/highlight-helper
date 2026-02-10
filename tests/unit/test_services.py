@@ -953,6 +953,48 @@ class TestSyncHighlightBackground:
             )
 
 
+def _make_text_delta_event(text_value):
+    """Create a mock content_block_delta event with a text delta."""
+    event = MagicMock()
+    event.type = "content_block_delta"
+    event.delta = MagicMock()
+    event.delta.text = text_value
+    # Ensure hasattr checks work correctly
+    del event.delta.partial_json
+    return event
+
+
+def _make_mock_stream(events, final_message):
+    """Create a mock stream context manager that yields events.
+
+    The stream supports both ``async for event in stream`` iteration
+    (used by the tool-use code path) and ``get_final_message()``.
+    """
+
+    class _MockStream:
+        def __init__(self):
+            self._events = list(events)
+            self._final = final_message
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def __aiter__(self):
+            return self._iter_events()
+
+        async def _iter_events(self):
+            for ev in self._events:
+                yield ev
+
+        async def get_final_message(self):
+            return self._final
+
+    return _MockStream()
+
+
 class TestChatService:
     """Tests for the ChatService metrics capture."""
 
@@ -967,18 +1009,15 @@ class TestChatService:
         mock_final_message = MagicMock()
         mock_final_message.usage = mock_usage
         mock_final_message.stop_reason = "end_turn"
+        mock_final_message.content = [MagicMock(type="text", text="Hello world")]
 
-        # Create a mock text_stream (async iterator)
-        async def mock_text_stream():
-            yield "Hello"
-            yield " world"
+        # Build events for the stream iterator
+        events = [
+            _make_text_delta_event("Hello"),
+            _make_text_delta_event(" world"),
+        ]
 
-        # Create a mock stream context manager
-        mock_stream = MagicMock()
-        mock_stream.text_stream = mock_text_stream()
-        mock_stream.get_final_message = AsyncMock(return_value=mock_final_message)
-        mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
-        mock_stream.__aexit__ = AsyncMock(return_value=False)
+        mock_stream = _make_mock_stream(events, mock_final_message)
 
         # Create mock client
         mock_client = MagicMock()
@@ -1048,3 +1087,180 @@ class TestChatService:
         assert len(chunks) == 1
         assert "error" in chunks[0].lower()
         assert service.last_metrics is None
+
+    async def test_tool_use_loop(self):
+        """Test that tool_use stop_reason triggers the tool loop and re-streams."""
+        import json
+
+        # -- First call: model requests a tool --
+        tool_use_block = MagicMock()
+        tool_use_block.type = "tool_use"
+        tool_use_block.name = "search_highlights"
+        tool_use_block.input = {"query": "leadership"}
+        tool_use_block.id = "tool_abc123"
+
+        first_usage = MagicMock()
+        first_usage.input_tokens = 80
+        first_usage.output_tokens = 20
+
+        first_final = MagicMock()
+        first_final.usage = first_usage
+        first_final.stop_reason = "tool_use"
+        first_final.content = [tool_use_block]
+
+        first_stream = _make_mock_stream([], first_final)
+
+        # -- Second call: model returns text after getting tool results --
+        second_usage = MagicMock()
+        second_usage.input_tokens = 120
+        second_usage.output_tokens = 40
+
+        second_final = MagicMock()
+        second_final.usage = second_usage
+        second_final.stop_reason = "end_turn"
+        second_final.content = [MagicMock(type="text", text="Here are your results")]
+
+        second_events = [
+            _make_text_delta_event("Here are "),
+            _make_text_delta_event("your results"),
+        ]
+        second_stream = _make_mock_stream(second_events, second_final)
+
+        # Set up client to return first_stream then second_stream
+        mock_client = MagicMock()
+        mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
+
+        # Mock DB
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=mock_client,
+            chat_model="claude-haiku-4-5-20251001",
+        )
+
+        # Mock the search repository to return results
+        service._search_repo = MagicMock()
+        service._search_repo.search_highlights = AsyncMock(
+            return_value=[
+                {
+                    "id": 1,
+                    "book_id": 1,
+                    "text": "Leadership is about influence",
+                    "note": None,
+                    "book_title": "Leadership Book",
+                    "book_author": "Author",
+                    "rank": -1.5,
+                    "snippet": "Leadership is about influence",
+                }
+            ]
+        )
+
+        chunks = [
+            chunk
+            async for chunk in service.send_message_from_history(
+                history=[{"role": "user", "content": "find highlights about leadership"}],
+            )
+        ]
+
+        # Should have tool_use marker + text chunks
+        tool_use_chunks = [c for c in chunks if c.startswith("__tool_use__:")]
+        text_chunks = [c for c in chunks if not c.startswith("__tool_use__:")]
+
+        assert len(tool_use_chunks) == 1
+        tool_data = json.loads(tool_use_chunks[0].replace("__tool_use__:", ""))
+        assert tool_data["tool"] == "search_highlights"
+
+        assert text_chunks == ["Here are ", "your results"]
+
+        # Metrics should aggregate both calls
+        assert service.last_metrics is not None
+        assert service.last_metrics["input_tokens"] == 200  # 80 + 120
+        assert service.last_metrics["output_tokens"] == 60  # 20 + 40
+
+    async def test_execute_tool_search_books(self):
+        """Test _execute_tool dispatches search_books correctly."""
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=MagicMock(),
+            chat_model="claude-haiku-4-5-20251001",
+        )
+        service._search_repo = MagicMock()
+        service._search_repo.search_books = AsyncMock(
+            return_value=[{"id": 1, "title": "Book", "author": "Auth", "rank": -1, "snippet": ""}]
+        )
+
+        result = await service._execute_tool("search_books", {"query": "test"})
+        assert "books" in result
+        assert len(result["books"]) == 1
+        service._search_repo.search_books.assert_called_once_with("test")
+
+    async def test_execute_tool_search_highlights(self):
+        """Test _execute_tool dispatches search_highlights correctly."""
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=MagicMock(),
+            chat_model="claude-haiku-4-5-20251001",
+        )
+        service._search_repo = MagicMock()
+        service._search_repo.search_highlights = AsyncMock(return_value=[])
+
+        result = await service._execute_tool("search_highlights", {"query": "topic"})
+        assert "highlights" in result
+        service._search_repo.search_highlights.assert_called_once_with("topic")
+
+    async def test_execute_tool_get_book_highlights(self):
+        """Test _execute_tool dispatches get_book_highlights correctly."""
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=MagicMock(),
+            chat_model="claude-haiku-4-5-20251001",
+        )
+        mock_highlight = MagicMock()
+        mock_highlight.text = "Some text"
+        mock_highlight.note = "A note"
+        mock_highlight.page_number = "10"
+
+        service._highlight_repo = MagicMock()
+        service._highlight_repo.list_for_book = AsyncMock(return_value=[mock_highlight])
+
+        result = await service._execute_tool("get_book_highlights", {"book_id": 42})
+        assert "highlights" in result
+        assert len(result["highlights"]) == 1
+        assert result["highlights"][0]["text"] == "Some text"
+        service._highlight_repo.list_for_book.assert_called_once_with(42)
+
+    async def test_execute_tool_unknown(self):
+        """Test _execute_tool returns error for unknown tool."""
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=MagicMock(),
+            chat_model="claude-haiku-4-5-20251001",
+        )
+
+        result = await service._execute_tool("unknown_tool", {})
+        assert "error" in result
+        assert "unknown_tool" in result["error"].lower()

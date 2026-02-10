@@ -158,6 +158,93 @@ def _run_migrations(conn) -> None:
         if "is_starred" not in book_columns:
             conn.execute(text("ALTER TABLE books ADD COLUMN is_starred BOOLEAN NOT NULL DEFAULT 0"))
 
+    # Migration 5: FTS5 full-text search tables for books and highlights
+    table_names = inspector.get_table_names()
+
+    if "books" in table_names and "books_fts" not in table_names:
+        # Create FTS5 virtual table for books
+        conn.execute(
+            text("""
+            CREATE VIRTUAL TABLE books_fts USING fts5(
+                title, author,
+                content=books, content_rowid=id
+            )
+        """)
+        )
+
+        # Triggers to keep books_fts in sync
+        conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
+                INSERT INTO books_fts(rowid, title, author)
+                VALUES (new.id, new.title, new.author);
+            END
+        """)
+        )
+        conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
+                INSERT INTO books_fts(books_fts, rowid, title, author)
+                VALUES ('delete', old.id, old.title, old.author);
+            END
+        """)
+        )
+        conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
+                INSERT INTO books_fts(books_fts, rowid, title, author)
+                VALUES ('delete', old.id, old.title, old.author);
+                INSERT INTO books_fts(rowid, title, author)
+                VALUES (new.id, new.title, new.author);
+            END
+        """)
+        )
+
+        # Populate FTS from existing data
+        conn.execute(text("INSERT INTO books_fts(books_fts) VALUES('rebuild')"))
+
+    if "highlights" in table_names and "highlights_fts" not in table_names:
+        # Create FTS5 virtual table for highlights
+        conn.execute(
+            text("""
+            CREATE VIRTUAL TABLE highlights_fts USING fts5(
+                text, note,
+                content=highlights, content_rowid=id
+            )
+        """)
+        )
+
+        # Triggers to keep highlights_fts in sync
+        conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS highlights_ai AFTER INSERT ON highlights BEGIN
+                INSERT INTO highlights_fts(rowid, text, note)
+                VALUES (new.id, new.text, new.note);
+            END
+        """)
+        )
+        conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS highlights_ad AFTER DELETE ON highlights BEGIN
+                INSERT INTO highlights_fts(highlights_fts, rowid, text, note)
+                VALUES ('delete', old.id, old.text, old.note);
+            END
+        """)
+        )
+        conn.execute(
+            text("""
+            CREATE TRIGGER IF NOT EXISTS highlights_au AFTER UPDATE ON highlights BEGIN
+                INSERT INTO highlights_fts(highlights_fts, rowid, text, note)
+                VALUES ('delete', old.id, old.text, old.note);
+                INSERT INTO highlights_fts(rowid, text, note)
+                VALUES (new.id, new.text, new.note);
+            END
+        """)
+        )
+
+        # Populate FTS from existing data
+        conn.execute(text("INSERT INTO highlights_fts(highlights_fts) VALUES('rebuild')"))
+
 
 @asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

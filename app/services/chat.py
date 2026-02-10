@@ -1,5 +1,6 @@
 """Chat service for conversing with highlights using Anthropic API."""
 
+import json
 import logging
 import time
 from collections.abc import AsyncGenerator, Iterable
@@ -18,6 +19,8 @@ from app.core.telemetry import get_tracer
 from app.models.api_usage import calculate_cost
 from app.models.book import Book
 from app.models.highlight import Highlight
+from app.repositories.highlight import HighlightRepository
+from app.repositories.search import SearchRepository
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,61 @@ MODEL_CONTEXT_WINDOWS = {
     "claude-sonnet-4-5-20250929": 200_000,
     "claude-haiku-4-5-20251001": 200_000,
 }
+
+CHAT_TOOLS = [
+    {
+        "name": "search_books",
+        "description": (
+            "Search for books by title or author. Use when the user mentions "
+            "a specific book or wants to find books on a topic."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for book title or author",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "search_highlights",
+        "description": (
+            "Search through all highlights and notes across all books. "
+            "Use when the user asks about specific topics, concepts, or "
+            "wants to find passages they highlighted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for highlight text or notes",
+                }
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "get_book_highlights",
+        "description": (
+            "Get all highlights from a specific book by its ID. "
+            "Use after finding a book via search to retrieve its full highlights."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "book_id": {
+                    "type": "integer",
+                    "description": "The book ID to get highlights for",
+                }
+            },
+            "required": ["book_id"],
+        },
+    },
+]
 
 
 class ChatService:
@@ -49,6 +107,38 @@ class ChatService:
         self._client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._chat_model = chat_model or settings.chat_model
         self.last_metrics: dict | None = None
+        self._search_repo = SearchRepository(db)
+        self._highlight_repo = HighlightRepository(db)
+
+    async def _execute_tool(self, tool_name: str, tool_input: dict) -> dict:
+        """Execute a tool call and return the result.
+
+        Args:
+            tool_name: Name of the tool to execute.
+            tool_input: Input arguments for the tool.
+
+        Returns:
+            Dict containing the tool result.
+        """
+        if tool_name == "search_books":
+            results = await self._search_repo.search_books(tool_input["query"])
+            return {"books": results}
+        if tool_name == "search_highlights":
+            results = await self._search_repo.search_highlights(tool_input["query"])
+            return {"highlights": results}
+        if tool_name == "get_book_highlights":
+            highlights = await self._highlight_repo.list_for_book(tool_input["book_id"])
+            return {
+                "highlights": [
+                    {
+                        "text": h.text,
+                        "note": h.note,
+                        "page": h.page_number,
+                    }
+                    for h in highlights
+                ]
+            }
+        return {"error": f"Unknown tool: {tool_name}"}
 
     async def _get_highlights_context(self, book_id: int | None = None) -> str:
         """Fetch highlights from the database and format as context.
@@ -139,6 +229,9 @@ Be conversational and insightful. Help users:
 - Explore themes and patterns in their highlights
 - Discuss and reflect on the content
 
+You have access to search tools that can find books and highlights. Use them when the user \
+asks about specific topics, books, or wants to find particular passages.
+
 Here are the user's highlights from this book:
 
 """
@@ -152,6 +245,10 @@ Be conversational and insightful. Help users:
 - Explore themes and patterns in their reading
 - Compare perspectives from different authors
 - Reflect on their reading journey
+
+You have access to search tools that can find books and highlights. Use them when the user \
+asks about specific topics, books, or wants to find particular passages. Prefer using search \
+tools over relying only on the context below, especially for specific queries.
 
 Here are all the user's highlights:
 
@@ -192,6 +289,7 @@ Here are all the user's highlights:
                 max_tokens=2048,
                 system=system_prompt,
                 messages=messages,
+                tools=CHAT_TOOLS,
             ) as stream:
                 async for text in stream.text_stream:
                     yield text
@@ -209,12 +307,17 @@ Here are all the user's highlights:
         Used by the thread-based chat flow where the API layer loads
         history from the database (already includes the latest user message).
 
+        Handles Anthropic tool use: when the model requests a tool, this
+        method executes it, appends the result, and re-streams until a
+        final text response is produced.
+
         Args:
             history: Full conversation history as list of {role, content} dicts
             book_id: Optional book ID to scope the conversation
 
         Yields:
-            Chunks of the response text
+            Text chunks of the response, plus special ``__tool_use__:``
+            prefixed lines so the SSE layer can display tool-use indicators.
         """
         self.last_metrics = None
         highlights_context = await self._get_highlights_context(book_id)
@@ -233,54 +336,101 @@ Here are all the user's highlights:
         t_start = time.monotonic()
         t_first_token = None
 
-        try:
-            async with self._client.messages.stream(
-                model=self._chat_model,
-                max_tokens=2048,
-                system=system_prompt,
-                messages=history,
-            ) as stream:
-                async for text in stream.text_stream:
-                    if t_first_token is None:
-                        t_first_token = time.monotonic()
-                    yield text
+        # Accumulate total usage across tool-use turns
+        total_input_tokens = 0
+        total_output_tokens = 0
+        final_stop_reason = None
 
-                # Still inside `async with stream` — get final message for usage
-                final_message = await stream.get_final_message()
+        try:
+            messages: list = list(history)  # copy so we can append tool results
+
+            max_tool_rounds = 5
+            for _round in range(max_tool_rounds):
+                async with self._client.messages.stream(
+                    model=self._chat_model,
+                    max_tokens=2048,
+                    system=system_prompt,
+                    messages=messages,
+                    tools=CHAT_TOOLS,
+                ) as stream:
+                    # Stream text deltas to the caller in real time
+                    async for event in stream:
+                        if (
+                            hasattr(event, "type")
+                            and event.type == "content_block_delta"
+                            and hasattr(event.delta, "text")
+                        ):
+                            if t_first_token is None:
+                                t_first_token = time.monotonic()
+                            yield event.delta.text
+
+                    final_message = await stream.get_final_message()
+
+                # Accumulate token usage
+                total_input_tokens += final_message.usage.input_tokens
+                total_output_tokens += final_message.usage.output_tokens
+                final_stop_reason = final_message.stop_reason
+
+                if final_message.stop_reason == "tool_use":
+                    # Signal tool use to the SSE layer
+                    tool_use_blocks = [b for b in final_message.content if b.type == "tool_use"]
+
+                    for block in tool_use_blocks:
+                        # Yield a special marker the SSE handler can detect
+                        yield f"__tool_use__:{json.dumps({'tool': block.name, 'input': block.input})}"
+
+                    # Append the full assistant message (with both text + tool_use blocks)
+                    messages.append({"role": "assistant", "content": final_message.content})
+
+                    # Execute each tool and build tool_result entries
+                    tool_result_content = []
+                    for block in tool_use_blocks:
+                        tool_result = await self._execute_tool(block.name, block.input)
+                        tool_result_content.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": json.dumps(tool_result),
+                            }
+                        )
+
+                    messages.append({"role": "user", "content": tool_result_content})
+                    continue  # loop back to stream again with tool results
+                else:
+                    break  # got a final text response, we're done
 
             t_end = time.monotonic()
 
-            input_tokens = final_message.usage.input_tokens
-            output_tokens = final_message.usage.output_tokens
-            total_tokens = input_tokens + output_tokens
-            stop_reason = final_message.stop_reason
+            total_tokens = total_input_tokens + total_output_tokens
 
             ttft_ms = ((t_first_token - t_start) * 1000) if t_first_token else None
             total_latency_ms = (t_end - t_start) * 1000
             generation_time = t_end - (t_first_token or t_start)
-            tokens_per_sec = (output_tokens / generation_time) if generation_time > 0 else None
-            cost_usd = calculate_cost(self._chat_model, input_tokens, output_tokens)
+            tokens_per_sec = (
+                (total_output_tokens / generation_time) if generation_time > 0 else None
+            )
+            cost_usd = calculate_cost(self._chat_model, total_input_tokens, total_output_tokens)
 
             context_window = MODEL_CONTEXT_WINDOWS.get(self._chat_model, 200_000)
-            context_utilization_pct = (input_tokens / context_window) * 100
+            context_utilization_pct = (total_input_tokens / context_window) * 100
 
             self.last_metrics = {
                 "model": self._chat_model,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
                 "total_tokens": total_tokens,
                 "cost_usd": cost_usd,
                 "ttft_ms": round(ttft_ms, 1) if ttft_ms is not None else None,
                 "total_latency_ms": round(total_latency_ms, 1),
                 "tokens_per_sec": round(tokens_per_sec, 1) if tokens_per_sec is not None else None,
-                "stop_reason": stop_reason,
+                "stop_reason": final_stop_reason,
                 "context_utilization_pct": round(context_utilization_pct, 2),
             }
 
             # Set span attributes with final metrics
-            span.set_attribute("gen_ai.usage.input_tokens", input_tokens)
-            span.set_attribute("gen_ai.usage.output_tokens", output_tokens)
-            span.set_attribute("gen_ai.response.finish_reasons", [stop_reason or "unknown"])
+            span.set_attribute("gen_ai.usage.input_tokens", total_input_tokens)
+            span.set_attribute("gen_ai.usage.output_tokens", total_output_tokens)
+            span.set_attribute("gen_ai.response.finish_reasons", [final_stop_reason or "unknown"])
             if ttft_ms is not None:
                 span.set_attribute("chat.ttft_ms", round(ttft_ms, 1))
             span.set_attribute("chat.total_latency_ms", round(total_latency_ms, 1))
