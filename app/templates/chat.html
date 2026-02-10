@@ -67,6 +67,21 @@
         </div>
         {% endif %}
 
+        <!-- Book search -->
+        <div class="px-3 pt-2 pb-1 relative">
+            <div class="relative">
+                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 dark:text-gray-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+                </svg>
+                <input type="text"
+                       id="book-search-input"
+                       placeholder="Search books..."
+                       autocomplete="off"
+                       class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 focus:outline-none">
+            </div>
+            <div id="book-search-results" class="hidden absolute left-3 right-3 top-full z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"></div>
+        </div>
+
         <!-- Thread list -->
         <div id="thread-list" class="flex-1 overflow-y-auto p-2 space-y-0.5">
             {% for thread in threads %}
@@ -464,5 +479,79 @@ chatForm.addEventListener('submit', async (e) => {
 });
 
 chatInput.focus();
+
+// Book search
+const bookSearchInput = document.getElementById('book-search-input');
+const bookSearchResults = document.getElementById('book-search-results');
+let searchDebounceTimer = null;
+
+function showBookResults(books) {
+    bookSearchResults.innerHTML = '';
+    if (books.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'px-3 py-2 text-xs text-gray-500 dark:text-gray-400';
+        empty.textContent = 'No books found';
+        bookSearchResults.appendChild(empty);
+    } else {
+        // "All books" option at the top when viewing a book-scoped chat
+        {% if book %}
+        const allItem = document.createElement('a');
+        allItem.href = '{{ base_path }}/chat';
+        allItem.className = 'flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 text-primary-600 dark:text-primary-400 font-medium';
+        allItem.textContent = 'All books (clear filter)';
+        bookSearchResults.appendChild(allItem);
+        {% endif %}
+
+        for (const book of books) {
+            const item = document.createElement('a');
+            item.href = `{{ base_path }}/books/${book.id}/chat`;
+            item.className = 'flex flex-col px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer';
+            const titleRow = document.createElement('span');
+            titleRow.className = 'font-medium text-gray-900 dark:text-white truncate';
+            titleRow.textContent = book.title;
+            const metaRow = document.createElement('span');
+            metaRow.className = 'text-gray-500 dark:text-gray-400 truncate';
+            metaRow.textContent = `${book.author} \u00B7 ${book.highlight_count} highlight${book.highlight_count !== 1 ? 's' : ''}`;
+            item.appendChild(titleRow);
+            item.appendChild(metaRow);
+            bookSearchResults.appendChild(item);
+        }
+    }
+    bookSearchResults.classList.remove('hidden');
+}
+
+function hideBookResults() {
+    bookSearchResults.classList.add('hidden');
+}
+
+async function searchBooks(query) {
+    try {
+        const params = new URLSearchParams();
+        if (query) params.set('q', query);
+        const response = await fetch(`{{ base_path }}/api/chat/books?${params}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        showBookResults(data.books);
+    } catch (error) {
+        console.error('Book search error:', error);
+    }
+}
+
+bookSearchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+        searchBooks(bookSearchInput.value.trim());
+    }, 300);
+});
+
+bookSearchInput.addEventListener('focus', () => {
+    searchBooks(bookSearchInput.value.trim());
+});
+
+document.addEventListener('click', (e) => {
+    if (!bookSearchInput.contains(e.target) && !bookSearchResults.contains(e.target)) {
+        hideBookResults();
+    }
+});
 </script>
 {% endblock %}
