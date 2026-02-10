@@ -71,9 +71,7 @@ class SettingsService:
 
     async def get_chat_model(self) -> str:
         """Get the configured chat model."""
-        return (
-            await self.get(CHAT_MODEL, default="claude-opus-4-20250514") or "claude-opus-4-20250514"
-        )
+        return await self.get(CHAT_MODEL, default="claude-opus-4-6") or "claude-opus-4-6"
 
     async def set_chat_model(self, model: str) -> None:
         """Set the chat model."""

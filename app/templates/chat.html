@@ -5,10 +5,39 @@
 {% block footer %}{% endblock %}
 
 {% block main_content %}
+<script src="https://cdn.jsdelivr.net/npm/streaming-markdown@0.0.22/smd.min.js"></script>
 <style>
     @media (pointer: coarse) {
         .thread-item .delete-btn { opacity: 1; }
     }
+    /* Markdown prose styling for assistant messages */
+    .msg-prose p { margin: 0.5em 0; }
+    .msg-prose p:first-child { margin-top: 0; }
+    .msg-prose p:last-child { margin-bottom: 0; }
+    .msg-prose h1, .msg-prose h2, .msg-prose h3 { font-weight: 600; margin: 0.75em 0 0.25em; }
+    .msg-prose h1 { font-size: 1.25em; }
+    .msg-prose h2 { font-size: 1.125em; }
+    .msg-prose h3 { font-size: 1em; }
+    .msg-prose ul, .msg-prose ol { margin: 0.5em 0; padding-left: 1.5em; }
+    .msg-prose li { margin: 0.25em 0; }
+    .msg-prose ul { list-style-type: disc; }
+    .msg-prose ol { list-style-type: decimal; }
+    .msg-prose code { background: rgba(0,0,0,0.08); padding: 0.15em 0.3em; border-radius: 0.25em; font-size: 0.875em; }
+    .dark .msg-prose code { background: rgba(255,255,255,0.1); }
+    .msg-prose pre { margin: 0.5em 0; border-radius: 0.5em; overflow-x: auto; }
+    .msg-prose pre code { background: #1e293b; color: #e2e8f0; display: block; padding: 0.75em 1em; font-size: 0.8125em; line-height: 1.6; }
+    .msg-prose blockquote { border-left: 3px solid #94a3b8; padding-left: 0.75em; margin: 0.5em 0; color: #64748b; }
+    .dark .msg-prose blockquote { border-color: #475569; color: #94a3b8; }
+    .msg-prose a { color: #0ea5e9; text-decoration: underline; }
+    .msg-prose strong { font-weight: 600; }
+    .msg-prose em { font-style: italic; }
+    .msg-prose hr { border: none; border-top: 1px solid #e2e8f0; margin: 0.75em 0; }
+    .dark .msg-prose hr { border-color: #374151; }
+    .msg-prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.875em; }
+    .msg-prose th, .msg-prose td { border: 1px solid #e2e8f0; padding: 0.375em 0.75em; }
+    .dark .msg-prose th, .dark .msg-prose td { border-color: #374151; }
+    .msg-prose th { background: rgba(0,0,0,0.04); font-weight: 600; }
+    .dark .msg-prose th { background: rgba(255,255,255,0.05); }
 </style>
 <div class="flex" style="height: calc(100vh - 3.5rem)">
 
@@ -184,7 +213,7 @@ function clearMessages() {
     chatMessages.appendChild(placeholder);
 }
 
-function addMessage(role, content) {
+function addMessage(role, content, opts = {}) {
     const placeholder = document.getElementById('chat-placeholder');
     if (placeholder && placeholder.parentNode) {
         placeholder.remove();
@@ -196,10 +225,19 @@ function addMessage(role, content) {
         : 'flex justify-start';
 
     const bubble = document.createElement('div');
-    bubble.className = role === 'user'
-        ? 'max-w-[80%] px-4 py-2 rounded-2xl bg-primary-600 text-white whitespace-pre-wrap'
-        : 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white whitespace-pre-wrap';
-    bubble.textContent = content;
+    if (role === 'user') {
+        bubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-primary-600 text-white whitespace-pre-wrap';
+        bubble.textContent = content;
+    } else {
+        bubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
+        if (content && !opts.streaming) {
+            // Render saved message markdown using smd in one shot
+            const renderer = smd.default_renderer(bubble);
+            const parser = smd.parser(renderer);
+            smd.parser_write(parser, content);
+            smd.parser_end(parser);
+        }
+    }
 
     messageDiv.appendChild(bubble);
     chatMessages.appendChild(messageDiv);
@@ -326,7 +364,9 @@ chatForm.addEventListener('submit', async (e) => {
     addMessage('user', message);
     chatInput.value = '';
 
-    const assistantBubble = addMessage('assistant', '');
+    const assistantBubble = addMessage('assistant', '', { streaming: true });
+    const smdRenderer = smd.default_renderer(assistantBubble);
+    const smdParser = smd.parser(smdRenderer);
     setLoading(true);
 
     try {
@@ -346,7 +386,6 @@ chatForm.addEventListener('submit', async (e) => {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let fullResponse = '';
         let buffer = '';
 
         while (true) {
@@ -378,21 +417,24 @@ chatForm.addEventListener('submit', async (e) => {
                     warning.textContent = 'Warning: Response may not have been saved';
                     assistantBubble.parentElement.appendChild(warning);
                 } else if (eventType === 'done') {
+                    smd.parser_end(smdParser);
                     const threadId = parseInt(data);
                     if (!currentThreadId && threadId) {
                         addThreadItem(threadId, message.slice(0, 50));
                         setActiveThread(threadId);
                     }
                 } else if (dataLines.length > 0) {
-                    fullResponse += data;
-                    assistantBubble.textContent = fullResponse;
+                    smd.parser_write(smdParser, data);
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 }
             }
         }
     } catch (error) {
         console.error('Chat error:', error);
+        smd.parser_end(smdParser);
+        assistantBubble.innerHTML = '';
         assistantBubble.textContent = 'Error: Could not get response. Please try again.';
+        assistantBubble.classList.remove('msg-prose');
         assistantBubble.classList.add('text-red-500', 'dark:text-red-400');
     } finally {
         setLoading(false);

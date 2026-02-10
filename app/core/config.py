@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # Model configuration
     vision_model: str = "openai/gpt-5.2"
-    chat_model: str = "claude-opus-4-20250514"
+    chat_model: str = "claude-opus-4-6"
 
     # Readwise (optional)
     readwise_api_token: str | None = None
