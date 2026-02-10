@@ -24,7 +24,7 @@ async def fts_engine():
 
 
 @pytest.fixture
-async def fts_session(fts_engine) -> AsyncSession:
+async def fts_session(fts_engine):
     """Create a session with FTS5 tables available."""
     maker = async_sessionmaker(fts_engine, class_=AsyncSession, expire_on_commit=False)
     async with maker() as session:

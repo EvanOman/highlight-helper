@@ -4,9 +4,10 @@ import json
 import logging
 import time
 from collections.abc import AsyncGenerator, Iterable
+from typing import Any, cast
 
 from anthropic import AsyncAnthropic
-from anthropic.types import MessageParam
+from anthropic.types import MessageParam, ToolParam
 from fastapi import Depends
 from opentelemetry import context as context_api
 from opentelemetry.trace import Status, StatusCode, set_span_in_context
@@ -30,7 +31,7 @@ MODEL_CONTEXT_WINDOWS = {
     "claude-haiku-4-5-20251001": 200_000,
 }
 
-CHAT_TOOLS = [
+CHAT_TOOLS: list[ToolParam] = [
     {
         "name": "search_books",
         "description": (
@@ -358,11 +359,12 @@ Here are all the user's highlights:
                         if (
                             hasattr(event, "type")
                             and event.type == "content_block_delta"
+                            and hasattr(event, "delta")
                             and hasattr(event.delta, "text")
                         ):
                             if t_first_token is None:
                                 t_first_token = time.monotonic()
-                            yield event.delta.text
+                            yield cast(Any, event).delta.text
 
                     final_message = await stream.get_final_message()
 
@@ -373,7 +375,9 @@ Here are all the user's highlights:
 
                 if final_message.stop_reason == "tool_use":
                     # Signal tool use to the SSE layer
-                    tool_use_blocks = [b for b in final_message.content if b.type == "tool_use"]
+                    tool_use_blocks = [
+                        cast(Any, b) for b in final_message.content if b.type == "tool_use"
+                    ]
 
                     for block in tool_use_blocks:
                         # Yield a special marker the SSE handler can detect
