@@ -143,7 +143,20 @@ async function refreshMetrics() {
             return;
         }
 
-        tbody.innerHTML = data.metrics.map(m => {
+        tbody.replaceChildren();
+        const cellDefs = [
+            { cls: 'px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap', align: '' },
+            { cls: 'px-3 py-2 text-gray-700 dark:text-gray-300', align: '' },
+            { cls: 'px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap', align: '' },
+            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
+            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
+            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
+            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap', align: '' },
+            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
+            { cls: 'px-3 py-2 text-gray-600 dark:text-gray-400', align: '' },
+            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
+        ];
+        for (const m of data.metrics) {
             const ts = m.timestamp ? new Date(m.timestamp) : null;
             const timeStr = ts ? ((ts.getMonth()+1) + '/' + ts.getDate().toString().padStart(2,'0') + ' ' + ts.getHours().toString().padStart(2,'0') + ':' + ts.getMinutes().toString().padStart(2,'0')) : '-';
             const modelShort = m.model.includes('-') ? m.model.split('-')[1] : m.model;
@@ -151,20 +164,28 @@ async function refreshMetrics() {
             const latency = m.total_latency_ms != null ? (m.total_latency_ms / 1000).toFixed(1) + 's' : '-';
             const tps = m.tokens_per_sec != null ? m.tokens_per_sec.toFixed(1) : '-';
             const ctx = m.context_utilization_pct != null ? m.context_utilization_pct.toFixed(1) + '%' : '-';
-
-            return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                <td class="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">${timeStr}</td>
-                <td class="px-3 py-2 text-gray-700 dark:text-gray-300">${m.thread_id || '-'}</td>
-                <td class="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">${modelShort}</td>
-                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${ttft}</td>
-                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${latency}</td>
-                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${tps}</td>
-                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">${m.input_tokens.toLocaleString()}/${m.output_tokens.toLocaleString()}</td>
-                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">$${m.cost_usd.toFixed(4)}</td>
-                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">${m.stop_reason || '-'}</td>
-                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${ctx}</td>
-            </tr>`;
-        }).join('');
+            const values = [
+                timeStr,
+                m.thread_id || '-',
+                modelShort,
+                ttft,
+                latency,
+                tps,
+                m.input_tokens.toLocaleString() + '/' + m.output_tokens.toLocaleString(),
+                '$' + m.cost_usd.toFixed(4),
+                m.stop_reason || '-',
+                ctx,
+            ];
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
+            for (let i = 0; i < cellDefs.length; i++) {
+                const td = document.createElement('td');
+                td.className = cellDefs[i].cls;
+                td.textContent = values[i];
+                tr.appendChild(td);
+            }
+            tbody.appendChild(tr);
+        }
     } catch (error) {
         console.error('Error refreshing metrics:', error);
     } finally {
