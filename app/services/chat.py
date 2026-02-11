@@ -89,6 +89,36 @@ CHAT_TOOLS: list[ToolParam] = [
 ]
 
 
+def _serialize_content_blocks(content_blocks: list) -> list[dict]:
+    """Serialize Anthropic content blocks (SDK objects) to plain dicts.
+
+    Handles both text and tool_use blocks from the Anthropic SDK response.
+    """
+    result = []
+    for block in content_blocks:
+        if hasattr(block, "type"):
+            if block.type == "text":
+                result.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                result.append(
+                    {
+                        "type": "tool_use",
+                        "id": block.id,
+                        "name": block.name,
+                        "input": block.input,
+                    }
+                )
+            else:
+                # Fallback: try to convert via model_dump or dict
+                if hasattr(block, "model_dump"):
+                    result.append(block.model_dump())
+                else:
+                    result.append({"type": str(block.type)})
+        elif isinstance(block, dict):
+            result.append(block)
+    return result
+
+
 class ChatService:
     """Service for chatting with highlights using Claude."""
 
@@ -381,6 +411,7 @@ Here is a summary of the user's library:
             prefixed lines so the SSE layer can display tool-use indicators.
         """
         self.last_metrics = None
+        self.tool_messages: list[dict] = []
         highlights_context = await self._get_highlights_context(book_id)
         system_prompt = self._build_system_prompt(highlights_context, book_id)
 
@@ -443,6 +474,9 @@ Here is a summary of the user's library:
                         cast(Any, b) for b in final_message.content if b.type == "tool_use"
                     ]
 
+                    # Serialize content blocks to dicts for persistence
+                    serialized_content = _serialize_content_blocks(final_message.content)
+
                     # Append the full assistant message (with both text + tool_use blocks)
                     messages.append({"role": "assistant", "content": final_message.content})
 
@@ -461,6 +495,14 @@ Here is a summary of the user's library:
                                 "content": json.dumps(tool_result),
                             }
                         )
+
+                    # Store serialized tool messages for persistence by the API layer
+                    self.tool_messages.append(
+                        {"role": "assistant", "content_blocks": serialized_content}
+                    )
+                    self.tool_messages.append(
+                        {"role": "user", "content_blocks": tool_result_content}
+                    )
 
                     messages.append({"role": "user", "content": tool_result_content})
                     continue  # loop back to stream again with tool results
