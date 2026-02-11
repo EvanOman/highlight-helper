@@ -1235,6 +1235,217 @@ class TestChatService:
         assert service.last_metrics["input_tokens"] == 200  # 80 + 120
         assert service.last_metrics["output_tokens"] == 60  # 20 + 40
 
+    async def test_tool_messages_captured_for_persistence(self):
+        """Test that tool_messages list is populated with serialized tool context.
+
+        After a tool-use round, the service should expose serialized
+        assistant (tool_use) and user (tool_result) messages so the API
+        layer can persist them for conversation history reconstruction.
+        """
+        import json
+
+        # -- First call: model requests a tool --
+        tool_use_block = MagicMock()
+        tool_use_block.type = "tool_use"
+        tool_use_block.name = "search_highlights"
+        tool_use_block.input = {"query": "leadership"}
+        tool_use_block.id = "tool_abc123"
+
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Let me search..."
+
+        first_usage = MagicMock()
+        first_usage.input_tokens = 80
+        first_usage.output_tokens = 20
+
+        first_final = MagicMock()
+        first_final.usage = first_usage
+        first_final.stop_reason = "tool_use"
+        first_final.content = [text_block, tool_use_block]
+
+        first_stream = _make_mock_stream([_make_text_delta_event("Let me search...")], first_final)
+
+        # -- Second call: model returns text --
+        second_usage = MagicMock()
+        second_usage.input_tokens = 120
+        second_usage.output_tokens = 40
+
+        second_final = MagicMock()
+        second_final.usage = second_usage
+        second_final.stop_reason = "end_turn"
+        second_final.content = [MagicMock(type="text", text="Here are your results")]
+
+        second_events = [_make_text_delta_event("Here are your results")]
+        second_stream = _make_mock_stream(second_events, second_final)
+
+        mock_client = MagicMock()
+        mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=mock_client,
+            chat_model="claude-haiku-4-5-20251001",
+        )
+        service._search_repo = MagicMock()
+        service._search_repo.search_highlights = AsyncMock(
+            return_value=[{"id": 1, "text": "Leadership quote", "note": None}]
+        )
+
+        # Consume the generator
+        _ = [
+            chunk
+            async for chunk in service.send_message_from_history(
+                history=[{"role": "user", "content": "find highlights about leadership"}],
+            )
+        ]
+
+        # tool_messages should have exactly 2 entries: assistant tool_use + user tool_result
+        assert len(service.tool_messages) == 2
+
+        # First: assistant message with serialized content_blocks
+        assistant_msg = service.tool_messages[0]
+        assert assistant_msg["role"] == "assistant"
+        blocks = assistant_msg["content_blocks"]
+        assert len(blocks) == 2
+        assert blocks[0] == {"type": "text", "text": "Let me search..."}
+        assert blocks[1]["type"] == "tool_use"
+        assert blocks[1]["id"] == "tool_abc123"
+        assert blocks[1]["name"] == "search_highlights"
+        assert blocks[1]["input"] == {"query": "leadership"}
+
+        # Second: user message with tool_result content_blocks
+        user_msg = service.tool_messages[1]
+        assert user_msg["role"] == "user"
+        result_blocks = user_msg["content_blocks"]
+        assert len(result_blocks) == 1
+        assert result_blocks[0]["type"] == "tool_result"
+        assert result_blocks[0]["tool_use_id"] == "tool_abc123"
+        # The tool result content is JSON-encoded
+        parsed_result = json.loads(result_blocks[0]["content"])
+        assert "highlights" in parsed_result
+
+    async def test_tool_messages_round_trip_as_json(self):
+        """Test that tool_messages can be JSON-serialized and deserialized.
+
+        This verifies the data is suitable for storage in the content_blocks
+        column and reconstruction into Anthropic API message format.
+        """
+        import json
+
+        # -- First call: model requests a tool --
+        tool_use_block = MagicMock()
+        tool_use_block.type = "tool_use"
+        tool_use_block.name = "search_books"
+        tool_use_block.input = {"query": "fiction"}
+        tool_use_block.id = "tool_xyz789"
+
+        first_usage = MagicMock()
+        first_usage.input_tokens = 50
+        first_usage.output_tokens = 15
+
+        first_final = MagicMock()
+        first_final.usage = first_usage
+        first_final.stop_reason = "tool_use"
+        first_final.content = [tool_use_block]
+
+        first_stream = _make_mock_stream([], first_final)
+
+        # -- Second call: model returns text --
+        second_usage = MagicMock()
+        second_usage.input_tokens = 100
+        second_usage.output_tokens = 30
+
+        second_final = MagicMock()
+        second_final.usage = second_usage
+        second_final.stop_reason = "end_turn"
+        second_final.content = [MagicMock(type="text", text="Done")]
+
+        second_stream = _make_mock_stream([_make_text_delta_event("Done")], second_final)
+
+        mock_client = MagicMock()
+        mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=mock_client,
+            chat_model="claude-haiku-4-5-20251001",
+        )
+        service._search_repo = MagicMock()
+        service._search_repo.search_books = AsyncMock(
+            return_value=[{"id": 1, "title": "A Novel", "author": "Auth"}]
+        )
+
+        _ = [
+            chunk
+            async for chunk in service.send_message_from_history(
+                history=[{"role": "user", "content": "search for fiction books"}],
+            )
+        ]
+
+        # Simulate the round-trip: serialize to JSON (as the DB would store) and deserialize
+        for tool_msg in service.tool_messages:
+            serialized = json.dumps(tool_msg["content_blocks"])
+            deserialized = json.loads(serialized)
+
+            # Deserialized should match original
+            assert deserialized == tool_msg["content_blocks"]
+
+            # Verify it can be used as Anthropic API content
+            api_message = {"role": tool_msg["role"], "content": deserialized}
+            assert api_message["role"] in ("assistant", "user")
+            assert isinstance(api_message["content"], list)
+
+    async def test_no_tool_messages_for_plain_response(self):
+        """Test that tool_messages is empty when no tools are used."""
+        mock_usage = MagicMock()
+        mock_usage.input_tokens = 100
+        mock_usage.output_tokens = 50
+
+        mock_final_message = MagicMock()
+        mock_final_message.usage = mock_usage
+        mock_final_message.stop_reason = "end_turn"
+        mock_final_message.content = [MagicMock(type="text", text="Hello")]
+
+        events = [_make_text_delta_event("Hello")]
+        mock_stream = _make_mock_stream(events, mock_final_message)
+
+        mock_client = MagicMock()
+        mock_client.messages.stream = MagicMock(return_value=mock_stream)
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = []
+        mock_result.scalar.return_value = 0
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        service = ChatService(
+            db=mock_db,
+            client=mock_client,
+            chat_model="claude-haiku-4-5-20251001",
+        )
+
+        _ = [
+            chunk
+            async for chunk in service.send_message_from_history(
+                history=[{"role": "user", "content": "Hello"}],
+            )
+        ]
+
+        assert service.tool_messages == []
+
     async def test_execute_tool_search_books(self):
         """Test _execute_tool dispatches search_books correctly."""
         mock_db = AsyncMock()
@@ -1318,3 +1529,74 @@ class TestChatService:
         result = await service._execute_tool("unknown_tool", {})
         assert "error" in result
         assert "unknown_tool" in result["error"].lower()
+
+
+class TestSerializeContentBlocks:
+    """Tests for the _serialize_content_blocks helper."""
+
+    def test_serialize_text_block(self):
+        """Test serializing a text content block."""
+        from app.services.chat import _serialize_content_blocks
+
+        block = MagicMock()
+        block.type = "text"
+        block.text = "Hello world"
+
+        result = _serialize_content_blocks([block])
+        assert result == [{"type": "text", "text": "Hello world"}]
+
+    def test_serialize_tool_use_block(self):
+        """Test serializing a tool_use content block."""
+        from app.services.chat import _serialize_content_blocks
+
+        block = MagicMock()
+        block.type = "tool_use"
+        block.id = "tool_123"
+        block.name = "search_highlights"
+        block.input = {"query": "leadership"}
+
+        result = _serialize_content_blocks([block])
+        assert result == [
+            {
+                "type": "tool_use",
+                "id": "tool_123",
+                "name": "search_highlights",
+                "input": {"query": "leadership"},
+            }
+        ]
+
+    def test_serialize_mixed_blocks(self):
+        """Test serializing a mix of text and tool_use blocks."""
+        from app.services.chat import _serialize_content_blocks
+
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "Let me search for that."
+
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.id = "tool_456"
+        tool_block.name = "search_books"
+        tool_block.input = {"query": "fiction"}
+
+        result = _serialize_content_blocks([text_block, tool_block])
+        assert len(result) == 2
+        assert result[0] == {"type": "text", "text": "Let me search for that."}
+        assert result[1]["type"] == "tool_use"
+        assert result[1]["name"] == "search_books"
+
+    def test_serialize_dict_passthrough(self):
+        """Test that plain dicts are passed through unchanged."""
+        from app.services.chat import _serialize_content_blocks
+
+        block = {"type": "tool_result", "tool_use_id": "tool_123", "content": "{}"}
+
+        result = _serialize_content_blocks([block])
+        assert result == [block]
+
+    def test_serialize_empty_list(self):
+        """Test serializing an empty list."""
+        from app.services.chat import _serialize_content_blocks
+
+        result = _serialize_content_blocks([])
+        assert result == []

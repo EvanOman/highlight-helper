@@ -1,5 +1,6 @@
 """API endpoints and views for chat functionality."""
 
+import json
 import logging
 from typing import cast
 
@@ -189,6 +190,7 @@ async def get_thread_messages(
             "created_at": m.created_at.isoformat() if m.created_at else None,
         }
         for m in messages
+        if not m.content_blocks  # Hide tool_use/tool_result messages from display
     ]
 
 
@@ -236,12 +238,16 @@ async def send_chat_message(
     # Save user message immediately
     await chat_repo.create_message(thread_id=thread_id, role="user", content=request.message)
 
-    # Load full conversation history from DB
+    # Load full conversation history from DB, restoring structured content
+    # blocks (tool_use / tool_result) when available.
     messages = await chat_repo.list_messages(thread_id)
-    history = cast(
-        list[MessageParam],
-        [{"role": m.role, "content": m.content} for m in messages],
-    )
+    history: list[MessageParam] = []
+    for m in messages:
+        if m.content_blocks:
+            blocks = json.loads(m.content_blocks)
+            history.append(cast(MessageParam, {"role": m.role, "content": blocks}))
+        else:
+            history.append(cast(MessageParam, {"role": m.role, "content": m.content}))
 
     # Commit the request session now to release the SQLite lock.
     # The streaming generator uses an independent session (get_async_session)
@@ -270,13 +276,27 @@ async def send_chat_message(
                 yield f"data: {line}\n"
             yield "\n"
 
-        # Save assistant response and metrics using independent session
+        # Save tool messages and assistant response using independent session
         try:
             async with get_async_session() as session:
                 from app.repositories.chat import ChatRepository as ChatRepo
                 from app.repositories.chat_metric import ChatMetricRepository
 
                 repo = ChatRepo(session)
+
+                # Save intermediate tool messages (assistant tool_use + user tool_result)
+                for tool_msg in chat_service.tool_messages:
+                    blocks_json = json.dumps(tool_msg["content_blocks"])
+                    # For display, use a short summary as the content text
+                    display = "[tool call]" if tool_msg["role"] == "assistant" else "[tool result]"
+                    await repo.create_message(
+                        thread_id=thread_id,
+                        role=tool_msg["role"],
+                        content=display,
+                        content_blocks=blocks_json,
+                    )
+
+                # Save final assistant text response
                 await repo.create_message(
                     thread_id=thread_id, role="assistant", content=full_response
                 )

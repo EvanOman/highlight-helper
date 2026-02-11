@@ -67,9 +67,21 @@ class ChatRepository:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def create_message(self, thread_id: int, role: str, content: str) -> ChatMessage:
-        """Create a new message in a thread."""
-        message = ChatMessage(thread_id=thread_id, role=role, content=content)
+    async def create_message(
+        self, thread_id: int, role: str, content: str, content_blocks: str | None = None
+    ) -> ChatMessage:
+        """Create a new message in a thread.
+
+        Args:
+            thread_id: ID of the thread this message belongs to.
+            role: Message role ("user", "assistant").
+            content: Plain text content for display.
+            content_blocks: Optional JSON-encoded structured content blocks
+                (tool_use / tool_result) for API history reconstruction.
+        """
+        message = ChatMessage(
+            thread_id=thread_id, role=role, content=content, content_blocks=content_blocks
+        )
         self.db.add(message)
         await self.db.flush()
         await self.db.refresh(message)

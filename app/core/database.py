@@ -251,6 +251,12 @@ def _run_migrations(conn) -> None:
             text("CREATE INDEX IF NOT EXISTS ix_highlights_book_id ON highlights (book_id)")
         )
 
+    # Migration 7: Add content_blocks column to chat_messages table
+    if "chat_messages" in table_names:
+        chat_msg_columns = {c["name"]: c for c in inspector.get_columns("chat_messages")}
+        if "content_blocks" not in chat_msg_columns:
+            conn.execute(text("ALTER TABLE chat_messages ADD COLUMN content_blocks TEXT"))
+
 
 @asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
