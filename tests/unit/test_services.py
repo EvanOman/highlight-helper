@@ -3,6 +3,8 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from readwise_sdk.v2.models import HighlightUpdate
+
 from app.services.book_lookup import BookLookupService
 from app.services.chat import ChatService
 from app.services.highlight_extractor import (
@@ -748,12 +750,15 @@ class TestReadwiseService:
 
         assert result.success is True
 
-        # Verify update was called with only text
+        # Verify update was called with a HighlightUpdate model
         mock_v2.update_highlight.assert_called_once()
-        call_kwargs = mock_v2.update_highlight.call_args[1]
-        assert call_kwargs.get("text") == "Only text updated"
-        assert "note" not in call_kwargs
-        assert "location" not in call_kwargs
+        call_args = mock_v2.update_highlight.call_args[0]
+        assert call_args[0] == 67890  # highlight_id
+        update_model = call_args[1]
+        assert isinstance(update_model, HighlightUpdate)
+        assert update_model.text == "Only text updated"
+        assert update_model.note is None
+        assert update_model.location is None
 
     async def test_update_highlight_no_token(self):
         """Test update_highlight without token configured."""
@@ -847,9 +852,43 @@ class TestReadwiseService:
 
         assert result.success is True
 
-        # Verify payload contains empty note
-        call_kwargs = mock_v2.update_highlight.call_args[1]
-        assert call_kwargs.get("note") == ""
+        # Verify the HighlightUpdate model contains empty note
+        call_args = mock_v2.update_highlight.call_args[0]
+        update_model = call_args[1]
+        assert isinstance(update_model, HighlightUpdate)
+        assert update_model.note == ""
+
+    async def test_update_highlight_uses_highlight_update_model(self):
+        """Test that update_highlight constructs a HighlightUpdate model for the SDK."""
+        service = ReadwiseService(api_token="test_token")
+
+        mock_v2 = MagicMock()
+        mock_v2.update_highlight = MagicMock(return_value=None)
+
+        mock_client = MagicMock()
+        mock_client.v2 = mock_v2
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=None)
+
+        with patch("app.services.readwise.ReadwiseClient", return_value=mock_client):
+            result = await service.update_highlight(
+                readwise_id="67890",
+                text="Updated text",
+                note="Updated note",
+                page_number="50",
+            )
+
+        assert result.success is True
+
+        # Verify the SDK was called with (highlight_id, HighlightUpdate)
+        mock_v2.update_highlight.assert_called_once()
+        call_args = mock_v2.update_highlight.call_args[0]
+        assert call_args[0] == 67890
+        update_model = call_args[1]
+        assert isinstance(update_model, HighlightUpdate)
+        assert update_model.text == "Updated text"
+        assert update_model.note == "Updated note"
+        assert update_model.location == 50
 
 
 class TestSyncHighlightBackground:
