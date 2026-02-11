@@ -37,7 +37,7 @@ class Highlight(Base):
     __tablename__ = "highlights"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    book_id: Mapped[int] = mapped_column(ForeignKey("books.id"), nullable=False)
+    book_id: Mapped[int] = mapped_column(ForeignKey("books.id"), nullable=False, index=True)
     text: Mapped[str | None] = mapped_column(Text, nullable=True)  # Nullable for notes
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     page_number: Mapped[str | None] = mapped_column(String(50), nullable=True)

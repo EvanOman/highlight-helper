@@ -245,6 +245,12 @@ def _run_migrations(conn) -> None:
         # Populate FTS from existing data
         conn.execute(text("INSERT INTO highlights_fts(highlights_fts) VALUES('rebuild')"))
 
+    # Migration 6: Add index on highlights.book_id for efficient book detail queries
+    if "highlights" in table_names:
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_highlights_book_id ON highlights (book_id)")
+        )
+
 
 @asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
