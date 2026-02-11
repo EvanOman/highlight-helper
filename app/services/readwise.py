@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from readwise_sdk import ReadwiseClient
 from readwise_sdk.contrib import HighlightPusher, PushResult, SimpleHighlight
 from readwise_sdk.v2 import BookCategory
+from readwise_sdk.v2.models import HighlightUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -318,7 +319,8 @@ class ReadwiseService:
             def _update() -> None:
                 client = self._create_client()
                 try:
-                    client.v2.update_highlight(int(readwise_id), **update_kwargs)
+                    update = HighlightUpdate(**update_kwargs)
+                    client.v2.update_highlight(int(readwise_id), update)
                 finally:
                     client.close()
 
