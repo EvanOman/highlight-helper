@@ -45,9 +45,7 @@ Highlight Helper captures and organizes passages from physical books. Take a pho
 
 Highlight Helper proactively generates coaching cards based on your reading highlights — prompting you to revisit old passages, find cross-book connections, and reflect on what you've read. Click "Reflect in Chat" to start a Socratic coaching session where the AI draws on your actual highlights to ask thoughtful questions.
 
-![Coaching session exploring comparison and contentment across highlights from Rachel Cruze](static/screenshots/coaching-session.png)
-
-![Coaching session revisiting a highlight about self-worth from KC Davis](static/screenshots/coaching-session-2.png)
+![Coaching session exploring probabilistic thinking and navigating uncertainty](static/screenshots/coaching-session.png)
 
 ## Technology Stack
 
