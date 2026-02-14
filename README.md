@@ -23,8 +23,23 @@ Highlight Helper captures and organizes passages from physical books. Take a pho
 - **Book Library Management** — Search and add books via Google Books API with cover art and metadata
 - **Mobile-First Design** — Responsive, touch-friendly interface designed for phones and tablets
 - **Highlight Organization** — View all highlights in one place, organized by book
+- **Chat with Your Highlights** — Ask questions across your entire library; the AI searches and quotes your actual highlights
 - **Readwise Sync** — Sync highlights to Readwise for integration with your reading workflow
 - **Local Database** — Data stored in SQLite; highlights stay on your server
+
+## Screenshots
+
+### Book Library
+
+![Book library showing covers, authors, and highlight counts](static/screenshots/library.png)
+
+### Book Detail
+
+![Book detail page with reading progress timeline and highlighted passages](static/screenshots/book-detail.png)
+
+### Chat with Your Highlights
+
+![Chat conversation analyzing themes across a 61-book library](static/screenshots/chat.png)
 
 ## AI Reading Coach
 
