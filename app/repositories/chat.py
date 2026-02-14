@@ -32,7 +32,10 @@ class ChatRepository:
         if book_id is not None:
             query = query.where(ChatThread.book_id == book_id)
         else:
-            query = query.where(ChatThread.book_id.is_(None))
+            # Global view: show threads with no book_id OR coaching threads
+            query = query.where(
+                (ChatThread.book_id.is_(None)) | (ChatThread.coaching_card_id.isnot(None))
+            )
         result = await self.db.execute(query)
         return list(result.scalars().all())
 

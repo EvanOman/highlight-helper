@@ -67,6 +67,35 @@
     </form>
 </div>
 
+<!-- Reading Coach -->
+<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reading Coach</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        The Reading Coach proactively suggests thought-provoking connections and reflections based on your highlights.
+    </p>
+
+    <div class="flex items-center justify-between">
+        <div>
+            <label for="coaching-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Enable coaching cards
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                Show coaching prompts on the home page
+            </p>
+        </div>
+        <button type="button"
+                id="coaching-toggle"
+                role="switch"
+                aria-checked="{{ 'true' if coaching_enabled else 'false' }}"
+                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 {{ 'bg-primary-600' if coaching_enabled else 'bg-gray-200 dark:bg-gray-600' }}"
+                onclick="toggleCoaching()">
+            <span class="sr-only">Enable coaching cards</span>
+            <span aria-hidden="true"
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ 'translate-x-5' if coaching_enabled else 'translate-x-0' }}"></span>
+        </button>
+    </div>
+</div>
+
 <!-- API Usage Metrics Section -->
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
     <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">API Usage</h2>
@@ -187,6 +216,38 @@
 </div>
 
 <script>
+let coachingEnabled = {{ 'true' if coaching_enabled else 'false' }};
+
+async function toggleCoaching() {
+    coachingEnabled = !coachingEnabled;
+    const btn = document.getElementById('coaching-toggle');
+    const thumb = btn.querySelector('span[aria-hidden="true"]');
+
+    if (coachingEnabled) {
+        btn.classList.remove('bg-gray-200', 'dark:bg-gray-600');
+        btn.classList.add('bg-primary-600');
+        thumb.classList.remove('translate-x-0');
+        thumb.classList.add('translate-x-5');
+        btn.setAttribute('aria-checked', 'true');
+    } else {
+        btn.classList.remove('bg-primary-600');
+        btn.classList.add('bg-gray-200', 'dark:bg-gray-600');
+        thumb.classList.remove('translate-x-5');
+        thumb.classList.add('translate-x-0');
+        btn.setAttribute('aria-checked', 'false');
+    }
+
+    try {
+        await fetch('{{ base_path }}/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ coaching_enabled: coachingEnabled })
+        });
+    } catch (error) {
+        console.error('Failed to toggle coaching:', error);
+    }
+}
+
 let autoSyncEnabled = {{ 'true' if auto_sync else 'false' }};
 
 function toggleAutoSync() {

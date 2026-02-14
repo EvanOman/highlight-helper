@@ -20,6 +20,9 @@ class ChatThread(Base):
     book_id: Mapped[int | None] = mapped_column(
         ForeignKey("books.id", ondelete="CASCADE"), nullable=True
     )
+    coaching_card_id: Mapped[int | None] = mapped_column(
+        ForeignKey("coaching_cards.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

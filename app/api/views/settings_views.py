@@ -21,6 +21,7 @@ async def settings_page(
     token = await settings.get_readwise_token()
     auto_sync = await settings.get_readwise_auto_sync()
     api_metrics = await settings.get_api_usage_metrics()
+    coaching_enabled = await settings.get_bool("coaching_enabled", default=True)
 
     return templates.TemplateResponse(
         request,
@@ -29,5 +30,6 @@ async def settings_page(
             "token_configured": bool(token),
             "auto_sync": auto_sync,
             "api_metrics": api_metrics,
+            "coaching_enabled": coaching_enabled,
         },
     )

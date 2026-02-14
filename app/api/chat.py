@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.views._common import templates
 from app.core.database import get_async_session, get_db
+from app.models.coaching import CoachingCard
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.chat import ChatRepository, get_chat_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
@@ -148,6 +149,7 @@ async def list_threads(
             "id": t.id,
             "title": t.title,
             "book_id": t.book_id,
+            "coaching_card_id": t.coaching_card_id,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "updated_at": t.updated_at.isoformat() if t.updated_at else None,
         }
@@ -249,17 +251,128 @@ async def send_chat_message(
         else:
             history.append(cast(MessageParam, {"role": m.role, "content": m.content}))
 
+    # Load coaching context if thread is linked to a coaching card
+    coaching_prompt: str | None = None
+    thread_obj = await chat_repo.get_thread_or_raise(thread_id)
+    if thread_obj.coaching_card_id:
+        from sqlalchemy import select
+
+        card_result = await chat_repo.db.execute(
+            select(CoachingCard).where(CoachingCard.id == thread_obj.coaching_card_id)
+        )
+        coaching_card = card_result.scalar_one_or_none()
+        if coaching_card:
+            coaching_prompt = coaching_card.coaching_system_prompt
+
     # Commit the request session now to release the SQLite lock.
     # The streaming generator uses an independent session (get_async_session)
     # to save the assistant response, which would deadlock if this session
     # still holds a write lock.
     await chat_repo.db.commit()
 
+    return _streaming_response(
+        thread_id=thread_id,
+        book_id=request.book_id,
+        history=history,
+        coaching_prompt=coaching_prompt,
+        chat_service=chat_service,
+    )
+
+
+@router.get("/api/chat/threads/{thread_id}/detail")
+async def get_thread_detail(
+    thread_id: int,
+    chat_repo: ChatRepository = Depends(get_chat_repo),
+):
+    """Get thread metadata including coaching card info."""
+    thread = await chat_repo.get_thread_or_raise(thread_id)
+
+    coaching_card_title: str | None = None
+    coaching_card_body: str | None = None
+    if thread.coaching_card_id:
+        from sqlalchemy import select as sa_select
+
+        card_result = await chat_repo.db.execute(
+            sa_select(CoachingCard).where(CoachingCard.id == thread.coaching_card_id)
+        )
+        coaching_card = card_result.scalar_one_or_none()
+        if coaching_card:
+            coaching_card_title = coaching_card.title
+            coaching_card_body = coaching_card.body
+
+    return {
+        "id": thread.id,
+        "title": thread.title,
+        "book_id": thread.book_id,
+        "coaching_card_id": thread.coaching_card_id,
+        "coaching_card_title": coaching_card_title,
+        "coaching_card_body": coaching_card_body,
+    }
+
+
+@router.post("/api/chat/threads/{thread_id}/generate")
+async def generate_thread_response(
+    thread_id: int,
+    chat_service: ChatService = Depends(get_chat_service),
+    chat_repo: ChatRepository = Depends(get_chat_repo),
+):
+    """Stream an AI response for an existing thread's last user message.
+
+    Used to auto-trigger the first coaching response without saving a new
+    user message.
+    """
+    thread = await chat_repo.get_thread_or_raise(thread_id)
+    await chat_repo.update_thread_timestamp(thread_id)
+
+    # Load full conversation history
+    messages = await chat_repo.list_messages(thread_id)
+    history: list[MessageParam] = []
+    for m in messages:
+        if m.content_blocks:
+            blocks = json.loads(m.content_blocks)
+            history.append(cast(MessageParam, {"role": m.role, "content": blocks}))
+        else:
+            history.append(cast(MessageParam, {"role": m.role, "content": m.content}))
+
+    # Load coaching context
+    coaching_prompt: str | None = None
+    if thread.coaching_card_id:
+        from sqlalchemy import select as sa_select
+
+        card_result = await chat_repo.db.execute(
+            sa_select(CoachingCard).where(CoachingCard.id == thread.coaching_card_id)
+        )
+        coaching_card = card_result.scalar_one_or_none()
+        if coaching_card:
+            coaching_prompt = coaching_card.coaching_system_prompt
+
+    await chat_repo.db.commit()
+
+    return _streaming_response(
+        thread_id=thread_id,
+        book_id=thread.book_id,
+        history=history,
+        coaching_prompt=coaching_prompt,
+        chat_service=chat_service,
+    )
+
+
+def _streaming_response(
+    *,
+    thread_id: int,
+    book_id: int | None,
+    history: list[MessageParam],
+    coaching_prompt: str | None,
+    chat_service: ChatService,
+) -> StreamingResponse:
+    """Build a StreamingResponse that generates an SSE AI response."""
+
     async def generate():
         full_response = ""
         async for chunk in chat_service.send_message_from_history(
             history=history,
-            book_id=request.book_id,
+            book_id=book_id,
+            coaching_system_prompt=coaching_prompt,
         ):
             # Detect tool-use markers emitted by ChatService
             if chunk.startswith("__tool_use__:"):
@@ -306,7 +419,7 @@ async def send_chat_message(
                     metric_repo = ChatMetricRepository(session)
                     await metric_repo.create(
                         thread_id=thread_id,
-                        book_id=request.book_id,
+                        book_id=book_id,
                         message_count=len(history),
                         **chat_service.last_metrics,
                     )

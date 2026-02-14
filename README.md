@@ -26,6 +26,14 @@ Highlight Helper captures and organizes passages from physical books. Take a pho
 - **Readwise Sync** — Sync highlights to Readwise for integration with your reading workflow
 - **Local Database** — Data stored in SQLite; highlights stay on your server
 
+## AI Reading Coach
+
+Highlight Helper proactively generates coaching cards based on your reading highlights — prompting you to revisit old passages, find cross-book connections, and reflect on what you've read. Click "Reflect in Chat" to start a Socratic coaching session where the AI draws on your actual highlights to ask thoughtful questions.
+
+![Coaching session exploring comparison and contentment across highlights from Rachel Cruze](static/screenshots/coaching-session.png)
+
+![Coaching session revisiting a highlight about self-worth from KC Davis](static/screenshots/coaching-session-2.png)
+
 ## Technology Stack
 
 - **Backend**: [FastAPI](https://fastapi.tiangolo.com/) with async SQLAlchemy

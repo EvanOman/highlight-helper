@@ -277,16 +277,24 @@ class ChatService:
 
         return "\n".join(lines)
 
-    def _build_system_prompt(self, highlights_context: str, book_id: int | None = None) -> str:
+    def _build_system_prompt(
+        self,
+        highlights_context: str,
+        book_id: int | None = None,
+        coaching_system_prompt: str | None = None,
+    ) -> str:
         """Build the system prompt with highlights context.
 
         Args:
             highlights_context: The formatted highlights to include
             book_id: Optional book ID for scoped conversation
+            coaching_system_prompt: If provided, use this instead of default prompt
 
         Returns:
             The complete system prompt
         """
+        if coaching_system_prompt:
+            return coaching_system_prompt
         if book_id:
             base_prompt = """You are a helpful assistant that helps users explore and discuss \
 their book highlights. You are currently focused on a specific book.
@@ -392,6 +400,7 @@ Here is a summary of the user's library:
         self,
         history: Iterable[MessageParam],
         book_id: int | None = None,
+        coaching_system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream a response given a pre-built conversation history.
 
@@ -405,6 +414,7 @@ Here is a summary of the user's library:
         Args:
             history: Full conversation history as list of {role, content} dicts
             book_id: Optional book ID to scope the conversation
+            coaching_system_prompt: If provided, use as system prompt instead of default
 
         Yields:
             Text chunks of the response, plus special ``__tool_use__:``
@@ -413,7 +423,9 @@ Here is a summary of the user's library:
         self.last_metrics = None
         self.tool_messages: list[dict] = []
         highlights_context = await self._get_highlights_context(book_id)
-        system_prompt = self._build_system_prompt(highlights_context, book_id)
+        system_prompt = self._build_system_prompt(
+            highlights_context, book_id, coaching_system_prompt=coaching_system_prompt
+        )
 
         tracer = get_tracer("chat")
         span = tracer.start_span(

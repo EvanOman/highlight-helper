@@ -257,6 +257,16 @@ def _run_migrations(conn) -> None:
         if "content_blocks" not in chat_msg_columns:
             conn.execute(text("ALTER TABLE chat_messages ADD COLUMN content_blocks TEXT"))
 
+    # Migration 8: Add coaching_card_id column to chat_threads table
+    if "chat_threads" in table_names:
+        thread_columns = {c["name"]: c for c in inspector.get_columns("chat_threads")}
+        if "coaching_card_id" not in thread_columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE chat_threads ADD COLUMN coaching_card_id INTEGER REFERENCES coaching_cards(id) ON DELETE SET NULL"
+                )
+            )
+
 
 @asynccontextmanager
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

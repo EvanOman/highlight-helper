@@ -32,6 +32,7 @@ class UpdateSettingsRequest(BaseModel):
     readwise_token: str | None = None
     readwise_auto_sync: bool | None = None
     chat_model: str | None = None
+    coaching_enabled: bool | None = None
 
 
 class SyncAllResponse(BaseModel):
@@ -79,6 +80,9 @@ async def update_settings(
 
     if request.chat_model is not None:
         await settings.set_chat_model(request.chat_model)
+
+    if request.coaching_enabled is not None:
+        await settings.set_bool("coaching_enabled", request.coaching_enabled)
 
     # Return updated settings
     token = await settings.get_readwise_token()
