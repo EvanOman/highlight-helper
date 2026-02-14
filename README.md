@@ -155,14 +155,6 @@ When the app is running, visit:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
-## Future Enhancements
-
-- [ ] Export highlights to various formats (Markdown, CSV, Notion)
-- [ ] Full-text search across all highlights
-- [ ] Tags and categories for organizing highlights
-- [x] Dark mode support (with system preference detection)
-- [ ] PWA support for offline access
-
 ## Contributing
 
 Contributions welcome. Feel free to open a Pull Request.
