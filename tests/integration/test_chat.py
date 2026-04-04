@@ -3,115 +3,122 @@
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.chat import ChatRepository
 
-class TestChatThreadCRUD:
-    """Tests for chat thread CRUD endpoints."""
 
-    async def test_list_threads_empty(self, client: AsyncClient):
-        """Test listing threads when none exist."""
-        response = await client.get("/api/chat/threads")
+async def _create_thread(session: AsyncSession, title: str, book_id: int | None = None):
+    """Helper to create a thread via the repository."""
+    repo = ChatRepository(session)
+    thread = await repo.create_thread(title=title, book_id=book_id)
+    await session.commit()
+    return thread
+
+
+class TestChatConversationCRUD:
+    """Tests for chat conversation (thread) endpoints."""
+
+    async def test_list_conversations_empty(self, client: AsyncClient):
+        """Test listing conversations when none exist."""
+        response = await client.get("/api/chat/conversations")
         assert response.status_code == 200
         assert response.json() == []
 
-    async def test_create_thread(self, client: AsyncClient):
-        """Test creating a chat thread."""
-        response = await client.post(
-            "/api/chat/threads",
-            json={"title": "Test Thread"},
-        )
+    async def test_list_conversations(self, client: AsyncClient, test_session: AsyncSession):
+        """Test listing conversations returns threads with string IDs."""
+        thread = await _create_thread(test_session, "Test Thread")
+
+        response = await client.get("/api/chat/conversations")
         assert response.status_code == 200
         data = response.json()
-        assert data["title"] == "Test Thread"
-        assert data["book_id"] is None
-        assert data["id"] is not None
+        assert len(data) == 1
+        assert data[0]["title"] == "Test Thread"
+        assert data[0]["id"] == str(thread.id)  # String IDs
 
-    async def test_create_thread_with_book(self, client: AsyncClient, sample_book):
-        """Test creating a thread associated with a book."""
-        response = await client.post(
-            "/api/chat/threads",
-            json={"title": "Book Thread", "book_id": sample_book.id},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["book_id"] == sample_book.id
+    async def test_list_conversations_filtered_by_book(
+        self, client: AsyncClient, test_session: AsyncSession, sample_book
+    ):
+        """Test listing conversations filtered by book_id."""
+        await _create_thread(test_session, "Global")
+        await _create_thread(test_session, "Book Chat", book_id=sample_book.id)
 
-    async def test_list_threads_filtered_by_book(self, client: AsyncClient, sample_book):
-        """Test listing threads filtered by book_id."""
-        # Create global thread
-        await client.post("/api/chat/threads", json={"title": "Global"})
-        # Create book thread
-        await client.post(
-            "/api/chat/threads",
-            json={"title": "Book Chat", "book_id": sample_book.id},
-        )
-
-        # List global threads
-        response = await client.get("/api/chat/threads")
+        # List global threads (no book_id filter returns threads with book_id=None)
+        response = await client.get("/api/chat/conversations")
         data = response.json()
         assert len(data) == 1
         assert data[0]["title"] == "Global"
 
         # List book threads
-        response = await client.get(f"/api/chat/threads?book_id={sample_book.id}")
+        response = await client.get(f"/api/chat/conversations?book_id={sample_book.id}")
         data = response.json()
         assert len(data) == 1
         assert data[0]["title"] == "Book Chat"
 
-    async def test_delete_thread(self, client: AsyncClient):
-        """Test deleting a thread."""
-        create_resp = await client.post(
-            "/api/chat/threads",
-            json={"title": "To Delete"},
-        )
-        thread_id = create_resp.json()["id"]
+    async def test_get_conversation_messages(self, client: AsyncClient, test_session: AsyncSession):
+        """Test getting messages for a conversation (chatkit format)."""
+        thread = await _create_thread(test_session, "Test")
+        repo = ChatRepository(test_session)
+        await repo.create_message(thread_id=thread.id, role="user", content="Hello")
+        await repo.create_message(thread_id=thread.id, role="assistant", content="Hi there")
+        await test_session.commit()
 
-        response = await client.delete(f"/api/chat/threads/{thread_id}")
+        response = await client.get(f"/api/chat/conversations/{thread.id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert "messages" in data
+        assert len(data["messages"]) == 2
+        assert data["messages"][0]["role"] == "user"
+        assert data["messages"][0]["content"] == "Hello"
+        assert data["messages"][1]["role"] == "assistant"
+
+    async def test_get_conversation_not_found(self, client: AsyncClient):
+        """Test getting a non-existent conversation returns 404."""
+        response = await client.get("/api/chat/conversations/99999")
+        assert response.status_code == 404
+
+    async def test_delete_conversation(self, client: AsyncClient, test_session: AsyncSession):
+        """Test deleting a conversation."""
+        thread = await _create_thread(test_session, "To Delete")
+
+        response = await client.delete(f"/api/chat/conversations/{thread.id}")
         assert response.status_code == 200
         assert response.json() == {"ok": True}
 
         # Verify deleted
-        list_resp = await client.get("/api/chat/threads")
+        list_resp = await client.get("/api/chat/conversations")
         assert len(list_resp.json()) == 0
 
-    async def test_delete_thread_not_found(self, client: AsyncClient):
-        """Test deleting a non-existent thread returns 404."""
-        response = await client.delete("/api/chat/threads/99999")
+    async def test_delete_conversation_not_found(self, client: AsyncClient):
+        """Test deleting a non-existent conversation returns 404."""
+        response = await client.delete("/api/chat/conversations/99999")
         assert response.status_code == 404
 
-    async def test_create_thread_with_invalid_book_returns_404(self, client: AsyncClient):
-        """Test creating a thread with a non-existent book_id returns 404."""
-        response = await client.post(
-            "/api/chat/threads",
-            json={"title": "Bad Book Thread", "book_id": 99999},
-        )
-        assert response.status_code == 404
+    async def test_delete_conversation_cascades_messages(
+        self, client: AsyncClient, test_session: AsyncSession
+    ):
+        """Test that deleting a conversation cascades to its messages."""
+        thread = await _create_thread(test_session, "To Delete")
+
+        # Verify we can get messages (conversation exists)
+        msg_resp = await client.get(f"/api/chat/conversations/{thread.id}")
+        assert msg_resp.status_code == 200
+
+        # Delete conversation
+        del_resp = await client.delete(f"/api/chat/conversations/{thread.id}")
+        assert del_resp.status_code == 200
+
+        # Conversation should be gone
+        msg_resp = await client.get(f"/api/chat/conversations/{thread.id}")
+        assert msg_resp.status_code == 404
 
 
-class TestChatThreadMessages:
-    """Tests for thread message endpoints."""
-
-    async def test_get_messages_empty_thread(self, client: AsyncClient):
-        """Test getting messages from an empty thread."""
-        create_resp = await client.post(
-            "/api/chat/threads",
-            json={"title": "Empty Thread"},
-        )
-        thread_id = create_resp.json()["id"]
-
-        response = await client.get(f"/api/chat/threads/{thread_id}/messages")
-        assert response.status_code == 200
-        assert response.json() == []
-
-    async def test_get_messages_not_found(self, client: AsyncClient):
-        """Test getting messages for a non-existent thread returns 404."""
-        response = await client.get("/api/chat/threads/99999/messages")
-        assert response.status_code == 404
+class TestChatMessage:
+    """Tests for the chat SSE message endpoint."""
 
     async def test_send_message_with_invalid_book_returns_404(self, client: AsyncClient):
-        """Test sending a message with a non-existent book_id (no thread) returns 404."""
+        """Test sending a message with a non-existent book_id returns 404."""
         response = await client.post(
-            "/api/chat/message",
-            json={"message": "Hello", "book_id": 99999},
+            "/api/chat/chat",
+            json={"message": "Hello", "metadata": {"book_id": 99999}},
         )
         assert response.status_code == 404
 
@@ -121,8 +128,6 @@ class TestChatRepository:
 
     async def test_create_and_list_messages(self, test_session: AsyncSession):
         """Test creating and listing messages via repository."""
-        from app.repositories.chat import ChatRepository
-
         repo = ChatRepository(test_session)
 
         thread = await repo.create_thread(title="Test")
@@ -138,8 +143,6 @@ class TestChatRepository:
 
     async def test_thread_timestamp_update(self, test_session: AsyncSession):
         """Test updating thread timestamp."""
-        from app.repositories.chat import ChatRepository
-
         repo = ChatRepository(test_session)
 
         thread = await repo.create_thread(title="Test")
@@ -148,7 +151,6 @@ class TestChatRepository:
         await repo.update_thread_timestamp(thread.id)
         await test_session.refresh(thread)
 
-        # updated_at should be >= original (may be same if fast)
         assert thread.updated_at >= original_updated
 
     async def test_get_thread_or_raise_not_found(self, test_session: AsyncSession):
@@ -156,30 +158,11 @@ class TestChatRepository:
         import pytest
 
         from app.core.exceptions import NotFoundError
-        from app.repositories.chat import ChatRepository
 
         repo = ChatRepository(test_session)
 
         with pytest.raises(NotFoundError):
             await repo.get_thread_or_raise(99999)
-
-    async def test_delete_thread_cascades_messages(self, client: AsyncClient):
-        """Test that deleting a thread cascades to its messages via API."""
-        # Create thread with messages
-        create_resp = await client.post("/api/chat/threads", json={"title": "To Delete"})
-        thread_id = create_resp.json()["id"]
-
-        # Verify we can get messages endpoint (thread exists)
-        msg_resp = await client.get(f"/api/chat/threads/{thread_id}/messages")
-        assert msg_resp.status_code == 200
-
-        # Delete thread
-        del_resp = await client.delete(f"/api/chat/threads/{thread_id}")
-        assert del_resp.status_code == 200
-
-        # Thread and messages should be gone
-        msg_resp = await client.get(f"/api/chat/threads/{thread_id}/messages")
-        assert msg_resp.status_code == 404
 
 
 class TestChatViewsWithThreads:
@@ -199,9 +182,11 @@ class TestChatViewsWithThreads:
         assert sample_book.title in response.text
         assert "New Chat" in response.text
 
-    async def test_global_chat_page_shows_threads(self, client: AsyncClient):
+    async def test_global_chat_page_shows_threads(
+        self, client: AsyncClient, test_session: AsyncSession
+    ):
         """Test that existing threads appear in the chat page."""
-        await client.post("/api/chat/threads", json={"title": "My Thread"})
+        await _create_thread(test_session, "My Thread")
 
         response = await client.get("/chat")
         assert response.status_code == 200

@@ -495,11 +495,11 @@ Here is a summary of the user's library:
                     # Execute each tool, yielding status markers for the SSE layer
                     tool_result_content = []
                     for block in tool_use_blocks:
-                        yield f"__tool_use__:{json.dumps({'tool': block.name, 'input': block.input})}"
+                        yield f"__tool_use__:{json.dumps({'tool': block.name, 'id': block.id, 'input': block.input})}"
                         tool_result = await self._execute_tool(block.name, block.input)
                         # Build a human-readable summary of the result
                         summary = self._tool_result_summary(block.name, tool_result)
-                        yield f"__tool_done__:{json.dumps({'tool': block.name, 'summary': summary})}"
+                        yield f"__tool_done__:{json.dumps({'tool': block.name, 'id': block.id, 'summary': summary})}"
                         tool_result_content.append(
                             {
                                 "type": "tool_result",

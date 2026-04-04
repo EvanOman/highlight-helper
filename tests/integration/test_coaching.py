@@ -51,9 +51,9 @@ class TestCoachingCardLifecycle:
         thread_id = data["thread_id"]
 
         # Verify thread was created with the coaching prompt
-        msg_response = await client.get(f"/api/chat/threads/{thread_id}/messages")
+        msg_response = await client.get(f"/api/chat/conversations/{thread_id}")
         assert msg_response.status_code == 200
-        messages = msg_response.json()
+        messages = msg_response.json()["messages"]
         assert len(messages) == 1
         assert messages[0]["role"] == "user"
         assert messages[0]["content"] == "Help me think about this concept."
@@ -409,13 +409,13 @@ class TestCoachingThreadsInGlobalList:
         await test_session.flush()
 
         # Global list (book_id=None) should include both
-        response = await client.get("/api/chat/threads")
+        response = await client.get("/api/chat/conversations")
         assert response.status_code == 200
         data = response.json()
         thread_ids = [t["id"] for t in data]
-        assert thread.id in thread_ids
-        assert normal_thread.id in thread_ids
+        assert str(thread.id) in thread_ids
+        assert str(normal_thread.id) in thread_ids
 
         # Coaching thread should have coaching_card_id in response
-        coaching_entry = next(t for t in data if t["id"] == thread.id)
+        coaching_entry = next(t for t in data if t["id"] == str(thread.id))
         assert coaching_entry["coaching_card_id"] == card.id

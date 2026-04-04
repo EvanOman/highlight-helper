@@ -2,13 +2,14 @@
 
 import json
 import logging
-from typing import cast
+from typing import Any, cast
 
 from anthropic.types import MessageParam
+from chatkit import ChatEvent, ChatEventType, ChatRequest, stream_chat_events
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sse_starlette import EventSourceResponse
 
 from app.api.views._common import templates
 from app.core.database import get_async_session, get_db
@@ -22,21 +23,6 @@ from app.services.settings import SettingsService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
-
-
-class ChatMessageRequest(BaseModel):
-    """Request model for chat messages."""
-
-    message: str
-    book_id: int | None = None
-    thread_id: int | None = None
-
-
-class CreateThreadRequest(BaseModel):
-    """Request model for creating a thread."""
-
-    title: str
-    book_id: int | None = None
 
 
 # View endpoints for HTML pages
@@ -134,11 +120,11 @@ async def search_books_for_chat(
     }
 
 
-# Thread CRUD endpoints
+# Conversation CRUD endpoints (chatkit-compatible paths)
 
 
-@router.get("/api/chat/threads")
-async def list_threads(
+@router.get("/api/chat/conversations")
+async def list_conversations(
     book_id: int | None = None,
     chat_repo: ChatRepository = Depends(get_chat_repo),
 ):
@@ -146,7 +132,7 @@ async def list_threads(
     threads = await chat_repo.list_threads(book_id=book_id)
     return [
         {
-            "id": t.id,
+            "id": str(t.id),
             "title": t.title,
             "book_id": t.book_id,
             "coaching_card_id": t.coaching_card_id,
@@ -157,47 +143,30 @@ async def list_threads(
     ]
 
 
-@router.post("/api/chat/threads")
-async def create_thread(
-    request: CreateThreadRequest,
-    chat_repo: ChatRepository = Depends(get_chat_repo),
-    book_repo: BookRepository = Depends(get_book_repo),
-):
-    """Create a new chat thread."""
-    if request.book_id is not None:
-        await book_repo.get_or_raise(request.book_id)
-    thread = await chat_repo.create_thread(title=request.title, book_id=request.book_id)
-    return {
-        "id": thread.id,
-        "title": thread.title,
-        "book_id": thread.book_id,
-        "created_at": thread.created_at.isoformat() if thread.created_at else None,
-        "updated_at": thread.updated_at.isoformat() if thread.updated_at else None,
-    }
-
-
-@router.get("/api/chat/threads/{thread_id}/messages")
-async def get_thread_messages(
+@router.get("/api/chat/conversations/{thread_id}")
+async def get_conversation(
     thread_id: int,
     chat_repo: ChatRepository = Depends(get_chat_repo),
 ):
-    """Get all messages for a thread."""
+    """Get all messages for a thread (chatkit format: {messages: [...]})."""
     await chat_repo.get_thread_or_raise(thread_id)
     messages = await chat_repo.list_messages(thread_id)
-    return [
-        {
-            "id": m.id,
-            "role": m.role,
-            "content": m.content,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-        }
-        for m in messages
-        if not m.content_blocks  # Hide tool_use/tool_result messages from display
-    ]
+    return {
+        "messages": [
+            {
+                "id": str(m.id),
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+            if not m.content_blocks  # Hide tool_use/tool_result messages from display
+        ]
+    }
 
 
-@router.delete("/api/chat/threads/{thread_id}")
-async def delete_thread(
+@router.delete("/api/chat/conversations/{thread_id}")
+async def delete_conversation(
     thread_id: int,
     chat_repo: ChatRepository = Depends(get_chat_repo),
 ):
@@ -207,31 +176,34 @@ async def delete_thread(
     return {"ok": True}
 
 
-# Message endpoint
+# Chat SSE endpoint (chatkit-compatible)
 
 
-@router.post("/api/chat/message")
+@router.post("/api/chat/chat")
 async def send_chat_message(
-    request: ChatMessageRequest,
+    request: ChatRequest,
     chat_service: ChatService = Depends(get_chat_service),
     chat_repo: ChatRepository = Depends(get_chat_repo),
     book_repo: BookRepository = Depends(get_book_repo),
 ):
     """Send a message and get a streaming response.
 
-    The response is streamed using Server-Sent Events (SSE) format.
+    Uses chatkit SSE protocol: init -> text/tool_use/tool_done -> done.
     The user message is persisted before streaming begins. The assistant
     response is persisted after the stream completes using an independent
     database session.
     """
-    thread_id = request.thread_id
+    thread_id: int | None = int(request.thread_id) if request.thread_id else None
+    book_id: int | None = request.metadata.get("book_id")
+    if book_id is not None:
+        book_id = int(book_id)
 
     # Create thread if needed
     if thread_id is None:
-        if request.book_id is not None:
-            await book_repo.get_or_raise(request.book_id)
+        if book_id is not None:
+            await book_repo.get_or_raise(book_id)
         title = request.message[:50]
-        thread = await chat_repo.create_thread(title=title, book_id=request.book_id)
+        thread = await chat_repo.create_thread(title=title, book_id=book_id)
         thread_id = thread.id
     else:
         await chat_repo.get_thread_or_raise(thread_id)
@@ -270,13 +242,14 @@ async def send_chat_message(
     # still holds a write lock.
     await chat_repo.db.commit()
 
-    return _streaming_response(
+    events = _chat_events(
         thread_id=thread_id,
-        book_id=request.book_id,
+        book_id=book_id,
         history=history,
         coaching_prompt=coaching_prompt,
         chat_service=chat_service,
     )
+    return EventSourceResponse(stream_chat_events(events), ping=15)
 
 
 @router.get("/api/chat/threads/{thread_id}/detail")
@@ -348,94 +321,99 @@ async def generate_thread_response(
 
     await chat_repo.db.commit()
 
-    return _streaming_response(
+    events = _chat_events(
         thread_id=thread_id,
         book_id=thread.book_id,
         history=history,
         coaching_prompt=coaching_prompt,
         chat_service=chat_service,
     )
+    return EventSourceResponse(stream_chat_events(events), ping=15)
 
 
-def _streaming_response(
+async def _chat_events(
     *,
     thread_id: int,
     book_id: int | None,
     history: list[MessageParam],
     coaching_prompt: str | None,
     chat_service: ChatService,
-) -> StreamingResponse:
-    """Build a StreamingResponse that generates an SSE AI response."""
+) -> Any:
+    """Async generator yielding ChatEvent objects for the chatkit SSE protocol."""
 
-    async def generate():
-        full_response = ""
-        async for chunk in chat_service.send_message_from_history(
-            history=history,
-            book_id=book_id,
-            coaching_system_prompt=coaching_prompt,
-        ):
-            # Detect tool-use markers emitted by ChatService
-            if chunk.startswith("__tool_use__:"):
-                payload = chunk[len("__tool_use__:") :]
-                yield f"event: tool_use\ndata: {payload}\n\n"
-                continue
-            if chunk.startswith("__tool_done__:"):
-                payload = chunk[len("__tool_done__:") :]
-                yield f"event: tool_done\ndata: {payload}\n\n"
-                continue
+    # 1. init event with thread_id
+    yield ChatEvent.init(thread_id=str(thread_id))
 
-            full_response += chunk
-            for line in chunk.split("\n"):
-                yield f"data: {line}\n"
-            yield "\n"
+    # 2. Stream text and tool events
+    full_response = ""
+    async for chunk in chat_service.send_message_from_history(
+        history=history,
+        book_id=book_id,
+        coaching_system_prompt=coaching_prompt,
+    ):
+        # Detect tool-use markers emitted by ChatService
+        if chunk.startswith("__tool_use__:"):
+            payload = json.loads(chunk[len("__tool_use__:") :])
+            yield ChatEvent(
+                type=ChatEventType.TOOL_USE,
+                data=json.dumps(
+                    {
+                        "tool_name": payload["tool"],
+                        "tool_id": payload["id"],
+                    }
+                ),
+            )
+            continue
+        if chunk.startswith("__tool_done__:"):
+            payload = json.loads(chunk[len("__tool_done__:") :])
+            yield ChatEvent(
+                type=ChatEventType.TOOL_DONE,
+                data=json.dumps(
+                    {
+                        "tool_id": payload["id"],
+                        "summary": payload["summary"],
+                    }
+                ),
+            )
+            continue
 
-        # Save tool messages and assistant response using independent session
-        try:
-            async with get_async_session() as session:
-                from app.repositories.chat import ChatRepository as ChatRepo
-                from app.repositories.chat_metric import ChatMetricRepository
+        full_response += chunk
+        yield ChatEvent.text(chunk)
 
-                repo = ChatRepo(session)
+    # 3. Save tool messages and assistant response using independent session
+    try:
+        async with get_async_session() as session:
+            from app.repositories.chat import ChatRepository as ChatRepo
+            from app.repositories.chat_metric import ChatMetricRepository
 
-                # Save intermediate tool messages (assistant tool_use + user tool_result)
-                for tool_msg in chat_service.tool_messages:
-                    blocks_json = json.dumps(tool_msg["content_blocks"])
-                    # For display, use a short summary as the content text
-                    display = "[tool call]" if tool_msg["role"] == "assistant" else "[tool result]"
-                    await repo.create_message(
-                        thread_id=thread_id,
-                        role=tool_msg["role"],
-                        content=display,
-                        content_blocks=blocks_json,
-                    )
+            repo = ChatRepo(session)
 
-                # Save final assistant text response
+            # Save intermediate tool messages (assistant tool_use + user tool_result)
+            for tool_msg in chat_service.tool_messages:
+                blocks_json = json.dumps(tool_msg["content_blocks"])
+                display = "[tool call]" if tool_msg["role"] == "assistant" else "[tool result]"
                 await repo.create_message(
-                    thread_id=thread_id, role="assistant", content=full_response
+                    thread_id=thread_id,
+                    role=tool_msg["role"],
+                    content=display,
+                    content_blocks=blocks_json,
                 )
-                await repo.update_thread_timestamp(thread_id)
 
-                if chat_service.last_metrics:
-                    metric_repo = ChatMetricRepository(session)
-                    await metric_repo.create(
-                        thread_id=thread_id,
-                        book_id=book_id,
-                        message_count=len(history),
-                        **chat_service.last_metrics,
-                    )
-        except Exception:
-            logger.exception("Failed to save assistant message for thread %s", thread_id)
-            yield "event: error\ndata: Failed to save response\n\n"
+            # Save final assistant text response
+            await repo.create_message(thread_id=thread_id, role="assistant", content=full_response)
+            await repo.update_thread_timestamp(thread_id)
 
-        # Signal completion with thread_id
-        yield f"event: done\ndata: {thread_id}\n\n"
+            if chat_service.last_metrics:
+                metric_repo = ChatMetricRepository(session)
+                await metric_repo.create(
+                    thread_id=thread_id,
+                    book_id=book_id,
+                    message_count=len(history),
+                    **chat_service.last_metrics,
+                )
+    except Exception:
+        logger.exception("Failed to save assistant message for thread %s", thread_id)
+        yield ChatEvent.error("Failed to save response")
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    # 4. done
+    yield ChatEvent.done()

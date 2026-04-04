@@ -26,6 +26,8 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.27.0",
     "readwise-sdk",
     "anthropic>=0.40.0",
+    "chatkit[fastapi]",
+    "sse-starlette>=2.0",
 ]
 
 [build-system]
@@ -48,6 +50,7 @@ packages = ["app"]
 
 [tool.uv.sources]
 readwise-sdk = { path = "readwise_sdk-0.1.0-py3-none-any.whl" }
+chatkit = { path = "../chatkit/python" }
 
 [tool.ruff]
 line-length = 100
