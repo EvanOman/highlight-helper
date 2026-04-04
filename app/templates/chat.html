@@ -9,45 +9,34 @@
     @media (pointer: coarse) {
         .thread-item .delete-btn { opacity: 1; }
     }
-    /* Markdown prose styling for assistant messages */
-    .msg-prose p { margin: 0.5em 0; }
-    .msg-prose p:first-child { margin-top: 0; }
-    .msg-prose p:last-child { margin-bottom: 0; }
-    .msg-prose h1, .msg-prose h2, .msg-prose h3 { font-weight: 600; margin: 0.75em 0 0.25em; }
-    .msg-prose h1 { font-size: 1.25em; }
-    .msg-prose h2 { font-size: 1.125em; }
-    .msg-prose h3 { font-size: 1em; }
-    .msg-prose ul, .msg-prose ol { margin: 0.5em 0; padding-left: 1.5em; }
-    .msg-prose li { margin: 0.25em 0; }
-    .msg-prose ul { list-style-type: disc; }
-    .msg-prose ol { list-style-type: decimal; }
-    .msg-prose code { background: rgba(0,0,0,0.08); padding: 0.15em 0.3em; border-radius: 0.25em; font-size: 0.875em; }
-    .dark .msg-prose code { background: rgba(255,255,255,0.1); }
-    .msg-prose pre { margin: 0.5em 0; border-radius: 0.5em; overflow-x: auto; }
-    .msg-prose pre code { background: #1e293b; color: #e2e8f0; display: block; padding: 0.75em 1em; font-size: 0.8125em; line-height: 1.6; }
-    .msg-prose blockquote { border-left: 3px solid #94a3b8; padding-left: 0.75em; margin: 0.5em 0; color: #64748b; }
-    .dark .msg-prose blockquote { border-color: #475569; color: #94a3b8; }
-    .msg-prose a { color: #0ea5e9; text-decoration: underline; }
-    .msg-prose strong { font-weight: 600; }
-    .msg-prose em { font-style: italic; }
-    .msg-prose hr { border: none; border-top: 1px solid #e2e8f0; margin: 0.75em 0; }
-    .dark .msg-prose hr { border-color: #374151; }
-    .msg-prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.875em; }
-    .msg-prose th, .msg-prose td { border: 1px solid #e2e8f0; padding: 0.375em 0.75em; }
-    .dark .msg-prose th, .dark .msg-prose td { border-color: #374151; }
-    .msg-prose th { background: rgba(0,0,0,0.04); font-weight: 600; }
-    .dark .msg-prose th { background: rgba(255,255,255,0.05); }
     /* Tool call card styling */
     .tool-card { transition: all 0.2s ease; }
     .tool-card .tool-spinner { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Bridge Tailwind dark mode to chatkit CSS variables */
+    :root {
+        --ck-bg: #ffffff;
+        --ck-text: #1e293b;
+        --ck-bg-secondary: #f1f5f9;
+        --ck-border: #e2e8f0;
+    }
+    .dark {
+        --ck-bg: #111827;
+        --ck-text: #e2e8f0;
+        --ck-bg-secondary: #1f2937;
+        --ck-border: #374151;
+    }
+    /* Ensure chatkit components inherit full height */
+    ck-app { display: flex; flex: 1; min-height: 0; }
 </style>
+<link rel="stylesheet" href="{{ base_path }}/static/chatkit/theme/chatkit.css">
+
 <div class="flex" style="height: calc(100vh - 3.5rem)">
 
     <!-- Mobile backdrop -->
     <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden"></div>
 
-    <!-- Sidebar -->
+    <!-- Custom sidebar (not using ck-sidebar — need book picker, model picker, coaching icons) -->
     <aside id="sidebar" class="fixed top-[3.5rem] bottom-0 left-0 w-72 z-40 flex flex-col bg-gray-100 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform -translate-x-full transition-transform duration-200 ease-in-out md:static md:translate-x-0 md:z-0 md:shrink-0">
         <!-- New Chat button -->
         <div class="p-3 border-b border-gray-200 dark:border-gray-800">
@@ -111,7 +100,7 @@
             </div>
             {% endfor %}
             {% if not threads %}
-            <div class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div id="thread-list-empty" class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                 <p>No conversations yet.</p>
                 <p class="mt-1 text-xs">Click "New Chat" to start one.</p>
             </div>
@@ -140,7 +129,7 @@
         </div>
     </aside>
 
-    <!-- Main chat area -->
+    <!-- Main chat area: chatkit components -->
     <div class="flex-1 flex flex-col min-w-0">
         <!-- Chat header -->
         <div class="shrink-0 flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -153,68 +142,35 @@
             <h1 id="chat-header-title" class="text-base font-semibold text-gray-900 dark:text-white truncate flex items-center gap-2">Chat with Your Highlights</h1>
         </div>
 
-        <!-- Chat messages container -->
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
-            <div id="chat-placeholder" class="text-center text-gray-500 dark:text-gray-400 py-8">
-                <p>Ask me about your highlights!</p>
-                <p class="text-sm mt-2">
-                    {% if book %}
-                    Try: "What are the main themes?" or "Summarize my highlights"
-                    {% else %}
-                    Try: "What themes appear across my books?" or "Find highlights about leadership"
-                    {% endif %}
-                </p>
-            </div>
-        </div>
+        <!-- Coaching context banner (populated by JS when loading a coaching thread) -->
+        <div id="coaching-banner"></div>
 
-        <!-- Input form -->
-        <div class="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-            <form id="chat-form" class="flex gap-2 max-w-3xl mx-auto">
-                <input type="text"
-                       id="chat-input"
-                       name="message"
-                       placeholder="Ask about your highlights..."
-                       class="flex-1 px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                       autocomplete="off">
-                <button type="submit"
-                        id="send-button"
-                        class="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                    Send
-                </button>
-            </form>
-        </div>
+        <!-- Chatkit app (no sidebar slot — we use our custom sidebar) -->
+        <ck-app id="ck-app" api-base="{{ base_path }}/api/chat" style="flex:1;min-height:0;">
+            <ck-messages slot="messages"></ck-messages>
+            <ck-input slot="input" placeholder="Ask about your highlights..."></ck-input>
+        </ck-app>
     </div>
 
 </div>
 
+<script type="module" src="{{ base_path }}/static/chatkit/register.js"></script>
 <script type="module">
-import * as smd from 'https://cdn.jsdelivr.net/npm/streaming-markdown/smd.min.js';
+import { connectSSE, EventType } from '{{ base_path }}/static/chatkit/index.js';
 
-const chatMessages = document.getElementById('chat-messages');
-const chatForm = document.getElementById('chat-form');
-const chatInput = document.getElementById('chat-input');
-const sendButton = document.getElementById('send-button');
-const newChatBtn = document.getElementById('new-chat-btn');
+const ckApp = document.getElementById('ck-app');
 const sidebar = document.getElementById('sidebar');
 const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 const threadList = document.getElementById('thread-list');
 const modelSelect = document.getElementById('model-select');
 const chatHeaderTitle = document.getElementById('chat-header-title');
+const coachingBanner = document.getElementById('coaching-banner');
 
-let currentThreadId = null;
-let currentCoachingCardId = null;
 const bookId = {{ book.id if book else 'null' }};
+let currentCoachingCardId = null;
 
-function isNearBottom(el, threshold = 80) {
-    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
-}
-function scrollToBottom(force = false) {
-    if (force || isNearBottom(chatMessages)) {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-}
+// ── Sidebar controls ───────────────────────────────────────────────
 
-// Sidebar controls
 function openSidebar() {
     sidebar.classList.remove('-translate-x-full');
     sidebar.classList.add('translate-x-0');
@@ -236,10 +192,9 @@ document.getElementById('sidebar-toggle').addEventListener('click', () => {
 });
 
 sidebarBackdrop.addEventListener('click', closeSidebar);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeSidebar();
-});
+// ── Model picker ───────────────────────────────────────────────────
 
 modelSelect.addEventListener('change', async () => {
     try {
@@ -253,66 +208,19 @@ modelSelect.addEventListener('change', async () => {
     }
 });
 
-function clearMessages() {
-    chatMessages.innerHTML = '';
-    const placeholder = document.createElement('div');
-    placeholder.id = 'chat-placeholder';
-    placeholder.className = 'text-center text-gray-500 dark:text-gray-400 py-8';
-    placeholder.innerHTML = `
-        <p>Ask me about your highlights!</p>
-        <p class="text-sm mt-2">
-            {% if book %}
-            Try: "What are the main themes?" or "Summarize my highlights"
-            {% else %}
-            Try: "What themes appear across my books?" or "Find highlights about leadership"
-            {% endif %}
-        </p>
-    `;
-    chatMessages.appendChild(placeholder);
-}
+// ── Inject book_id into chatkit metadata via ck-before-send ────────
 
-function addMessage(role, content, opts = {}) {
-    const placeholder = document.getElementById('chat-placeholder');
-    if (placeholder && placeholder.parentNode) {
-        placeholder.remove();
+ckApp.addEventListener('ck-before-send', (e) => {
+    if (bookId) {
+        e.detail.metadata.book_id = bookId;
     }
+});
 
-    const messageDiv = document.createElement('div');
-    messageDiv.className = role === 'user'
-        ? 'flex justify-end'
-        : 'flex justify-start';
-
-    const bubble = document.createElement('div');
-    if (role === 'user') {
-        bubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-primary-600 text-white whitespace-pre-wrap';
-        bubble.textContent = content;
-    } else {
-        bubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
-        if (content && !opts.streaming) {
-            const renderer = smd.default_renderer(bubble);
-            const parser = smd.parser(renderer);
-            smd.parser_write(parser, content);
-            smd.parser_end(parser);
-        }
-    }
-
-    messageDiv.appendChild(bubble);
-    chatMessages.appendChild(messageDiv);
-    scrollToBottom();
-
-    return bubble;
-}
-
-function setLoading(loading) {
-    sendButton.disabled = loading;
-    chatInput.disabled = loading;
-    sendButton.textContent = loading ? '...' : 'Send';
-}
+// ── Sidebar thread management ─────────────────────────────────────
 
 function setActiveThread(threadId) {
-    currentThreadId = threadId;
     document.querySelectorAll('.thread-item').forEach(item => {
-        const isActive = parseInt(item.dataset.threadId) === threadId;
+        const isActive = item.dataset.threadId === String(threadId);
         if (isActive) {
             item.classList.add('bg-gray-200', 'dark:bg-gray-800', 'font-medium');
             item.classList.remove('hover:bg-gray-200', 'dark:hover:bg-gray-800');
@@ -323,52 +231,16 @@ function setActiveThread(threadId) {
     });
 }
 
-// Coaching UI helpers
-function updateChatHeader(isCoaching) {
-    if (isCoaching) {
-        chatHeaderTitle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg><span>Coaching Session</span><span class="px-1.5 py-0.5 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">coaching</span>';
-    } else {
-        chatHeaderTitle.textContent = 'Chat with Your Highlights';
-    }
-}
-
-function renderCoachingContext(title, body) {
-    const existing = document.getElementById('coaching-context-block');
-    if (existing) existing.remove();
-
-    const block = document.createElement('div');
-    block.id = 'coaching-context-block';
-    block.className = 'mb-4 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-4';
-
-    const header = document.createElement('div');
-    header.className = 'flex items-center gap-2 mb-1.5';
-    header.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>';
-    const label = document.createElement('span');
-    label.className = 'text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400';
-    label.textContent = 'Reading Coach';
-    header.appendChild(label);
-    block.appendChild(header);
-
-    const titleEl = document.createElement('h3');
-    titleEl.className = 'text-sm font-bold text-gray-900 dark:text-white mb-1';
-    titleEl.textContent = title;
-    block.appendChild(titleEl);
-
-    const bodyEl = document.createElement('p');
-    bodyEl.className = 'text-xs text-gray-700 dark:text-gray-300 leading-relaxed';
-    bodyEl.textContent = body;
-    block.appendChild(bodyEl);
-
-    // Insert at top of messages area, before any messages
-    chatMessages.prepend(block);
-}
-
 function addThreadItem(threadId, title, isCoaching = false) {
     if (document.querySelector(`.thread-item[data-thread-id="${threadId}"]`)) return;
 
+    // Remove empty state if present
+    const emptyEl = document.getElementById('thread-list-empty');
+    if (emptyEl) emptyEl.remove();
+
     const item = document.createElement('div');
     item.className = 'thread-item group flex items-center gap-1 px-3 py-2 text-sm rounded-lg cursor-pointer text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition';
-    item.dataset.threadId = threadId;
+    item.dataset.threadId = String(threadId);
     item.dataset.coaching = isCoaching ? 'true' : 'false';
     item.title = title;
 
@@ -394,7 +266,7 @@ function addThreadItem(threadId, title, isCoaching = false) {
 
     item.appendChild(span);
     item.appendChild(deleteBtn);
-    item.addEventListener('click', () => loadThread(parseInt(item.dataset.threadId)));
+    item.addEventListener('click', () => loadThread(item.dataset.threadId));
 
     threadList.prepend(item);
 }
@@ -403,284 +275,168 @@ async function deleteThread(threadId) {
     if (!confirm('Delete this thread?')) return;
 
     try {
-        const response = await fetch(`{{ base_path }}/api/chat/threads/${threadId}`, { method: 'DELETE' });
+        const response = await fetch(`{{ base_path }}/api/chat/conversations/${threadId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete thread');
 
         const item = document.querySelector(`.thread-item[data-thread-id="${threadId}"]`);
         if (item) item.remove();
 
-        if (currentThreadId === threadId) {
-            currentThreadId = null;
+        if (ckApp.threadId === String(threadId)) {
             currentCoachingCardId = null;
-            clearMessages();
-            setActiveThread(null);
+            ckApp.newChat();
             updateChatHeader(false);
+            coachingBanner.innerHTML = '';
         }
     } catch (error) {
         console.error('Error deleting thread:', error);
     }
 }
 
-// Tool call UI helpers
-const TOOL_META = {
-    search_books: {
-        label: 'Searching books',
-        doneLabel: 'Searched books',
-        icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>`,
-    },
-    search_highlights: {
-        label: 'Searching highlights',
-        doneLabel: 'Searched highlights',
-        icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>`,
-    },
-    get_book_highlights: {
-        label: 'Loading highlights',
-        doneLabel: 'Loaded highlights',
-        icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/></svg>`,
-    },
-};
+// ── Coaching UI helpers ───────────────────────────────────────────
 
-function createToolCard(toolName, query) {
-    const meta = TOOL_META[toolName] || { label: `Using ${toolName}`, doneLabel: toolName, icon: '' };
-    const card = document.createElement('div');
-    card.className = 'tool-card flex items-center gap-2.5 px-3 py-2 my-1 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/50 text-sm';
-    card.dataset.tool = toolName;
-
-    const iconWrap = document.createElement('div');
-    iconWrap.className = 'tool-icon shrink-0 text-primary-500 dark:text-primary-400';
-    iconWrap.innerHTML = `<svg class="tool-spinner h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>`;
-    card.appendChild(iconWrap);
-
-    const text = document.createElement('div');
-    text.className = 'tool-text flex-1 min-w-0';
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'tool-label text-gray-600 dark:text-gray-300 font-medium';
-    labelSpan.textContent = meta.label;
-    text.appendChild(labelSpan);
-    if (query) {
-        const querySpan = document.createElement('span');
-        querySpan.className = 'text-gray-400 dark:text-gray-500 ml-1.5';
-        querySpan.textContent = `"${query}"`;
-        text.appendChild(querySpan);
+function updateChatHeader(isCoaching) {
+    if (isCoaching) {
+        chatHeaderTitle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg><span>Coaching Session</span><span class="px-1.5 py-0.5 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">coaching</span>';
+    } else {
+        chatHeaderTitle.textContent = 'Chat with Your Highlights';
     }
-    card.appendChild(text);
-
-    const status = document.createElement('div');
-    status.className = 'tool-status shrink-0 text-xs text-gray-400 dark:text-gray-500';
-    card.appendChild(status);
-
-    return card;
 }
 
-function completeToolCard(card, toolName, summary) {
-    const meta = TOOL_META[toolName] || { label: toolName, doneLabel: toolName, icon: '' };
-    // Replace spinner with static icon
-    const iconWrap = card.querySelector('.tool-icon');
-    if (iconWrap) {
-        iconWrap.innerHTML = meta.icon || `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>`;
-    }
-    // Update label
-    const label = card.querySelector('.tool-label');
-    if (label) label.textContent = meta.doneLabel;
-    // Show summary
-    const status = card.querySelector('.tool-status');
-    if (status && summary) status.textContent = summary;
-    // Fade slightly to indicate completion
-    card.classList.add('opacity-75');
+function renderCoachingBanner(title, body) {
+    coachingBanner.innerHTML = '';
+    const block = document.createElement('div');
+    block.className = 'mx-4 mt-3 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 p-4';
+
+    const header = document.createElement('div');
+    header.className = 'flex items-center gap-2 mb-1.5';
+    header.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>';
+    const label = document.createElement('span');
+    label.className = 'text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400';
+    label.textContent = 'Reading Coach';
+    header.appendChild(label);
+    block.appendChild(header);
+
+    const titleEl = document.createElement('h3');
+    titleEl.className = 'text-sm font-bold text-gray-900 dark:text-white mb-1';
+    titleEl.textContent = title;
+    block.appendChild(titleEl);
+
+    const bodyEl = document.createElement('p');
+    bodyEl.className = 'text-xs text-gray-700 dark:text-gray-300 leading-relaxed';
+    bodyEl.textContent = body;
+    block.appendChild(bodyEl);
+
+    coachingBanner.appendChild(block);
 }
 
-// Reusable SSE streaming function
-async function streamAIResponse(url, fetchOptions) {
-    const placeholder = document.getElementById('chat-placeholder');
-    if (placeholder && placeholder.parentNode) placeholder.remove();
+// ── Coaching auto-trigger via chatkit's SSE client ────────────────
 
-    // Container for the entire assistant response (text bubbles + tool cards)
-    const responseContainer = document.createElement('div');
-    responseContainer.className = 'flex flex-col items-start gap-1';
-    chatMessages.appendChild(responseContainer);
+async function streamCoachingResponse(threadId) {
+    const messages = ckApp.querySelector('ck-messages');
+    const input = ckApp.querySelector('ck-input');
+    if (!messages) return;
 
-    // Create the first text bubble
-    let currentBubble = document.createElement('div');
-    currentBubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
-    responseContainer.appendChild(currentBubble);
+    if (input) input.streaming = true;
 
-    let smdRenderer = smd.default_renderer(currentBubble);
-    let smdParser = smd.parser(smdRenderer);
-    let hasTextInCurrentBubble = false;
-    let activeToolCard = null;
-    let resolvedThreadId = null;
-
-    scrollToBottom(true);
-    setLoading(true);
+    let currentMsg = null;
 
     try {
-        const response = await fetch(url, fetchOptions);
+        const connection = connectSSE(
+            `{{ base_path }}/api/chat/threads/${threadId}/generate`,
+            { body: {}, signal: AbortSignal.timeout(120000) }
+        );
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split('\n\n');
-            buffer = events.pop();
-
-            for (const event of events) {
-                if (!event.trim()) continue;
-                const lines = event.split('\n');
-                let eventType = null;
-                const dataLines = [];
-                for (const line of lines) {
-                    if (line.startsWith('event: ')) {
-                        eventType = line.slice(7).trim();
-                    } else if (line.startsWith('data: ')) {
-                        dataLines.push(line.slice(6));
-                    } else if (line === 'data:') {
-                        dataLines.push('');
+        for await (const event of connection) {
+            switch (event.event) {
+                case EventType.INIT:
+                    break;
+                case EventType.TEXT:
+                    if (!currentMsg) {
+                        currentMsg = document.createElement('ck-message');
+                        currentMsg.role = 'assistant';
+                        currentMsg.startStreaming();
+                        messages.addTurnPhase(currentMsg);
                     }
+                    currentMsg.appendText(event.data);
+                    break;
+                case EventType.TOOL_USE: {
+                    const parsed = JSON.parse(event.data);
+                    const card = document.createElement('ck-tool-card');
+                    card.toolName = parsed.tool_name || 'Tool';
+                    card.status = 'running';
+                    if (parsed.tool_id) card.dataset.toolId = parsed.tool_id;
+                    messages.addTurnPhase(card);
+                    break;
                 }
-                const data = dataLines.join('\n');
-
-                if (eventType === 'tool_use') {
-                    try {
-                        const toolData = JSON.parse(data);
-                        const query = toolData.input?.query || '';
-                        if (hasTextInCurrentBubble) {
-                            smd.parser_end(smdParser);
-                        } else {
-                            currentBubble.style.display = 'none';
+                case EventType.TOOL_DONE: {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed.tool_id) {
+                        const card = messages.querySelector(`ck-tool-card[data-tool-id="${CSS.escape(parsed.tool_id)}"]`);
+                        if (card) {
+                            card.status = 'done';
+                            if (parsed.summary) card.summary = parsed.summary;
                         }
-                        activeToolCard = createToolCard(toolData.tool, query);
-                        responseContainer.appendChild(activeToolCard);
-                        scrollToBottom();
-                    } catch (_) { /* ignore parse errors */ }
-                } else if (eventType === 'tool_done') {
-                    try {
-                        const toolData = JSON.parse(data);
-                        if (activeToolCard) {
-                            completeToolCard(activeToolCard, toolData.tool, toolData.summary);
-                            activeToolCard = null;
-                        }
-                        currentBubble = document.createElement('div');
-                        currentBubble.className = 'max-w-[80%] px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white msg-prose';
-                        responseContainer.appendChild(currentBubble);
-                        smdRenderer = smd.default_renderer(currentBubble);
-                        smdParser = smd.parser(smdRenderer);
-                        hasTextInCurrentBubble = false;
-                        scrollToBottom();
-                    } catch (_) { /* ignore */ }
-                } else if (eventType === 'error') {
-                    const warning = document.createElement('div');
-                    warning.className = 'text-xs text-amber-500 dark:text-amber-400 mt-1';
-                    warning.textContent = 'Warning: Response may not have been saved';
-                    responseContainer.appendChild(warning);
-                } else if (eventType === 'done') {
-                    smd.parser_end(smdParser);
-                    if (!hasTextInCurrentBubble) currentBubble.style.display = 'none';
-                    resolvedThreadId = parseInt(data);
-                } else if (dataLines.length > 0) {
-                    if (data === '\n\n' || data.trim() === '') {
-                        continue;
                     }
-                    hasTextInCurrentBubble = true;
-                    currentBubble.style.display = '';
-                    smd.parser_write(smdParser, data);
-                    scrollToBottom();
+                    break;
                 }
+                case EventType.ERROR: {
+                    const errorMsg = document.createElement('ck-message');
+                    errorMsg.role = 'error';
+                    errorMsg.setContent(event.data);
+                    messages.addTurnPhase(errorMsg);
+                    break;
+                }
+                case EventType.DONE:
+                    if (currentMsg) currentMsg.endStreaming();
+                    currentMsg = null;
+                    messages.hideStatus();
+                    messages.resetTurn();
+                    break;
             }
         }
     } catch (error) {
-        console.error('Chat error:', error);
-        smd.parser_end(smdParser);
-        currentBubble.innerHTML = '';
-        currentBubble.style.display = '';
-        currentBubble.textContent = 'Error: Could not get response. Please try again.';
-        currentBubble.classList.remove('msg-prose');
-        currentBubble.classList.add('text-red-500', 'dark:text-red-400');
+        if (error.name !== 'AbortError') {
+            console.error('Coaching stream error:', error);
+        }
     } finally {
-        setLoading(false);
-        chatInput.focus();
+        if (input) input.streaming = false;
     }
-
-    return resolvedThreadId;
 }
 
-chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const message = chatInput.value.trim();
-    if (!message) return;
-
-    addMessage('user', message);
-    scrollToBottom(true);
-    chatInput.value = '';
-
-    const resolvedThreadId = await streamAIResponse(
-        '{{ base_path }}/api/chat/message',
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message,
-                book_id: bookId,
-                thread_id: currentThreadId,
-            }),
-        }
-    );
-
-    if (!currentThreadId && resolvedThreadId) {
-        addThreadItem(resolvedThreadId, message.slice(0, 50));
-        setActiveThread(resolvedThreadId);
-    }
-});
+// ── Thread loading (with coaching support) ────────────────────────
 
 async function loadThread(threadId) {
     try {
-        // Fetch thread detail and messages in parallel
-        const [detailRes, messagesRes] = await Promise.all([
-            fetch(`{{ base_path }}/api/chat/threads/${threadId}/detail`),
-            fetch(`{{ base_path }}/api/chat/threads/${threadId}/messages`),
-        ]);
-        if (!detailRes.ok || !messagesRes.ok) throw new Error('Failed to load thread');
-
+        // Fetch thread detail for coaching info
+        const detailRes = await fetch(`{{ base_path }}/api/chat/threads/${threadId}/detail`);
+        if (!detailRes.ok) throw new Error('Failed to load thread detail');
         const detail = await detailRes.json();
-        const messages = await messagesRes.json();
 
-        chatMessages.innerHTML = '';
+        // Clear coaching state
         currentCoachingCardId = detail.coaching_card_id || null;
         updateChatHeader(!!currentCoachingCardId);
 
-        // Render coaching context block if applicable
+        // Render coaching banner if applicable
+        coachingBanner.innerHTML = '';
         if (detail.coaching_card_title && detail.coaching_card_body) {
-            renderCoachingContext(detail.coaching_card_title, detail.coaching_card_body);
+            renderCoachingBanner(detail.coaching_card_title, detail.coaching_card_body);
         }
 
-        if (messages.length === 0) {
-            clearMessages();
-        } else {
-            for (const msg of messages) {
-                addMessage(msg.role, msg.content);
-            }
-        }
-
+        // Load thread messages via chatkit
+        await ckApp.loadThread(String(threadId));
         setActiveThread(threadId);
 
         if (window.innerWidth < 768) closeSidebar();
 
         // Auto-trigger AI response for coaching threads with no assistant reply yet
-        if (currentCoachingCardId && messages.length > 0) {
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg.role === 'user') {
-                await streamAIResponse(
-                    `{{ base_path }}/api/chat/threads/${threadId}/generate`,
-                    { method: 'POST' }
-                );
+        if (currentCoachingCardId) {
+            const convRes = await fetch(`{{ base_path }}/api/chat/conversations/${threadId}`);
+            if (convRes.ok) {
+                const convData = await convRes.json();
+                const msgs = convData.messages || [];
+                if (msgs.length > 0 && msgs[msgs.length - 1].role === 'user') {
+                    await streamCoachingResponse(threadId);
+                }
             }
         }
     } catch (error) {
@@ -688,41 +444,62 @@ async function loadThread(threadId) {
     }
 }
 
-// Thread item click handlers (including delete buttons)
+// ── Refresh sidebar on stream end (new thread was created) ────────
+
+ckApp.addEventListener('ck-stream-end', async () => {
+    // Refresh thread list from server
+    const res = await fetch(`{{ base_path }}/api/chat/conversations${bookId ? '?book_id=' + bookId : ''}`);
+    if (!res.ok) return;
+    const threads = await res.json();
+
+    // Rebuild thread list
+    threadList.innerHTML = '';
+    if (threads.length === 0) {
+        threadList.innerHTML = '<div id="thread-list-empty" class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400"><p>No conversations yet.</p><p class="mt-1 text-xs">Click "New Chat" to start one.</p></div>';
+        return;
+    }
+    for (const t of threads) {
+        addThreadItem(t.id, t.title, !!t.coaching_card_id);
+    }
+    // Highlight the current thread
+    if (ckApp.threadId) {
+        setActiveThread(ckApp.threadId);
+    }
+});
+
+// ── Thread item click handlers ────────────────────────────────────
+
 document.querySelectorAll('.thread-item').forEach(item => {
-    item.addEventListener('click', () => loadThread(parseInt(item.dataset.threadId)));
+    item.addEventListener('click', () => loadThread(item.dataset.threadId));
 });
 document.querySelectorAll('[data-delete-thread]').forEach(btn => {
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        deleteThread(parseInt(btn.dataset.deleteThread));
+        deleteThread(btn.dataset.deleteThread);
     });
 });
 
-// New chat button
-newChatBtn.addEventListener('click', () => {
-    currentThreadId = null;
+// ── New chat button ───────────────────────────────────────────────
+
+document.getElementById('new-chat-btn').addEventListener('click', () => {
     currentCoachingCardId = null;
-    clearMessages();
+    coachingBanner.innerHTML = '';
+    ckApp.newChat();
     setActiveThread(null);
     updateChatHeader(false);
-    chatInput.focus();
     if (window.innerWidth < 768) closeSidebar();
 });
 
-// Auto-select thread from URL parameter (e.g., from coaching card redirect)
+// ── Auto-select thread from URL parameter ─────────────────────────
+
 const urlParams = new URLSearchParams(window.location.search);
 const threadParam = urlParams.get('thread');
 if (threadParam) {
-    const threadId = parseInt(threadParam);
-    if (!isNaN(threadId)) {
-        loadThread(threadId);
-    }
-} else {
-    chatInput.focus();
+    loadThread(threadParam);
 }
 
-// Book search
+// ── Book search ───────────────────────────────────────────────────
+
 const bookSearchInput = document.getElementById('book-search-input');
 const bookSearchResults = document.getElementById('book-search-results');
 let searchDebounceTimer = null;
@@ -735,7 +512,6 @@ function showBookResults(books) {
         empty.textContent = 'No books found';
         bookSearchResults.appendChild(empty);
     } else {
-        // "All books" option at top - always available for navigation
         const allItem = document.createElement('a');
         allItem.href = '{{ base_path }}/chat';
         allItem.className = 'flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 text-primary-600 dark:text-primary-400 font-medium';
@@ -793,5 +569,11 @@ document.addEventListener('click', (e) => {
         hideBookResults();
     }
 });
+
+// ── Prevent chatkit from auto-loading threads into its own sidebar ─
+// (We manage the sidebar ourselves. CkApp.loadThreads() is called in
+// connectedCallback, but since there's no <ck-sidebar> in the DOM,
+// it's a no-op. Nothing extra needed here.)
+
 </script>
 {% endblock %}
