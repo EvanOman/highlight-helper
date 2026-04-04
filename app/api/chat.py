@@ -274,7 +274,7 @@ async def get_thread_detail(
             coaching_card_body = coaching_card.body
 
     return {
-        "id": thread.id,
+        "id": str(thread.id),
         "title": thread.title,
         "book_id": thread.book_id,
         "coaching_card_id": thread.coaching_card_id,

@@ -17,6 +17,17 @@
     ck-app { display: flex; flex: 1; min-height: 0; }
 </style>
 <link rel="stylesheet" href="{{ base_path }}/static/chatkit/theme/chatkit.css">
+<style>
+    /* Override chatkit dark mode colors to match Tailwind gray palette */
+    :root {
+        --ck-bg: #030712;           /* gray-950 — matches sidebar bg */
+        --ck-bg-surface: #111827;   /* gray-900 */
+        --ck-bg-surface-hover: #1f2937; /* gray-800 */
+        --ck-bg-user-msg: #111827;  /* gray-900 */
+        --ck-bg-input: #111827;     /* gray-900 */
+        --ck-border: #1f2937;       /* gray-800 */
+    }
+</style>
 
 <div class="flex" style="height: calc(100vh - 3.5rem)">
 
