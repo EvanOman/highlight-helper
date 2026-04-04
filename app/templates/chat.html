@@ -13,19 +13,6 @@
     .tool-card { transition: all 0.2s ease; }
     .tool-card .tool-spinner { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* Bridge Tailwind dark mode to chatkit CSS variables */
-    :root {
-        --ck-bg: #ffffff;
-        --ck-text: #1e293b;
-        --ck-bg-secondary: #f1f5f9;
-        --ck-border: #e2e8f0;
-    }
-    .dark {
-        --ck-bg: #111827;
-        --ck-text: #e2e8f0;
-        --ck-bg-secondary: #1f2937;
-        --ck-border: #374151;
-    }
     /* Ensure chatkit components inherit full height */
     ck-app { display: flex; flex: 1; min-height: 0; }
 </style>
@@ -570,10 +557,24 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// ── Prevent chatkit from auto-loading threads into its own sidebar ─
-// (We manage the sidebar ourselves. CkApp.loadThreads() is called in
-// connectedCallback, but since there's no <ck-sidebar> in the DOM,
-// it's a no-op. Nothing extra needed here.)
+// ── Sync Tailwind dark mode with chatkit theme ───────────────────
+// Tailwind: dark mode = <html class="dark">, light = no class
+// Chatkit: dark mode = no class, light = <html class="light">
+function syncCkTheme() {
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark) {
+        document.documentElement.classList.remove('light');
+    } else {
+        document.documentElement.classList.add('light');
+    }
+}
+syncCkTheme();
+
+// Observe class changes on <html> to keep in sync when theme toggles
+new MutationObserver(syncCkTheme).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class'],
+});
 
 </script>
 {% endblock %}
