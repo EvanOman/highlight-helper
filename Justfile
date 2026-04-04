@@ -41,6 +41,11 @@ fc: fmt lint-fix lint type test
 # CI checks (no auto-fix)
 ci: lint format-check type test
 
+# Update vendored chatkit assets from sibling repo
+update-chatkit:
+    rm -rf static/chatkit
+    cp -r ../chatkit/dist static/chatkit
+
 # Install dependencies
 install:
     uv sync --dev
