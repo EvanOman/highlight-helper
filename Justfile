@@ -45,6 +45,7 @@ ci: lint format-check type test
 update-chatkit:
     rm -rf static/chatkit
     cp -r ../chatkit/dist static/chatkit
+    cp ../chatkit/src/theme/chatkit.css static/chatkit/theme/chatkit.css
 
 # Install dependencies
 install:
