@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-03-28T02:10:05.173700791Z"
+exclude-newer = "2026-04-08T03:56:43.338552358Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -299,9 +299,12 @@ wheels = [
 [[package]]
 name = "chatkit"
 version = "0.1.0"
-source = { directory = "../chatkit/python" }
+source = { path = "chatkit-0.1.0-py3-none-any.whl" }
 dependencies = [
     { name = "pydantic" },
+]
+wheels = [
+    { filename = "chatkit-0.1.0-py3-none-any.whl", hash = "sha256:e2198308e2ffc97b014150c7f67050542c3fdafc1a4da32da83e43d617fbe4a4" },
 ]
 
 [package.optional-dependencies]
@@ -834,7 +837,7 @@ dev = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "anthropic", specifier = ">=0.40.0" },
-    { name = "chatkit", extras = ["fastapi"], directory = "../chatkit/python" },
+    { name = "chatkit", extras = ["fastapi"], path = "chatkit-0.1.0-py3-none-any.whl" },
     { name = "dspy", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.27.0" },

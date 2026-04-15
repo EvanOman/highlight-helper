@@ -60,9 +60,8 @@ class ISBNExtractorModule(dspy.Module):
         super().__init__()
         self.extract = dspy.ChainOfThought(ISBNExtractionSignature)
 
-    def forward(self, image: dspy.Image) -> ExtractedISBN:
-        prediction = self.extract(image=image)
-        return prediction.result
+    def forward(self, image: dspy.Image) -> dspy.Prediction:
+        return self.extract(image=image)
 
 
 class ISBNExtractorService:
@@ -125,8 +124,9 @@ class ISBNExtractorService:
                     with dspy.context(lm=self._lm):
                         # Use dspy.asyncify for async execution
                         async_extract = dspy.asyncify(self._extractor)
-                        result = await async_extract(image=image)
+                        prediction = await async_extract(image=image)
 
+                    result: ExtractedISBN = prediction.result
                     llm_span.set_attribute("result_isbn", result.isbn or "")
                     llm_span.set_attribute("result_confidence", result.confidence)
                     llm_span.set_attribute("result_source", result.source)

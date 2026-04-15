@@ -133,16 +133,23 @@ class TestBookLookupService:
         assert result.isbn == "9781234567890"
 
     async def test_search_by_isbn_not_found(self):
-        """Test ISBN search when book is not found."""
+        """Test ISBN search when book is not found in Google Books or Open Library."""
         service = BookLookupService()
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"totalItems": 0}
-        mock_response.raise_for_status = MagicMock()
+        # Google Books returns no results
+        mock_google_response = MagicMock()
+        mock_google_response.json.return_value = {"totalItems": 0}
+        mock_google_response.raise_for_status = MagicMock()
+
+        # Open Library returns 404
+        mock_ol_response = MagicMock()
+        mock_ol_response.status_code = 404
+        mock_ol_response.raise_for_status = MagicMock()
 
         with patch.object(service, "_get_client") as mock_get_client:
             mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response)
+            # First call is Google Books, second is Open Library fallback
+            mock_client.get = AsyncMock(side_effect=[mock_google_response, mock_ol_response])
             mock_get_client.return_value = mock_client
 
             result = await service.search_by_isbn("0000000000")
@@ -174,10 +181,12 @@ class TestHighlightExtractorService:
             highlight_start=18,
             highlight_end=32,
         )
+        mock_prediction = MagicMock()
+        mock_prediction.result = mock_result
 
-        # Create an async function that returns our mock result
+        # Create an async function that returns our mock prediction
         async def mock_async_extract(*args, **kwargs):
-            return mock_result
+            return mock_prediction
 
         with (
             patch("app.services.highlight_extractor.dspy.Image"),
@@ -313,9 +322,11 @@ class TestHighlightExtractorService:
             highlight_start=17,
             highlight_end=54,
         )
+        mock_prediction = MagicMock()
+        mock_prediction.result = mock_result
 
         async def mock_async_extract(*args, **kwargs):
-            return mock_result
+            return mock_prediction
 
         with (
             patch("app.services.highlight_extractor.dspy.Image"),
@@ -360,9 +371,11 @@ class TestISBNExtractorService:
             confidence="high",
             source="barcode",
         )
+        mock_prediction = MagicMock()
+        mock_prediction.result = mock_result
 
         async def mock_async_extract(*args, **kwargs):
-            return mock_result
+            return mock_prediction
 
         with (
             patch("app.services.isbn_extractor.dspy.Image"),
@@ -392,9 +405,11 @@ class TestISBNExtractorService:
             confidence="high",
             source="text",
         )
+        mock_prediction = MagicMock()
+        mock_prediction.result = mock_result
 
         async def mock_async_extract(*args, **kwargs):
-            return mock_result
+            return mock_prediction
 
         with (
             patch("app.services.isbn_extractor.dspy.Image"),

@@ -50,7 +50,7 @@ packages = ["app"]
 
 [tool.uv.sources]
 readwise-sdk = { path = "readwise_sdk-0.1.0-py3-none-any.whl" }
-chatkit = { path = "../chatkit/python" }
+chatkit = { path = "chatkit-0.1.0-py3-none-any.whl" }
 
 [tool.ruff]
 line-length = 100

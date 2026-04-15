@@ -77,9 +77,8 @@ class HighlightExtractorModule(dspy.Module):
         super().__init__()
         self.extract = dspy.ChainOfThought(HighlightExtractionSignature)
 
-    def forward(self, image: dspy.Image, user_instructions: str) -> ExtractedHighlight:
-        prediction = self.extract(image=image, user_instructions=user_instructions)
-        return prediction.result
+    def forward(self, image: dspy.Image, user_instructions: str) -> dspy.Prediction:
+        return self.extract(image=image, user_instructions=user_instructions)
 
 
 class HighlightExtractorService:
@@ -199,7 +198,11 @@ class HighlightExtractorService:
                     with dspy.context(lm=self._lm, track_usage=True):
                         # Use dspy.asyncify for async execution
                         async_extract = dspy.asyncify(self._extractor)
-                        result = await async_extract(image=image, user_instructions=instructions)
+                        prediction = await async_extract(
+                            image=image, user_instructions=instructions
+                        )
+
+                    result: ExtractedHighlight = prediction.result
 
                     # Compute highlight offsets within full_text
                     if result.full_text and result.highlight_text:

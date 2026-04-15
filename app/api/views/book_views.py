@@ -78,9 +78,12 @@ async def scan_isbn_page(
                 )
                 extracted_isbn = result.isbn
                 confidence = result.confidence
+            except Exception as e:
+                error_message = f"Error scanning image: {e!s}"
 
-                # If we got an ISBN, search for the book
-                if extracted_isbn:
+            # If we got an ISBN, search for the book
+            if extracted_isbn and not error_message:
+                try:
                     book_result = await book_lookup.search_by_isbn(extracted_isbn)
                     if book_result:
                         search_results = [
@@ -108,12 +111,15 @@ async def scan_isbn_page(
                                 f"Found ISBN {extracted_isbn} but couldn't find book info. "
                                 "Try searching manually."
                             )
-                else:
+                except Exception as e:
                     error_message = (
-                        "Could not extract ISBN from image. Try a clearer photo of the barcode."
+                        f"Found ISBN {extracted_isbn} but book lookup failed: {e!s}. "
+                        "Try searching manually."
                     )
-            except Exception as e:
-                error_message = f"Error extracting ISBN: {e!s}"
+            elif not error_message:
+                error_message = (
+                    "Could not extract ISBN from image. Try a clearer photo of the barcode."
+                )
 
     return templates.TemplateResponse(
         request,
