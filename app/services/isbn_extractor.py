@@ -64,6 +64,18 @@ class ISBNExtractorModule(dspy.Module):
         return self.extract(image=image)
 
 
+def _build_fallback_lm() -> dspy.LM | None:
+    """Build a fallback LM using Groq, if configured."""
+    settings = get_settings()
+    if not settings.groq_api_key:
+        return None
+    return dspy.LM(
+        settings.vision_fallback_model,
+        api_key=settings.groq_api_key,
+        max_tokens=500,
+    )
+
+
 class ISBNExtractorService:
     """Service for extracting ISBN from images using DSPy."""
 
@@ -82,7 +94,17 @@ class ISBNExtractorService:
                 max_tokens=500,
             )
         self._lm = lm
+        self._fallback_lm = _build_fallback_lm()
         self._extractor = ISBNExtractorModule()
+
+    async def _call_extractor(
+        self, image: dspy.Image, lm: dspy.LM, model_name: str
+    ) -> ExtractedISBN:
+        """Run the extractor with a specific LM and return the result."""
+        with dspy.context(lm=lm):
+            async_extract = dspy.asyncify(self._extractor)
+            prediction = await async_extract(image=image)
+        return prediction.result
 
     async def extract_isbn(
         self,
@@ -118,15 +140,25 @@ class ISBNExtractorService:
 
                 add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
 
-                # Call the LLM via DSPy
+                # Call the LLM via DSPy (with fallback)
+                model_used = self._model_name
                 with create_span("dspy_llm_call", {"model": self._model_name}) as llm_span:
-                    # Use dspy.context for thread-safe LM configuration
-                    with dspy.context(lm=self._lm):
-                        # Use dspy.asyncify for async execution
-                        async_extract = dspy.asyncify(self._extractor)
-                        prediction = await async_extract(image=image)
+                    try:
+                        result = await self._call_extractor(image, self._lm, self._model_name)
+                    except Exception as primary_err:
+                        if self._fallback_lm is None:
+                            raise
+                        settings = get_settings()
+                        model_used = settings.vision_fallback_model
+                        logger.warning(
+                            f"Primary vision model failed: {primary_err}. "
+                            f"Falling back to {model_used}."
+                        )
+                        llm_span.set_attribute("primary_model_error", str(primary_err))
+                        llm_span.set_attribute("fallback_model", model_used)
+                        result = await self._call_extractor(image, self._fallback_lm, model_used)
 
-                    result: ExtractedISBN = prediction.result
+                    llm_span.set_attribute("model_used", model_used)
                     llm_span.set_attribute("result_isbn", result.isbn or "")
                     llm_span.set_attribute("result_confidence", result.confidence)
                     llm_span.set_attribute("result_source", result.source)
@@ -143,10 +175,12 @@ class ISBNExtractorService:
                     extraction_isbn=result.isbn or "",
                     extraction_confidence=result.confidence,
                     extraction_source=result.source,
+                    extraction_model_used=model_used,
                 )
                 set_span_status(True)
                 logger.info(
-                    f"ISBN extraction: {result.isbn or 'none'} (confidence: {result.confidence})"
+                    f"ISBN extraction: {result.isbn or 'none'} "
+                    f"(confidence: {result.confidence}, model: {model_used})"
                 )
                 return result
 

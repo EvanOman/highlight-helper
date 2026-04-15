@@ -81,6 +81,18 @@ class HighlightExtractorModule(dspy.Module):
         return self.extract(image=image, user_instructions=user_instructions)
 
 
+def _build_fallback_lm() -> dspy.LM | None:
+    """Build a fallback LM using Groq, if configured."""
+    settings = get_settings()
+    if not settings.groq_api_key:
+        return None
+    return dspy.LM(
+        settings.vision_fallback_model,
+        api_key=settings.groq_api_key,
+        max_tokens=2000,
+    )
+
+
 class HighlightExtractorService:
     """Service for extracting highlights from images using DSPy."""
 
@@ -99,20 +111,16 @@ class HighlightExtractorService:
                 max_tokens=2000,
             )
         self._lm = lm
+        self._fallback_lm = _build_fallback_lm()
         self._extractor = HighlightExtractorModule()
 
-    def _extract_usage_from_history(self) -> TokenUsage | None:
-        """Extract token usage from the LM's history.
-
-        Returns:
-            TokenUsage object if usage info found, None otherwise.
-        """
+    def _extract_usage_from_lm(self, lm: dspy.LM, model_name: str) -> TokenUsage | None:
+        """Extract token usage from a specific LM's history."""
         try:
-            if not self._lm.history:
+            if not lm.history:
                 return None
 
-            # Get the most recent entry
-            last_entry = self._lm.history[-1]
+            last_entry = lm.history[-1]
             usage_data = last_entry.get("usage", {})
 
             if not usage_data:
@@ -124,19 +132,35 @@ class HighlightExtractorService:
             )
             total_tokens = usage_data.get("total_tokens", 0) or (input_tokens + output_tokens)
 
-            # Calculate cost
-            cost = calculate_cost(self._model_name, input_tokens, output_tokens)
+            cost = calculate_cost(model_name, input_tokens, output_tokens)
 
             return TokenUsage(
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
                 cost_usd=cost,
-                model=self._model_name,
+                model=model_name,
             )
         except Exception as e:
             logger.warning(f"Failed to extract usage from history: {e}")
             return None
+
+    async def _call_extractor(
+        self, image: dspy.Image, instructions: str, lm: dspy.LM
+    ) -> ExtractedHighlight:
+        """Run the extractor with a specific LM and return the result."""
+        with dspy.context(lm=lm, track_usage=True):
+            async_extract = dspy.asyncify(self._extractor)
+            prediction = await async_extract(image=image, user_instructions=instructions)
+        result: ExtractedHighlight = prediction.result
+
+        # Compute highlight offsets within full_text
+        if result.full_text and result.highlight_text:
+            h_start, h_end = locate_highlight(result.full_text, result.highlight_text)
+            result.highlight_start = h_start
+            result.highlight_end = h_end
+
+        return result
 
     async def extract_highlight(
         self,
@@ -186,7 +210,9 @@ class HighlightExtractorService:
 
                 add_span_attributes(extraction_jpeg_size_bytes=len(jpeg_bytes))
 
-                # Call the LLM via DSPy
+                # Call the LLM via DSPy (with fallback)
+                model_used = self._model_name
+                lm_used = self._lm
                 with create_span(
                     "dspy_llm_call",
                     {
@@ -194,23 +220,23 @@ class HighlightExtractorService:
                         "instructions_preview": instructions[:100],
                     },
                 ) as llm_span:
-                    # Use dspy.context for thread-safe LM configuration with usage tracking
-                    with dspy.context(lm=self._lm, track_usage=True):
-                        # Use dspy.asyncify for async execution
-                        async_extract = dspy.asyncify(self._extractor)
-                        prediction = await async_extract(
-                            image=image, user_instructions=instructions
+                    try:
+                        result = await self._call_extractor(image, instructions, self._lm)
+                    except Exception as primary_err:
+                        if self._fallback_lm is None:
+                            raise
+                        settings = get_settings()
+                        model_used = settings.vision_fallback_model
+                        lm_used = self._fallback_lm
+                        logger.warning(
+                            f"Primary vision model failed: {primary_err}. "
+                            f"Falling back to {model_used}."
                         )
+                        llm_span.set_attribute("primary_model_error", str(primary_err))
+                        llm_span.set_attribute("fallback_model", model_used)
+                        result = await self._call_extractor(image, instructions, self._fallback_lm)
 
-                    result: ExtractedHighlight = prediction.result
-
-                    # Compute highlight offsets within full_text
-                    if result.full_text and result.highlight_text:
-                        h_start, h_end = locate_highlight(result.full_text, result.highlight_text)
-                        result.highlight_start = h_start
-                        result.highlight_end = h_end
-
-                    # Add result preview to LLM span
+                    llm_span.set_attribute("model_used", model_used)
                     llm_span.set_attribute(
                         "result_text_preview",
                         result.highlight_text[:200] if result.highlight_text else "",
@@ -220,11 +246,12 @@ class HighlightExtractorService:
 
                 # Extract usage info (outside LLM span)
                 with create_span("extract_usage_info") as usage_span:
-                    usage = self._extract_usage_from_history()
+                    usage = self._extract_usage_from_lm(lm_used, model_used)
                     if usage:
                         result.usage = usage
                         logger.info(
-                            f"Extraction used {usage.total_tokens} tokens (${usage.cost_usd:.6f})"
+                            f"Extraction used {usage.total_tokens} tokens "
+                            f"(${usage.cost_usd:.6f}, model: {model_used})"
                         )
 
                         # Add usage to span attributes
@@ -260,6 +287,7 @@ class HighlightExtractorService:
                     extraction_text_length=len(result.highlight_text),
                     extraction_full_text_length=len(result.full_text),
                     extraction_has_page_number=result.page_number is not None,
+                    extraction_model_used=model_used,
                 )
                 set_span_status(True)
                 return result

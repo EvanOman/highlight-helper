@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     # Anthropic (for chat with highlights feature)
     anthropic_api_key: str = ""
 
+    # Groq (fallback for vision model)
+    groq_api_key: str = ""
+
     # Model configuration
     vision_model: str = "openai/gpt-5.2"
+    vision_fallback_model: str = "groq/openai/gpt-oss-120b"
     chat_model: str = "claude-opus-4-6"
 
     # Readwise (optional)
