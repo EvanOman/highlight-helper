@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Anthropic (for chat with highlights feature)
     anthropic_api_key: str = ""
 
+    # Google Books API
+    google_books_api_key: str = ""
+
     # Groq (fallback for vision model)
     groq_api_key: str = ""
 

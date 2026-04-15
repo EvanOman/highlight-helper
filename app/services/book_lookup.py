@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
 
 logger = logging.getLogger(__name__)
@@ -250,11 +251,14 @@ class BookLookupService:
             # Try Google Books first
             try:
                 client = await self._get_client()
-                params = {
+                params: dict[str, str | int] = {
                     "q": query,
                     "maxResults": min(max_results, 40),
                     "printType": "books",
                 }
+                api_key = get_settings().google_books_api_key
+                if api_key:
+                    params["key"] = api_key
                 response = await client.get(self.GOOGLE_BOOKS_URL, params=params)
                 response.raise_for_status()
 
@@ -309,10 +313,13 @@ class BookLookupService:
             # Try Google Books first
             try:
                 client = await self._get_client()
-                params = {
+                params: dict[str, str | int] = {
                     "q": f"isbn:{isbn}",
                     "maxResults": 1,
                 }
+                api_key = get_settings().google_books_api_key
+                if api_key:
+                    params["key"] = api_key
                 response = await client.get(self.GOOGLE_BOOKS_URL, params=params)
                 response.raise_for_status()
 
