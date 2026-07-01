@@ -26,10 +26,14 @@ class CoachingRepository:
         await self.db.refresh(card)
         return card
 
+    async def get_card(self, card_id: int) -> CoachingCard | None:
+        """Get a card by ID, or None if not found."""
+        result = await self.db.execute(select(CoachingCard).where(CoachingCard.id == card_id))
+        return result.scalar_one_or_none()
+
     async def get_card_or_raise(self, card_id: int) -> CoachingCard:
         """Get a card by ID, raising NotFoundError if not found."""
-        result = await self.db.execute(select(CoachingCard).where(CoachingCard.id == card_id))
-        card = result.scalar_one_or_none()
+        card = await self.get_card(card_id)
         if not card:
             raise NotFoundError("Coaching card not found")
         return card

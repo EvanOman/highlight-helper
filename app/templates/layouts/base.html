@@ -128,6 +128,9 @@
     </footer>
     {% endblock %}
 
+    <script>window.APP_BASE_PATH = {{ base_path | tojson }};</script>
+    <script src="{{ base_path }}/static/js/app.js"></script>
+
     <script>
         // Theme toggle functionality
         document.getElementById('theme-toggle').addEventListener('click', function() {

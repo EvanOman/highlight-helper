@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Any, cast
 
-from anthropic.types import MessageParam
 from chatkit import ChatEvent, ChatEventType, ChatRequest, stream_chat_events
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -13,9 +12,10 @@ from sse_starlette import EventSourceResponse
 
 from app.api.views._common import templates
 from app.core.database import get_async_session, get_db
-from app.models.coaching import CoachingCard
+from app.core.model_registry import CHAT_MODEL_CHOICES
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.chat import ChatRepository, get_chat_repo
+from app.repositories.coaching import CoachingRepository
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.chat import ChatService, get_chat_service
 from app.services.settings import SettingsService
@@ -26,13 +26,6 @@ router = APIRouter(tags=["chat"])
 
 
 # View endpoints for HTML pages
-
-
-CHAT_MODELS = [
-    ("claude-opus-4-6", "Claude Opus 4.6"),
-    ("claude-sonnet-4-5-20250929", "Claude Sonnet 4.5"),
-    ("claude-haiku-4-5-20251001", "Claude Haiku 4.5"),
-]
 
 
 @router.get("/chat", response_class=HTMLResponse)
@@ -59,7 +52,7 @@ async def chat_page(
             "highlight_count": highlight_count,
             "threads": threads,
             "chat_model": chat_model,
-            "chat_models": CHAT_MODELS,
+            "chat_models": CHAT_MODEL_CHOICES,
         },
     )
 
@@ -88,7 +81,7 @@ async def book_chat_page(
             "highlight_count": highlight_count,
             "threads": threads,
             "chat_model": chat_model,
-            "chat_models": CHAT_MODELS,
+            "chat_models": CHAT_MODEL_CHOICES,
         },
     )
 
@@ -215,24 +208,19 @@ async def send_chat_message(
     # Load full conversation history from DB, restoring structured content
     # blocks (tool_use / tool_result) when available.
     messages = await chat_repo.list_messages(thread_id)
-    history: list[MessageParam] = []
+    history: list[dict] = []
     for m in messages:
         if m.content_blocks:
             blocks = json.loads(m.content_blocks)
-            history.append(cast(MessageParam, {"role": m.role, "content": blocks}))
+            history.append(cast(dict, {"role": m.role, "content": blocks}))
         else:
-            history.append(cast(MessageParam, {"role": m.role, "content": m.content}))
+            history.append(cast(dict, {"role": m.role, "content": m.content}))
 
     # Load coaching context if thread is linked to a coaching card
     coaching_prompt: str | None = None
     thread_obj = await chat_repo.get_thread_or_raise(thread_id)
     if thread_obj.coaching_card_id:
-        from sqlalchemy import select
-
-        card_result = await chat_repo.db.execute(
-            select(CoachingCard).where(CoachingCard.id == thread_obj.coaching_card_id)
-        )
-        coaching_card = card_result.scalar_one_or_none()
+        coaching_card = await CoachingRepository(chat_repo.db).get_card(thread_obj.coaching_card_id)
         if coaching_card:
             coaching_prompt = coaching_card.coaching_system_prompt
 
@@ -263,12 +251,7 @@ async def get_thread_detail(
     coaching_card_title: str | None = None
     coaching_card_body: str | None = None
     if thread.coaching_card_id:
-        from sqlalchemy import select as sa_select
-
-        card_result = await chat_repo.db.execute(
-            sa_select(CoachingCard).where(CoachingCard.id == thread.coaching_card_id)
-        )
-        coaching_card = card_result.scalar_one_or_none()
+        coaching_card = await CoachingRepository(chat_repo.db).get_card(thread.coaching_card_id)
         if coaching_card:
             coaching_card_title = coaching_card.title
             coaching_card_body = coaching_card.body
@@ -299,23 +282,18 @@ async def generate_thread_response(
 
     # Load full conversation history
     messages = await chat_repo.list_messages(thread_id)
-    history: list[MessageParam] = []
+    history: list[dict] = []
     for m in messages:
         if m.content_blocks:
             blocks = json.loads(m.content_blocks)
-            history.append(cast(MessageParam, {"role": m.role, "content": blocks}))
+            history.append(cast(dict, {"role": m.role, "content": blocks}))
         else:
-            history.append(cast(MessageParam, {"role": m.role, "content": m.content}))
+            history.append(cast(dict, {"role": m.role, "content": m.content}))
 
     # Load coaching context
     coaching_prompt: str | None = None
     if thread.coaching_card_id:
-        from sqlalchemy import select as sa_select
-
-        card_result = await chat_repo.db.execute(
-            sa_select(CoachingCard).where(CoachingCard.id == thread.coaching_card_id)
-        )
-        coaching_card = card_result.scalar_one_or_none()
+        coaching_card = await CoachingRepository(chat_repo.db).get_card(thread.coaching_card_id)
         if coaching_card:
             coaching_prompt = coaching_card.coaching_system_prompt
 
@@ -335,7 +313,7 @@ async def _chat_events(
     *,
     thread_id: int,
     book_id: int | None,
-    history: list[MessageParam],
+    history: list[dict],
     coaching_prompt: str | None,
     chat_service: ChatService,
 ) -> Any:

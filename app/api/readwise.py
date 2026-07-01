@@ -15,7 +15,7 @@ from app.core.database import get_db
 from app.models.highlight import AnnotationType, SyncStatus
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
-from app.services.readwise import ReadwiseService
+from app.services.readwise import ReadwiseService, sync_pending_highlights
 from app.services.settings import get_settings_service
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,6 @@ async def validate_readwise_token(
 @router.post("/sync/all", response_model=ReadwiseBatchSyncResponse)
 async def sync_all_highlights(
     db: AsyncSession = Depends(get_db),
-    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> ReadwiseBatchSyncResponse:
     """Sync all unsynced highlights to Readwise."""
     settings = await get_settings_service(db)
@@ -71,51 +70,11 @@ async def sync_all_highlights(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Readwise API token not configured",
         )
-    # Get all unsynced highlights with their books (excluding notes)
-    rows = await highlight_repo.list_unsynced()
-
-    # Log if there are notes being excluded
-    notes_count = await highlight_repo.count_unsynced_notes()
-    if notes_count > 0:
-        logger.info(
-            "Skipping %d note(s) during sync - notes are not supported by Readwise",
-            notes_count,
-        )
-
-    if not rows:
-        return ReadwiseBatchSyncResponse(total=0, synced=0, failed=0)
-
-    # Build highlight data for batch sync
-    highlight_data = [
-        {
-            "text": h.text,
-            "title": b.title,
-            "author": b.author,
-            "note": h.note,
-            "page_number": h.page_number,
-            "highlighted_at": h.created_at,
-        }
-        for h, b in rows
-    ]
-
-    # Send to Readwise
-    async with ReadwiseService(api_token=token) as service:
-        batch_result = await service.send_highlights(highlight_data)
-
-    # Update synced highlights
-    now = datetime.now(tz=UTC)
-    for (highlight, _), sync_result in zip(rows, batch_result.results, strict=False):
-        if sync_result.success:
-            highlight.readwise_id = sync_result.readwise_id
-            highlight.synced_at = now
-            highlight.sync_status = SyncStatus.SYNCED
-
-    await highlight_repo.flush()
-
+    result = await sync_pending_highlights(db, token)
     return ReadwiseBatchSyncResponse(
-        total=batch_result.total,
-        synced=batch_result.synced,
-        failed=batch_result.failed,
+        total=result.total,
+        synced=result.synced,
+        failed=result.failed,
     )
 
 
@@ -192,7 +151,6 @@ async def sync_book_highlights(
     book_id: int,
     db: AsyncSession = Depends(get_db),
     book_repo: BookRepository = Depends(get_book_repo),
-    highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> ReadwiseBatchSyncResponse:
     """Sync all unsynced highlights for a book to Readwise."""
     settings = await get_settings_service(db)
@@ -203,52 +161,11 @@ async def sync_book_highlights(
             detail="Readwise API token not configured",
         )
     # Verify book exists
-    book = await book_repo.get_or_raise(book_id)
+    await book_repo.get_or_raise(book_id)
 
-    # Get unsynced highlights for this book (excluding notes)
-    rows = await highlight_repo.list_unsynced(book_id=book_id)
-
-    # Log if there are notes being excluded
-    notes_count = await highlight_repo.count_unsynced_notes(book_id=book_id)
-    if notes_count > 0:
-        logger.info(
-            "Skipping %d note(s) for book id=%d during sync - notes are not supported by Readwise",
-            notes_count,
-            book_id,
-        )
-
-    if not rows:
-        return ReadwiseBatchSyncResponse(total=0, synced=0, failed=0)
-
-    # Build highlight data for batch sync
-    highlight_data = [
-        {
-            "text": h.text,
-            "title": book.title,
-            "author": book.author,
-            "note": h.note,
-            "page_number": h.page_number,
-            "highlighted_at": h.created_at,
-        }
-        for h, _b in rows
-    ]
-
-    # Send to Readwise
-    async with ReadwiseService(api_token=token) as service:
-        batch_result = await service.send_highlights(highlight_data)
-
-    # Update synced highlights
-    now = datetime.now(tz=UTC)
-    for (highlight, _), sync_result in zip(rows, batch_result.results, strict=False):
-        if sync_result.success:
-            highlight.readwise_id = sync_result.readwise_id
-            highlight.synced_at = now
-            highlight.sync_status = SyncStatus.SYNCED
-
-    await highlight_repo.flush()
-
+    result = await sync_pending_highlights(db, token, book_id=book_id)
     return ReadwiseBatchSyncResponse(
-        total=batch_result.total,
-        synced=batch_result.synced,
-        failed=batch_result.failed,
+        total=result.total,
+        synced=result.synced,
+        failed=result.failed,
     )

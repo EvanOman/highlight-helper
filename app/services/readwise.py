@@ -6,6 +6,12 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import BackgroundTasks
+
+    from app.models.highlight import Highlight
 
 from readwise_sdk import ReadwiseClient
 from readwise_sdk.contrib import HighlightPusher, PushResult, SimpleHighlight
@@ -769,6 +775,7 @@ async def sync_highlight_background(
     note: str | None,
     page_number: str | None,
     created_at: datetime,
+    api_token: str | None = None,
 ) -> None:
     """Background task to sync a highlight to Readwise.
 
@@ -783,11 +790,13 @@ async def sync_highlight_background(
         note: Optional note/annotation.
         page_number: Optional page number.
         created_at: When the highlight was created.
+        api_token: Readwise API token. Falls back to the READWISE_API_TOKEN
+            environment variable when None.
     """
     from app.core.database import get_async_session
-    from app.models.highlight import Highlight
+    from app.models.highlight import Highlight, SyncStatus
 
-    service = _get_service()
+    service = ReadwiseService(api_token=api_token)
     if not service.is_configured:
         logger.debug("Readwise not configured, skipping auto-sync")
         return
@@ -807,8 +816,6 @@ async def sync_highlight_background(
             async with get_async_session() as db:
                 from sqlalchemy import select
 
-                from app.models.highlight import SyncStatus
-
                 query = select(Highlight).where(Highlight.id == highlight_id)
                 db_result = await db.execute(query)
                 highlight = db_result.scalar_one_or_none()
@@ -825,64 +832,104 @@ async def sync_highlight_background(
         logger.error(f"Error during auto-sync of highlight {highlight_id}: {e}")
 
 
-async def sync_highlight_background_with_token(
-    highlight_id: int,
-    book_title: str,
-    book_author: str | None,
-    text: str,
-    note: str | None,
-    page_number: str | None,
-    created_at: datetime,
-    api_token: str,
-) -> None:
-    """Background task to sync a highlight to Readwise with explicit token.
+@dataclass
+class PendingSyncResult:
+    """Outcome of a batch sync of pending highlights."""
 
-    This version accepts the API token as a parameter instead of reading from
-    environment settings, allowing use with app-level settings.
+    total: int = 0
+    synced: int = 0
+    failed: int = 0
 
-    Args:
-        highlight_id: The local highlight ID to update after sync.
-        book_title: Book title for Readwise.
-        book_author: Book author for Readwise (defaults to "Unknown Author" if None).
-        text: The highlight text.
-        note: Optional note/annotation.
-        page_number: Optional page number.
-        created_at: When the highlight was created.
-        api_token: The Readwise API token.
+
+async def sync_pending_highlights(
+    db: AsyncSession,
+    token: str,
+    book_id: int | None = None,
+) -> PendingSyncResult:
+    """Sync all pending (never-synced) highlights to Readwise.
+
+    Shared implementation for the /api/readwise and /api/settings sync-all
+    endpoints. Notes are excluded (Readwise doesn't support them). Successful
+    syncs are flushed to the session; the caller's session owner commits.
     """
-    from app.core.database import get_async_session
-    from app.models.highlight import Highlight
+    from app.repositories.highlight import HighlightRepository
 
-    service = ReadwiseService(api_token=api_token)
+    highlight_repo = HighlightRepository(db)
+    rows = await highlight_repo.list_unsynced(book_id=book_id)
 
-    try:
-        result = await service.send_highlight(
-            text=text,
-            title=book_title,
-            author=book_author or "Unknown Author",
-            note=note,
-            page_number=page_number,
-            highlighted_at=created_at,
+    notes_count = await highlight_repo.count_unsynced_notes(book_id=book_id)
+    if notes_count > 0:
+        logger.info(
+            "Skipping %d note(s) during sync - notes are not supported by Readwise",
+            notes_count,
         )
 
-        if result.success:
-            # Update highlight in database with sync info
-            async with get_async_session() as db:
-                from sqlalchemy import select
+    if not rows:
+        return PendingSyncResult()
 
-                from app.models.highlight import SyncStatus
+    highlight_data = [
+        {
+            "text": h.text,
+            "title": b.title,
+            "author": b.author,
+            "note": h.note,
+            "page_number": h.page_number,
+            "highlighted_at": h.created_at,
+        }
+        for h, b in rows
+    ]
 
-                query = select(Highlight).where(Highlight.id == highlight_id)
-                db_result = await db.execute(query)
-                highlight = db_result.scalar_one_or_none()
+    async with ReadwiseService(api_token=token) as service:
+        batch_result = await service.send_highlights(highlight_data)
 
-                if highlight:
-                    highlight.readwise_id = result.readwise_id
-                    highlight.synced_at = datetime.now(tz=UTC)
-                    highlight.sync_status = SyncStatus.SYNCED
-                    logger.info(f"Auto-synced highlight {highlight_id} to Readwise")
-        else:
-            logger.warning(f"Failed to auto-sync highlight {highlight_id}: {result.error}")
+    from app.models.highlight import SyncStatus
 
-    except Exception as e:
-        logger.error(f"Error during auto-sync of highlight {highlight_id}: {e}")
+    now = datetime.now(tz=UTC)
+    for (highlight, _), sync_result in zip(rows, batch_result.results, strict=False):
+        if sync_result.success:
+            highlight.readwise_id = sync_result.readwise_id
+            highlight.synced_at = now
+            highlight.sync_status = SyncStatus.SYNCED
+
+    await highlight_repo.flush()
+
+    return PendingSyncResult(
+        total=batch_result.total,
+        synced=batch_result.synced,
+        failed=batch_result.failed,
+    )
+
+
+async def schedule_auto_sync(
+    background_tasks: "BackgroundTasks",
+    db: AsyncSession,
+    highlight: "Highlight",
+    book_title: str,
+    book_author: str | None,
+) -> None:
+    """Schedule a background Readwise sync for a new highlight if enabled.
+
+    Checks the app-level auto-sync setting and token; no-op when either is
+    missing. Shared by the REST API and the HTML form view.
+    """
+    from app.services.settings import SettingsService
+
+    app_settings = SettingsService(db)
+    auto_sync = await app_settings.get_readwise_auto_sync()
+    token = await app_settings.get_readwise_token()
+    if not (auto_sync and token):
+        return
+
+    # ty ParamSpec bug: kwargs of the task function are inferred incorrectly,
+    # book_author is declared `str | None` on sync_highlight_background.
+    background_tasks.add_task(
+        sync_highlight_background,
+        highlight_id=highlight.id,
+        book_title=book_title,
+        book_author=book_author,  # type: ignore[invalid-argument-type]
+        text=highlight.text,
+        note=highlight.note,
+        page_number=highlight.page_number,
+        created_at=highlight.created_at,
+        api_token=token,
+    )

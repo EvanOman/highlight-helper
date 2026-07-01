@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.models.book import Book
-from app.models.highlight import AnnotationType, Highlight
+from app.models.highlight import AnnotationType, Highlight, SyncStatus
 
 
 class HighlightRepository:
@@ -64,15 +64,23 @@ class HighlightRepository:
             raise NotFoundError("Highlight not found")
         return row[0], row[1]
 
-    async def list_for_book(self, book_id: int) -> list[Highlight]:
-        """List all highlights for a book, ordered by creation date descending."""
+    async def list_for_book(self, book_id: int, limit: int | None = None) -> list[Highlight]:
+        """List highlights for a book, ordered by creation date descending."""
         query = (
             select(Highlight)
             .where(Highlight.book_id == book_id)
             .order_by(Highlight.created_at.desc())
         )
+        if limit is not None:
+            query = query.limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def count_for_book(self, book_id: int) -> int:
+        """Count highlights for a book."""
+        query = select(func.count(Highlight.id)).where(Highlight.book_id == book_id)
+        result = await self.db.execute(query)
+        return result.scalar() or 0
 
     async def list_all_with_books(
         self, skip: int = 0, limit: int | None = None
@@ -97,13 +105,25 @@ class HighlightRepository:
             book_id: If provided, only return highlights for this book.
             exclude_notes: If True (default), exclude NOTE type highlights.
         """
-        query = select(Highlight, Book).join(Book).where(Highlight.synced_at.is_(None))
+        query = (
+            select(Highlight, Book).join(Book).where(Highlight.sync_status == SyncStatus.PENDING)
+        )
         if book_id is not None:
             query = query.where(Highlight.book_id == book_id)
         if exclude_notes:
             query = query.where(Highlight.type == AnnotationType.HIGHLIGHT)
         result = await self.db.execute(query)
         return [(row[0], row[1]) for row in result.all()]
+
+    async def count_by_sync_status(
+        self, sync_status: SyncStatus, exclude_notes: bool = True
+    ) -> int:
+        """Count highlights with a given sync status."""
+        query = select(func.count(Highlight.id)).where(Highlight.sync_status == sync_status)
+        if exclude_notes:
+            query = query.where(Highlight.type == AnnotationType.HIGHLIGHT)
+        result = await self.db.execute(query)
+        return result.scalar() or 0
 
     async def count_unsynced_notes(self, book_id: int | None = None) -> int:
         """Count unsynced notes (for logging purposes)."""

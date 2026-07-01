@@ -206,9 +206,7 @@ class TestHighlightAutoSync:
         await test_session.flush()
 
         with (
-            patch(
-                "app.services.readwise.sync_highlight_background_with_token", new_callable=AsyncMock
-            ),
+            patch("app.services.readwise.sync_highlight_background", new_callable=AsyncMock),
         ):
             response = await client.post(
                 f"/api/highlights/book/{sample_book.id}",
@@ -239,7 +237,7 @@ class TestHighlightAutoSync:
 
         with (
             patch(
-                "app.services.readwise.sync_highlight_background_with_token", new_callable=AsyncMock
+                "app.services.readwise.sync_highlight_background", new_callable=AsyncMock
             ) as mock_sync,
         ):
             response = await client.post(
@@ -268,7 +266,7 @@ class TestHighlightAutoSync:
 
         with (
             patch(
-                "app.services.readwise.sync_highlight_background_with_token", new_callable=AsyncMock
+                "app.services.readwise.sync_highlight_background", new_callable=AsyncMock
             ) as mock_sync,
         ):
             response = await client.post(

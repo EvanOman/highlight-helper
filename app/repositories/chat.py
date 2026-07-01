@@ -26,9 +26,13 @@ class ChatRepository:
             raise NotFoundError("Chat thread not found")
         return thread
 
-    async def list_threads(self, book_id: int | None = None) -> list[ChatThread]:
-        """List threads, optionally filtered by book_id, ordered by updated_at desc."""
-        query = select(ChatThread).order_by(ChatThread.updated_at.desc())
+    async def list_threads(self, book_id: int | None = None, limit: int = 100) -> list[ChatThread]:
+        """List threads, optionally filtered by book_id, ordered by updated_at desc.
+
+        Capped at `limit` (most recently updated first) so the sidebar and API
+        stay bounded regardless of history size.
+        """
+        query = select(ChatThread).order_by(ChatThread.updated_at.desc()).limit(limit)
         if book_id is not None:
             query = query.where(ChatThread.book_id == book_id)
         else:

@@ -23,7 +23,7 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
-from app.services.readwise import ReadwiseService
+from app.services.readwise import ReadwiseService, schedule_auto_sync
 from app.services.settings import get_settings_service
 
 from ._common import router, settings, templates
@@ -157,26 +157,13 @@ async def create_highlight_form(
     )
 
     # Schedule auto-sync to Readwise if enabled (check app settings)
-    app_settings = await get_settings_service(db)
-    auto_sync = await app_settings.get_readwise_auto_sync()
-    token = await app_settings.get_readwise_token()
-
-    if auto_sync and token:
-        from app.services.readwise import sync_highlight_background_with_token
-
-        # ty type checker has a ParamSpec bug: even str() casts are reported as str|None
-        # See: book.author is Mapped[str] (non-nullable), function accepts str|None
-        background_tasks.add_task(
-            sync_highlight_background_with_token,
-            highlight_id=highlight.id,
-            book_title=book.title,
-            book_author=book.author,  # type: ignore[arg-type]
-            text=highlight.text,
-            note=highlight.note,
-            page_number=highlight.page_number,
-            created_at=highlight.created_at,
-            api_token=token,
-        )
+    await schedule_auto_sync(
+        background_tasks,
+        db,
+        highlight,
+        book_title=book.title,
+        book_author=book.author,
+    )
 
     return RedirectResponse(
         url=f"{settings.root_path}/books/{book_id}", status_code=status.HTTP_303_SEE_OTHER

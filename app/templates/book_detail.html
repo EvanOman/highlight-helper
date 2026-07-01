@@ -33,8 +33,8 @@
             <div class="flex items-start gap-2">
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{{ book.title }}</h1>
                 <button id="detail-star-btn"
-                        onclick="toggleStarDetail({{ book.id }}, this)"
-                        class="flex-shrink-0 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition mt-0.5"
+                        onclick="toggleStar({{ book.id }}, this, null, 'h-6 w-6')"
+                        class="flex-shrink-0 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition mt-0.5"
                         title="{% if book.is_starred %}Unstar{% else %}Star{% endif %} this book"
                         data-starred="{{ 'true' if book.is_starred else 'false' }}">
                     {% if book.is_starred %}
@@ -109,7 +109,8 @@
             <button
                 class="absolute top-1/2 -translate-x-1/2 w-4 h-4 rounded-full
                        {% if item.type == 'note' %}bg-blue-500 hover:bg-blue-600{% else %}bg-primary-500 hover:bg-primary-600{% endif %}
-                       shadow-sm hover:scale-125 transition-transform cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                       shadow-sm hover:scale-125 transition-transform cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
+                       after:content-[''] after:absolute after:-inset-3"
                 style="left: {{ item.position }}%; transform: translateX(-50%) translateY(calc(-50% - {{ item.offset_index * 18 }}px));"
                 title="Page {{ item.page_number }}: {{ item.preview | e }}"
                 onclick="scrollToHighlight({{ item.id }})"
@@ -188,7 +189,7 @@
                 {% elif highlight.readwise_id %}
                 <button id="sync-btn-{{ highlight.id }}"
                         onclick="syncHighlightToReadwise({{ highlight.id }})"
-                        class="inline-flex items-center gap-1 text-orange-700 px-2 py-1 bg-orange-50 rounded hover:bg-orange-100 transition"
+                        class="inline-flex items-center gap-1 text-orange-700 dark:text-orange-400 px-2 py-2 bg-orange-50 dark:bg-orange-900/30 rounded hover:bg-orange-100 dark:hover:bg-orange-900/50 transition"
                         title="Local changes not synced to Readwise. Click to re-sync.">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
@@ -198,7 +199,7 @@
                 {% else %}
                 <button id="sync-btn-{{ highlight.id }}"
                         onclick="syncHighlightToReadwise({{ highlight.id }})"
-                        class="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 px-2 py-1 bg-amber-50 dark:bg-amber-900/30 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50 transition">
+                        class="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 px-2 py-2 bg-amber-50 dark:bg-amber-900/30 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
                     </svg>
@@ -206,12 +207,12 @@
                 </button>
                 {% endif %}
                 <a href="{{ base_path }}/books/{{ book.id }}/highlights/{{ highlight.id }}/edit"
-                   class="text-primary-600 hover:text-primary-700">
+                   class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 inline-flex items-center min-h-[44px] px-2">
                     Edit
                 </a>
                 <form action="{{ base_path }}/highlights/{{ highlight.id }}/delete" method="post"
                       onsubmit="return confirm('Delete this highlight?');">
-                    <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
+                    <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 inline-flex items-center min-h-[44px] px-2">
                         Delete
                     </button>
                 </form>
@@ -247,31 +248,6 @@
 {% endif %}
 
 <script>
-async function toggleStarDetail(bookId, btn) {
-    try {
-        const response = await fetch(`{{ base_path }}/api/books/${bookId}/star`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        const starred = data.starred;
-        btn.dataset.starred = starred ? 'true' : 'false';
-        btn.title = starred ? 'Unstar this book' : 'Star this book';
-        if (starred) {
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>`;
-        } else {
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>`;
-        }
-    } catch (error) {
-        console.error('Failed to toggle star:', error);
-    }
-}
-
 function scrollToHighlight(highlightId) {
     const card = document.getElementById(`highlight-${highlightId}`);
     if (card) {
@@ -281,46 +257,6 @@ function scrollToHighlight(highlightId) {
         setTimeout(() => {
             card.classList.remove('ring-2', 'ring-primary-500');
         }, 1500);
-    }
-}
-
-async function syncHighlightToReadwise(highlightId) {
-    const btn = document.getElementById(`sync-btn-${highlightId}`);
-    const btnText = document.getElementById(`sync-btn-text-${highlightId}`);
-
-    btn.disabled = true;
-    btnText.textContent = 'Syncing...';
-
-    try {
-        const response = await fetch(`{{ base_path }}/api/readwise/sync/${highlightId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            // Replace button with synced indicator (with dark mode support)
-            const isDark = document.documentElement.classList.contains('dark');
-            btn.outerHTML = `
-                <span class="inline-flex items-center gap-1 text-green-600 dark:text-green-400 px-2 py-1 bg-green-50 dark:bg-green-900/30 rounded" title="Synced to Readwise">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                    </svg>
-                    Synced
-                </span>
-            `;
-        } else {
-            alert(data.detail || data.error || 'Failed to sync. Please configure your Readwise API token.');
-            btnText.textContent = 'Sync';
-            btn.disabled = false;
-        }
-    } catch (error) {
-        alert('Network error. Please try again.');
-        btnText.textContent = 'Sync';
-        btn.disabled = false;
     }
 }
 </script>

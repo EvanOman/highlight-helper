@@ -25,7 +25,7 @@ dependencies = [
     "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
     "opentelemetry-exporter-otlp>=1.27.0",
     "readwise-sdk",
-    "anthropic>=0.40.0",
+    "litellm>=1.40.0",
     "chatkit[fastapi]",
     "sse-starlette>=2.0",
 ]

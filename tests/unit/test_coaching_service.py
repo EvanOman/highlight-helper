@@ -2,7 +2,7 @@
 
 import json
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models.book import Book
 from app.models.coaching import CoachingCard, CoachingCardStatus, CoachingCardType
@@ -10,32 +10,35 @@ from app.models.highlight import Highlight
 from app.models.settings import AppSetting
 from app.services.coaching import CoachingService
 
+COACHING_MODEL = "anthropic/claude-sonnet-4-5-20250929"
+
 
 class TestGenerateCard:
     """Tests for CoachingService.generate_card()."""
 
-    async def test_generate_card_returns_expected_structure(self, test_session):
+    @patch("app.services.coaching.litellm")
+    async def test_generate_card_returns_expected_structure(self, mock_litellm, test_session):
         """Test that generate_card returns card data with all required fields."""
-        mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.content = [
+        mock_response.choices = [
             MagicMock(
-                text=json.dumps(
-                    {
-                        "title": "Unexpected Parallels",
-                        "body": "These two books share a surprising insight about human nature.",
-                        "chat_prompt": "I noticed both books discuss the nature of habits.",
-                        "coaching_system_prompt": "You are a reading coach. Guide the reader through...",
-                    }
+                message=MagicMock(
+                    content=json.dumps(
+                        {
+                            "title": "Unexpected Parallels",
+                            "body": "These two books share a surprising insight about human nature.",
+                            "chat_prompt": "I noticed both books discuss the nature of habits.",
+                            "coaching_system_prompt": "You are a reading coach. Guide the reader through...",
+                        }
+                    )
                 )
             )
         ]
-        mock_response.usage.input_tokens = 500
-        mock_response.usage.output_tokens = 300
-        mock_client.messages = MagicMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_response.usage.prompt_tokens = 500
+        mock_response.usage.completion_tokens = 300
+        mock_litellm.acompletion = AsyncMock(return_value=mock_response)
 
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
         book1 = Book(id=1, title="Book A", author="Author A")
         book2 = Book(id=2, title="Book B", author="Author B")
@@ -53,18 +56,17 @@ class TestGenerateCard:
         assert result["body"] == "These two books share a surprising insight about human nature."
         assert result["chat_prompt"] == "I noticed both books discuss the nature of habits."
         assert "coaching_system_prompt" in result
-        assert result["model"] == "claude-sonnet-4-5-20250929"
+        assert result["model"] == COACHING_MODEL
         assert result["input_tokens"] == 500
         assert result["output_tokens"] == 300
         assert result["cost_usd"] > 0
 
-    async def test_generate_card_returns_none_on_api_error(self, test_session):
+    @patch("app.services.coaching.litellm")
+    async def test_generate_card_returns_none_on_api_error(self, mock_litellm, test_session):
         """Test that generate_card returns None when the API call fails."""
-        mock_client = MagicMock()
-        mock_client.messages = MagicMock()
-        mock_client.messages.create = AsyncMock(side_effect=Exception("API error"))
+        mock_litellm.acompletion = AsyncMock(side_effect=Exception("API error"))
 
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
         book = Book(id=1, title="Book", author="Author")
         h = MagicMock(spec=Highlight, id=1, book_id=1, text="Text")
@@ -88,8 +90,7 @@ class TestSelectAndGenerate:
         test_session.add(setting)
         await test_session.flush()
 
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
         result = await service.select_and_generate()
         assert result is None
 
@@ -99,8 +100,7 @@ class TestSelectAndGenerate:
         test_session.add(setting)
         await test_session.flush()
 
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
         result = await service.select_and_generate()
         assert result is None
 
@@ -118,8 +118,7 @@ class TestSelectAndGenerate:
         test_session.add(card)
         await test_session.flush()
 
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
         result = await service.select_and_generate()
         assert result is None
 
@@ -143,8 +142,7 @@ class TestSelectAndGenerate:
         test_session.add(card)
         await test_session.flush()
 
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
         result = await service.select_and_generate()
         assert result is None
 
@@ -161,8 +159,7 @@ class TestSelectAndGenerate:
         test_session.add(h)
         await test_session.flush()
 
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
         result = await service.select_and_generate()
         assert result is None
 
@@ -171,8 +168,7 @@ class TestBuildTypePrompt:
     """Tests for CoachingService._build_type_prompt()."""
 
     async def test_cross_book_needs_two_books(self, test_session):
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
         book = Book(id=1, title="Only Book", author="Author")
         h = MagicMock(spec=Highlight, id=1, book_id=1, text="Text")
@@ -185,8 +181,7 @@ class TestBuildTypePrompt:
         assert result is None
 
     async def test_comprehension_check_builds_prompt(self, test_session):
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
         book = Book(id=1, title="Test Book", author="Test Author")
         h = MagicMock(spec=Highlight, id=1, book_id=1, text="A great insight")
@@ -202,8 +197,7 @@ class TestBuildTypePrompt:
         assert "A great insight" in result
 
     async def test_spaced_review_builds_prompt(self, test_session):
-        mock_client = MagicMock()
-        service = CoachingService(test_session, client=mock_client)
+        service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
         book = Book(id=1, title="Old Book", author="Author")
         h = MagicMock(spec=Highlight, id=1, book_id=1, text="An old thought")

@@ -5,12 +5,11 @@ import logging
 import random
 from datetime import UTC, datetime, timedelta
 
-from anthropic import AsyncAnthropic
+import litellm
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
-from app.models.api_usage import calculate_cost
+from app.core.model_registry import calculate_cost, normalize_model_id
 from app.models.book import Book
 from app.models.coaching import CoachingCardType
 from app.models.highlight import Highlight
@@ -18,8 +17,6 @@ from app.repositories.coaching import CoachingRepository
 from app.services.settings import SettingsService
 
 logger = logging.getLogger(__name__)
-
-COACHING_MODEL = "claude-sonnet-4-5-20250929"
 
 CARD_EXPIRY_DAYS = 7
 FREQUENCY_CAP_HOURS = 24
@@ -100,16 +97,17 @@ CARD_TYPE_WEIGHTS = {
 class CoachingService:
     """Service for generating and managing coaching cards."""
 
-    def __init__(
-        self,
-        db: AsyncSession,
-        client: AsyncAnthropic | None = None,
-    ) -> None:
+    def __init__(self, db: AsyncSession, coaching_model: str | None = None) -> None:
         self.db = db
-        settings = get_settings()
-        self._client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._model_override = normalize_model_id(coaching_model) if coaching_model else None
         self._repo = CoachingRepository(db)
         self._settings = SettingsService(db)
+
+    async def _resolve_model(self) -> str:
+        """Model to use: explicit override, else the UI-configured setting."""
+        if self._model_override:
+            return self._model_override
+        return await self._settings.get_coaching_model()
 
     async def generate_card(
         self,
@@ -117,7 +115,7 @@ class CoachingService:
         highlights: list[Highlight],
         books: list[Book],
     ) -> dict | None:
-        """Generate a coaching card using Claude Sonnet.
+        """Generate a coaching card using the configured coaching model.
 
         Returns a dict with the card data, or None if generation fails.
         """
@@ -125,23 +123,21 @@ class CoachingService:
         if not user_prompt:
             return None
 
+        model = await self._resolve_model()
         try:
-            response = await self._client.messages.create(
-                model=COACHING_MODEL,
+            response = await litellm.acompletion(
+                model=model,
                 max_tokens=2048,
-                system=BASE_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
+                messages=[
+                    {"role": "system", "content": BASE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
             )
 
-            # Find the text block in the response content
-            text = ""
-            for block in response.content:
-                if hasattr(block, "text") and block.text:
-                    text = block.text
-                    break
+            text = response.choices[0].message.content
 
             if not text:
-                logger.error("No text content in coaching card response: %s", response.content)
+                logger.error("No text content in coaching card response")
                 return None
 
             # Strip markdown code fences if present
@@ -163,11 +159,11 @@ class CoachingService:
                 logger.warning("JSON parse failed, raw text:\n%s", text[:2000])
                 return None
 
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-            cost = calculate_cost(COACHING_MODEL, input_tokens, output_tokens)
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
+            cost = calculate_cost(model, input_tokens, output_tokens)
 
-            card_data["model"] = COACHING_MODEL
+            card_data["model"] = model
             card_data["input_tokens"] = input_tokens
             card_data["output_tokens"] = output_tokens
             card_data["cost_usd"] = cost
@@ -309,13 +305,11 @@ class CoachingService:
 
         chosen_ids = random.sample(eligible_book_ids, 2)
 
-        books = []
+        books_result = await self.db.execute(select(Book).where(Book.id.in_(chosen_ids)))
+        books = list(books_result.scalars().all())
+
         highlights = []
         for book_id in chosen_ids:
-            book_result = await self.db.execute(select(Book).where(Book.id == book_id))
-            book = book_result.scalar_one()
-            books.append(book)
-
             hl_result = await self.db.execute(
                 select(Highlight)
                 .where(Highlight.book_id == book_id, Highlight.text.isnot(None))

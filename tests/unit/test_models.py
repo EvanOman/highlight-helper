@@ -53,7 +53,12 @@ class TestBookModel:
         assert "Test Author" in repr_str
 
     async def test_book_highlights_relationship(self, test_session, sample_book):
-        """Test book-highlights relationship."""
+        """Test book-highlights relationship (must be loaded explicitly)."""
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        from app.models.book import Book
+
         highlight1 = Highlight(
             book_id=sample_book.id,
             text="First highlight",
@@ -64,9 +69,12 @@ class TestBookModel:
         )
         test_session.add_all([highlight1, highlight2])
         await test_session.flush()
-        await test_session.refresh(sample_book)
 
-        assert len(sample_book.highlights) == 2
+        result = await test_session.execute(
+            select(Book).where(Book.id == sample_book.id).options(selectinload(Book.highlights))
+        )
+        book = result.scalar_one()
+        assert len(book.highlights) == 2
 
 
 class TestHighlightModel:

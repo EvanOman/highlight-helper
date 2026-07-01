@@ -3,12 +3,15 @@
 import contextlib
 import os
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import ClassVar
 
+import httpx
 import pytest
 
 # Skip E2E tests if SKIP_E2E_TESTS is set
@@ -17,10 +20,33 @@ pytestmark = pytest.mark.skipif(
     reason="E2E tests are skipped in this environment",
 )
 
+E2E_PORT = 8765
+E2E_HOST = "127.0.0.1"
+E2E_BASE_URL = f"http://{E2E_HOST}:{E2E_PORT}"
+
+
+def _port_is_free(host: str, port: int) -> bool:
+    """Check whether a TCP port has a listener (i.e., something we'd conflict with)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        result = s.connect_ex((host, port))
+        # connect_ex returns 0 if it connected (port in use), non-zero if refused
+        return result != 0
+
 
 @pytest.fixture(scope="module")
 def server():
-    """Start the FastAPI server for E2E tests using an isolated temp database."""
+    """Start the FastAPI server for E2E tests using an isolated temp database.
+
+    Checks that the target port is free before starting, then polls a
+    health-check endpoint instead of using a fixed sleep.
+    """
+    if not _port_is_free(E2E_HOST, E2E_PORT):
+        pytest.fail(
+            f"Port {E2E_PORT} is already in use. Free it before running E2E tests "
+            "(do NOT kill the occupying process automatically)."
+        )
+
     # Use a temp directory for the database so we never touch the real one
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "e2e_test.db"
@@ -29,6 +55,11 @@ def server():
             "DATABASE_URL": f"sqlite+aiosqlite:///{db_path}",
         }
 
+        # Write stderr to a temp file so we can include it in diagnostics
+        # without risking pipe-buffer deadlocks during normal operation.
+        stderr_path = Path(tmpdir) / "server_stderr.log"
+        stderr_file = open(stderr_path, "w")  # noqa: SIM115
+
         server_process = subprocess.Popen(
             [
                 sys.executable,
@@ -36,19 +67,42 @@ def server():
                 "uvicorn",
                 "app.main:app",
                 "--host",
-                "127.0.0.1",
+                E2E_HOST,
                 "--port",
-                "8765",
+                str(E2E_PORT),
             ],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_file,
             env=env,
         )
 
-        # Wait for server to start
-        time.sleep(3)
+        # Poll until the server responds (up to 15 s, every 0.2 s)
+        deadline = time.monotonic() + 15.0
+        server_ready = False
+        while time.monotonic() < deadline:
+            try:
+                resp = httpx.get(f"{E2E_BASE_URL}/", timeout=1.0)
+                if resp.status_code < 500:
+                    server_ready = True
+                    break
+            except httpx.ConnectError:
+                pass
+            except httpx.TimeoutException:
+                pass
+            time.sleep(0.2)
 
-        yield "http://127.0.0.1:8765"
+        if not server_ready:
+            # Capture stderr for diagnostics before killing
+            server_process.kill()
+            server_process.wait(timeout=5)
+            stderr_file.close()
+            stderr_text = stderr_path.read_text(errors="replace") or "(empty)"
+            pytest.fail(
+                f"E2E server on {E2E_BASE_URL} did not become ready within 15 s.\n"
+                f"Server stderr:\n{stderr_text}"
+            )
+
+        yield E2E_BASE_URL
 
         # Stop the server gracefully with fallback to force kill
         try:
@@ -60,11 +114,13 @@ def server():
         except Exception:
             with contextlib.suppress(Exception):
                 server_process.kill()
+        finally:
+            stderr_file.close()
 
 
 @pytest.fixture(scope="module")
-def browser_context():
-    """Create a Playwright browser context."""
+def _playwright_browser():
+    """Launch a Playwright browser for the module (internal fixture)."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -72,10 +128,16 @@ def browser_context():
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={"width": 375, "height": 667})
-        yield context
-        context.close()
+        yield browser
         browser.close()
+
+
+@pytest.fixture(scope="module")
+def browser_context(_playwright_browser):
+    """Create a default Playwright browser context (375x667)."""
+    context = _playwright_browser.new_context(viewport={"width": 375, "height": 667})
+    yield context
+    context.close()
 
 
 class TestHomePageFlow:
@@ -225,66 +287,104 @@ class TestHighlightManagementFlow:
 
 
 class TestResponsiveDesign:
-    """Tests for responsive/mobile design."""
+    """Tests for responsive/mobile design across multiple viewports.
 
-    @pytest.mark.parametrize(
-        "viewport",
-        [
-            {"width": 320, "height": 568},  # iPhone SE
-            {"width": 375, "height": 667},  # iPhone 6/7/8
-            {"width": 414, "height": 896},  # iPhone XR
-            {"width": 768, "height": 1024},  # iPad
-            {"width": 1024, "height": 768},  # Desktop
-        ],
-    )
-    def test_page_renders_at_various_viewports(self, server, viewport):
-        """Test that pages render correctly at various viewport sizes."""
-        import importlib.util
-        import subprocess
-        import sys
+    Uses the shared module-scoped server and creates browser contexts
+    with the desired viewport instead of spawning subprocesses.
+    """
 
-        if importlib.util.find_spec("playwright") is None:
-            pytest.skip("Playwright not installed")
+    VIEWPORTS: ClassVar[list[tuple[int, int]]] = [
+        (320, 568),  # iPhone SE
+        (375, 667),  # iPhone 6/7/8
+        (768, 1024),  # iPad
+        (1280, 800),  # Desktop
+    ]
 
-        # Create a small script to run the viewport test
-        script = f'''
-import sys
-from playwright.sync_api import sync_playwright
+    # Pages to visit at every viewport (relative paths)
+    PAGES: ClassVar[list[str]] = [
+        "/",  # home
+        "/highlights",  # all-highlights
+        "/settings",  # settings
+        "/chat",  # chat
+        # book detail is added dynamically after creating a book
+    ]
 
-viewport = {viewport}
-server = "{server}"
+    # Small allowance for scrollbar/rounding differences across platforms.
+    OVERFLOW_TOLERANCE = 5
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    context = browser.new_context(viewport=viewport)
-    page = context.new_page()
+    @pytest.fixture(scope="class")
+    def _book_id(self, server, browser_context):
+        """Create a book with a highlight via the UI, return book id."""
+        page = browser_context.new_page()
+        page.goto(f"{server}/books/add")
+        page.wait_for_load_state("networkidle")
 
-    page.goto(server)
-    page.wait_for_load_state("networkidle")
+        page.click("text=Add Manually")
+        page.wait_for_timeout(300)
+        page.fill('input[name="title"]', "Responsive Test Book")
+        page.fill('input[name="author"]', "Responsive Author")
+        page.click('button:has-text("Add Book")')
+        page.wait_for_load_state("networkidle")
 
-    # Check that the page doesn't have horizontal scrolling
-    body_width = page.evaluate("document.body.scrollWidth")
-    if body_width > viewport["width"] + 20:
-        print(f"FAIL: Page too wide at {{viewport}}")
-        sys.exit(1)
+        # Extract book id from the URL (e.g. /books/5)
+        book_id = page.url.rstrip("/").split("/")[-1]
 
-    # Check that header is visible
-    if not page.locator("header").is_visible():
-        print("FAIL: Header not visible")
-        sys.exit(1)
+        # Add a highlight so the detail page has content
+        page.locator("a:has-text('Add Highlight')").first.click()
+        page.wait_for_load_state("networkidle")
+        page.fill('#manual-section textarea[name="text"]', "A responsive test highlight.")
+        page.fill('#manual-section input[name="page_number"]', "7")
+        page.click('#manual-section button:has-text("Save Highlight")')
+        page.wait_for_load_state("networkidle")
+        page.close()
 
-    context.close()
-    browser.close()
-    print("PASS")
-    sys.exit(0)
-'''
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert result.returncode == 0, f"Viewport test failed: {result.stderr}"
+        return book_id
+
+    @pytest.mark.parametrize("width,height", VIEWPORTS)
+    def test_no_horizontal_overflow_and_header_visible(
+        self, server, _playwright_browser, width, height, _book_id
+    ):
+        """At each viewport, visit key pages and assert no overflow + header visible."""
+        pages_to_check = [*self.PAGES, f"/books/{_book_id}"]
+
+        context = _playwright_browser.new_context(viewport={"width": width, "height": height})
+        page = context.new_page()
+
+        try:
+            for path in pages_to_check:
+                page.goto(f"{server}{path}")
+                page.wait_for_load_state("networkidle")
+
+                scroll_width = page.evaluate("document.documentElement.scrollWidth")
+                assert scroll_width <= width + self.OVERFLOW_TOLERANCE, (
+                    f"Horizontal overflow on {path} at {width}x{height}: "
+                    f"scrollWidth={scroll_width}, viewport={width}"
+                )
+
+                assert page.locator("header").is_visible(), (
+                    f"Header not visible on {path} at {width}x{height}"
+                )
+        finally:
+            context.close()
+
+    @pytest.mark.parametrize("width,height", [(320, 568), (375, 667)])
+    def test_chat_sidebar_toggle_visible_on_mobile(
+        self, server, _playwright_browser, width, height
+    ):
+        """On mobile widths the chat page sidebar toggle button should be visible."""
+        context = _playwright_browser.new_context(viewport={"width": width, "height": height})
+        page = context.new_page()
+
+        try:
+            page.goto(f"{server}/chat")
+            page.wait_for_load_state("networkidle")
+
+            toggle = page.locator("#sidebar-toggle")
+            assert toggle.is_visible(), (
+                f"Sidebar toggle button not visible on chat page at {width}x{height}"
+            )
+        finally:
+            context.close()
 
 
 class TestEditHighlightFlow:

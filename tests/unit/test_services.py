@@ -914,7 +914,7 @@ class TestSyncHighlightBackground:
         mock_service = MagicMock()
         mock_service.is_configured = False
 
-        with patch("app.services.readwise._get_service", return_value=mock_service):
+        with patch("app.services.readwise.ReadwiseService", return_value=mock_service):
             await sync_highlight_background(
                 highlight_id=1,
                 book_title="Test Book",
@@ -947,7 +947,7 @@ class TestSyncHighlightBackground:
         mock_session.execute = AsyncMock(return_value=mock_db_result)
 
         with (
-            patch("app.services.readwise._get_service", return_value=mock_service),
+            patch("app.services.readwise.ReadwiseService", return_value=mock_service),
             patch("app.core.database.get_async_session") as mock_get_session,
         ):
             mock_get_session.return_value.__aenter__.return_value = mock_session
@@ -974,7 +974,7 @@ class TestSyncHighlightBackground:
             return_value=ReadwiseSyncResult(success=False, error="API error")
         )
 
-        with patch("app.services.readwise._get_service", return_value=mock_service):
+        with patch("app.services.readwise.ReadwiseService", return_value=mock_service):
             # Should not raise, just log warning
             await sync_highlight_background(
                 highlight_id=1,
@@ -994,7 +994,7 @@ class TestSyncHighlightBackground:
         mock_service.is_configured = True
         mock_service.send_highlight = AsyncMock(side_effect=Exception("Network error"))
 
-        with patch("app.services.readwise._get_service", return_value=mock_service):
+        with patch("app.services.readwise.ReadwiseService", return_value=mock_service):
             # Should not raise, should catch and log
             await sync_highlight_background(
                 highlight_id=1,
@@ -1007,78 +1007,52 @@ class TestSyncHighlightBackground:
             )
 
 
-def _make_text_delta_event(text_value):
-    """Create a mock content_block_delta event with a text delta."""
-    event = MagicMock()
-    event.type = "content_block_delta"
-    event.delta = MagicMock()
-    event.delta.text = text_value
-    # Ensure hasattr checks work correctly
-    del event.delta.partial_json
-    return event
+def _make_tool_call_delta(index, tool_id, func_name, arguments):
+    """Create a mock tool call delta for LiteLLM streaming."""
+    tc = MagicMock()
+    tc.index = index
+    tc.id = tool_id
+    func = MagicMock()
+    func.name = func_name
+    func.arguments = arguments
+    tc.function = func
+    return tc
 
 
-def _make_mock_stream(events, final_message):
-    """Create a mock stream context manager that yields events.
+def _make_litellm_chunk(content=None, tool_calls=None, finish_reason=None, usage=None):
+    """Create a mock LiteLLM streaming chunk."""
+    chunk = MagicMock()
+    delta = MagicMock()
+    delta.content = content
+    delta.tool_calls = tool_calls
+    chunk.choices = [MagicMock(delta=delta, finish_reason=finish_reason)]
+    chunk.usage = usage
+    return chunk
 
-    The stream supports both ``async for event in stream`` iteration
-    (used by the tool-use code path) and ``get_final_message()``.
-    """
 
-    class _MockStream:
-        def __init__(self):
-            self._events = list(events)
-            self._final = final_message
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return False
-
-        def __aiter__(self):
-            return self._iter_events()
-
-        async def _iter_events(self):
-            for ev in self._events:
-                yield ev
-
-        async def get_final_message(self):
-            return self._final
-
-    return _MockStream()
+async def _make_litellm_stream(chunks):
+    """Create an async iterator from a list of chunks (simulates LiteLLM streaming)."""
+    for chunk in chunks:
+        yield chunk
 
 
 class TestChatService:
     """Tests for the ChatService metrics capture."""
 
-    async def test_last_metrics_populated_after_streaming(self):
+    @patch("app.services.chat.litellm")
+    async def test_last_metrics_populated_after_streaming(self, mock_litellm):
         """Test that last_metrics is populated after streaming completes."""
-        # Create a mock usage object
-        mock_usage = MagicMock()
-        mock_usage.input_tokens = 100
-        mock_usage.output_tokens = 50
+        usage = MagicMock()
+        usage.prompt_tokens = 100
+        usage.completion_tokens = 50
 
-        # Create a mock final message
-        mock_final_message = MagicMock()
-        mock_final_message.usage = mock_usage
-        mock_final_message.stop_reason = "end_turn"
-        mock_final_message.content = [MagicMock(type="text", text="Hello world")]
-
-        # Build events for the stream iterator
-        events = [
-            _make_text_delta_event("Hello"),
-            _make_text_delta_event(" world"),
+        chunks = [
+            _make_litellm_chunk(content="Hello"),
+            _make_litellm_chunk(content=" world"),
+            _make_litellm_chunk(finish_reason="stop", usage=usage),
         ]
+        mock_litellm.acompletion = AsyncMock(return_value=_make_litellm_stream(chunks))
 
-        mock_stream = _make_mock_stream(events, mock_final_message)
-
-        # Create mock client
-        mock_client = MagicMock()
-        mock_client.messages.stream = MagicMock(return_value=mock_stream)
-
-        # Create mock db session — scalar() returns 0 for count queries,
-        # all() returns [] for list queries (used by _get_highlights_context)
         mock_db = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
@@ -1087,40 +1061,33 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=mock_client,
-            chat_model="claude-haiku-4-5-20251001",
+            chat_model="anthropic/claude-haiku-4-5-20251001",
         )
 
-        # Consume the generator
-        chunks = [
+        result_chunks = [
             chunk
             async for chunk in service.send_message_from_history(
                 history=[{"role": "user", "content": "Hello"}],
             )
         ]
 
-        assert chunks == ["Hello", " world"]
+        assert result_chunks == ["Hello", " world"]
         assert service.last_metrics is not None
-        assert service.last_metrics["model"] == "claude-haiku-4-5-20251001"
+        assert service.last_metrics["model"] == "anthropic/claude-haiku-4-5-20251001"
         assert service.last_metrics["input_tokens"] == 100
         assert service.last_metrics["output_tokens"] == 50
         assert service.last_metrics["total_tokens"] == 150
-        assert service.last_metrics["stop_reason"] == "end_turn"
+        assert service.last_metrics["stop_reason"] == "stop"
         assert service.last_metrics["ttft_ms"] is not None
         assert service.last_metrics["total_latency_ms"] is not None
         assert service.last_metrics["tokens_per_sec"] is not None
         assert service.last_metrics["cost_usd"] is not None
         assert service.last_metrics["context_utilization_pct"] is not None
 
-    async def test_last_metrics_none_on_error(self):
+    @patch("app.services.chat.litellm")
+    async def test_last_metrics_none_on_error(self, mock_litellm):
         """Test that last_metrics stays None when stream errors."""
-        # Create a mock stream that raises
-        mock_stream = MagicMock()
-        mock_stream.__aenter__ = AsyncMock(side_effect=Exception("API Error"))
-        mock_stream.__aexit__ = AsyncMock(return_value=False)
-
-        mock_client = MagicMock()
-        mock_client.messages.stream = MagicMock(return_value=mock_stream)
+        mock_litellm.acompletion = AsyncMock(side_effect=Exception("API Error"))
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1130,64 +1097,53 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=mock_client,
-            chat_model="claude-haiku-4-5-20251001",
+            chat_model="anthropic/claude-haiku-4-5-20251001",
         )
 
-        chunks = [
+        result_chunks = [
             chunk
             async for chunk in service.send_message_from_history(
                 history=[{"role": "user", "content": "Hello"}],
             )
         ]
 
-        assert len(chunks) == 1
-        assert "error" in chunks[0].lower()
+        assert len(result_chunks) == 1
+        assert "error" in result_chunks[0].lower()
         assert service.last_metrics is None
 
-    async def test_tool_use_loop(self):
-        """Test that tool_use stop_reason triggers the tool loop and re-streams."""
+    @patch("app.services.chat.litellm")
+    async def test_tool_use_loop(self, mock_litellm):
+        """Test that tool_calls finish_reason triggers the tool loop and re-streams."""
         import json
 
         # -- First call: model requests a tool --
-        tool_use_block = MagicMock()
-        tool_use_block.type = "tool_use"
-        tool_use_block.name = "search_highlights"
-        tool_use_block.input = {"query": "leadership"}
-        tool_use_block.id = "tool_abc123"
+        tc_delta = _make_tool_call_delta(
+            0, "tool_abc123", "search_highlights", '{"query": "leadership"}'
+        )
 
-        first_usage = MagicMock()
-        first_usage.input_tokens = 80
-        first_usage.output_tokens = 20
-
-        first_final = MagicMock()
-        first_final.usage = first_usage
-        first_final.stop_reason = "tool_use"
-        first_final.content = [tool_use_block]
-
-        first_stream = _make_mock_stream([], first_final)
-
-        # -- Second call: model returns text after getting tool results --
-        second_usage = MagicMock()
-        second_usage.input_tokens = 120
-        second_usage.output_tokens = 40
-
-        second_final = MagicMock()
-        second_final.usage = second_usage
-        second_final.stop_reason = "end_turn"
-        second_final.content = [MagicMock(type="text", text="Here are your results")]
-
-        second_events = [
-            _make_text_delta_event("Here are "),
-            _make_text_delta_event("your results"),
+        first_chunks = [
+            _make_litellm_chunk(tool_calls=[tc_delta]),
+            _make_litellm_chunk(finish_reason="tool_calls"),
         ]
-        second_stream = _make_mock_stream(second_events, second_final)
 
-        # Set up client to return first_stream then second_stream
-        mock_client = MagicMock()
-        mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
+        # -- Second call: model returns text --
+        usage = MagicMock()
+        usage.prompt_tokens = 200
+        usage.completion_tokens = 60
 
-        # Mock DB — scalar() returns 0 for count queries
+        second_chunks = [
+            _make_litellm_chunk(content="Here are "),
+            _make_litellm_chunk(content="your results"),
+            _make_litellm_chunk(finish_reason="stop", usage=usage),
+        ]
+
+        mock_litellm.acompletion = AsyncMock(
+            side_effect=[
+                _make_litellm_stream(first_chunks),
+                _make_litellm_stream(second_chunks),
+            ]
+        )
+
         mock_db = AsyncMock()
         mock_result = MagicMock()
         mock_result.all.return_value = []
@@ -1196,11 +1152,9 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=mock_client,
-            chat_model="claude-haiku-4-5-20251001",
+            chat_model="anthropic/claude-haiku-4-5-20251001",
         )
 
-        # Mock the search repository to return results
         service._search_repo = MagicMock()
         service._search_repo.search_highlights = AsyncMock(
             return_value=[
@@ -1217,19 +1171,18 @@ class TestChatService:
             ]
         )
 
-        chunks = [
+        result_chunks = [
             chunk
             async for chunk in service.send_message_from_history(
                 history=[{"role": "user", "content": "find highlights about leadership"}],
             )
         ]
 
-        # Should have tool_use + tool_done markers + text chunks
-        tool_use_chunks = [c for c in chunks if c.startswith("__tool_use__:")]
-        tool_done_chunks = [c for c in chunks if c.startswith("__tool_done__:")]
+        tool_use_chunks = [c for c in result_chunks if c.startswith("__tool_use__:")]
+        tool_done_chunks = [c for c in result_chunks if c.startswith("__tool_done__:")]
         text_chunks = [
             c
-            for c in chunks
+            for c in result_chunks
             if not c.startswith("__tool_use__:") and not c.startswith("__tool_done__:")
         ]
 
@@ -1239,63 +1192,39 @@ class TestChatService:
 
         assert len(tool_done_chunks) == 1
         done_data = json.loads(tool_done_chunks[0].replace("__tool_done__:", ""))
-        assert done_data["tool"] == "search_highlights"
+        assert tool_data["tool"] == "search_highlights"
         assert "Found" in done_data["summary"]
 
-        # Round separator ("\n\n") is yielded before round 2's text
         assert text_chunks == ["\n\n", "Here are ", "your results"]
 
-        # Metrics should aggregate both calls
-        assert service.last_metrics is not None
-        assert service.last_metrics["input_tokens"] == 200  # 80 + 120
-        assert service.last_metrics["output_tokens"] == 60  # 20 + 40
-
-    async def test_tool_messages_captured_for_persistence(self):
-        """Test that tool_messages list is populated with serialized tool context.
-
-        After a tool-use round, the service should expose serialized
-        assistant (tool_use) and user (tool_result) messages so the API
-        layer can persist them for conversation history reconstruction.
-        """
+    @patch("app.services.chat.litellm")
+    async def test_tool_messages_captured_for_persistence(self, mock_litellm):
+        """Test that tool_messages list is populated with serialized tool context."""
         import json
 
-        # -- First call: model requests a tool --
-        tool_use_block = MagicMock()
-        tool_use_block.type = "tool_use"
-        tool_use_block.name = "search_highlights"
-        tool_use_block.input = {"query": "leadership"}
-        tool_use_block.id = "tool_abc123"
+        # -- First call: model streams text then requests a tool --
+        tc_delta = _make_tool_call_delta(
+            0, "tool_abc123", "search_highlights", '{"query": "leadership"}'
+        )
 
-        text_block = MagicMock()
-        text_block.type = "text"
-        text_block.text = "Let me search..."
-
-        first_usage = MagicMock()
-        first_usage.input_tokens = 80
-        first_usage.output_tokens = 20
-
-        first_final = MagicMock()
-        first_final.usage = first_usage
-        first_final.stop_reason = "tool_use"
-        first_final.content = [text_block, tool_use_block]
-
-        first_stream = _make_mock_stream([_make_text_delta_event("Let me search...")], first_final)
+        first_chunks = [
+            _make_litellm_chunk(content="Let me search..."),
+            _make_litellm_chunk(tool_calls=[tc_delta]),
+            _make_litellm_chunk(finish_reason="tool_calls"),
+        ]
 
         # -- Second call: model returns text --
-        second_usage = MagicMock()
-        second_usage.input_tokens = 120
-        second_usage.output_tokens = 40
+        second_chunks = [
+            _make_litellm_chunk(content="Here are your results"),
+            _make_litellm_chunk(finish_reason="stop"),
+        ]
 
-        second_final = MagicMock()
-        second_final.usage = second_usage
-        second_final.stop_reason = "end_turn"
-        second_final.content = [MagicMock(type="text", text="Here are your results")]
-
-        second_events = [_make_text_delta_event("Here are your results")]
-        second_stream = _make_mock_stream(second_events, second_final)
-
-        mock_client = MagicMock()
-        mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
+        mock_litellm.acompletion = AsyncMock(
+            side_effect=[
+                _make_litellm_stream(first_chunks),
+                _make_litellm_stream(second_chunks),
+            ]
+        )
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1305,15 +1234,13 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=mock_client,
-            chat_model="claude-haiku-4-5-20251001",
+            chat_model="anthropic/claude-haiku-4-5-20251001",
         )
         service._search_repo = MagicMock()
         service._search_repo.search_highlights = AsyncMock(
             return_value=[{"id": 1, "text": "Leadership quote", "note": None}]
         )
 
-        # Consume the generator
         _ = [
             chunk
             async for chunk in service.send_message_from_history(
@@ -1321,10 +1248,8 @@ class TestChatService:
             )
         ]
 
-        # tool_messages should have exactly 2 entries: assistant tool_use + user tool_result
         assert len(service.tool_messages) == 2
 
-        # First: assistant message with serialized content_blocks
         assistant_msg = service.tool_messages[0]
         assert assistant_msg["role"] == "assistant"
         blocks = assistant_msg["content_blocks"]
@@ -1335,57 +1260,38 @@ class TestChatService:
         assert blocks[1]["name"] == "search_highlights"
         assert blocks[1]["input"] == {"query": "leadership"}
 
-        # Second: user message with tool_result content_blocks
         user_msg = service.tool_messages[1]
         assert user_msg["role"] == "user"
         result_blocks = user_msg["content_blocks"]
         assert len(result_blocks) == 1
         assert result_blocks[0]["type"] == "tool_result"
         assert result_blocks[0]["tool_use_id"] == "tool_abc123"
-        # The tool result content is JSON-encoded
         parsed_result = json.loads(result_blocks[0]["content"])
         assert "highlights" in parsed_result
 
-    async def test_tool_messages_round_trip_as_json(self):
-        """Test that tool_messages can be JSON-serialized and deserialized.
-
-        This verifies the data is suitable for storage in the content_blocks
-        column and reconstruction into Anthropic API message format.
-        """
+    @patch("app.services.chat.litellm")
+    async def test_tool_messages_round_trip_as_json(self, mock_litellm):
+        """Test that tool_messages can be JSON-serialized and deserialized."""
         import json
 
-        # -- First call: model requests a tool --
-        tool_use_block = MagicMock()
-        tool_use_block.type = "tool_use"
-        tool_use_block.name = "search_books"
-        tool_use_block.input = {"query": "fiction"}
-        tool_use_block.id = "tool_xyz789"
+        tc_delta = _make_tool_call_delta(0, "tool_xyz789", "search_books", '{"query": "fiction"}')
 
-        first_usage = MagicMock()
-        first_usage.input_tokens = 50
-        first_usage.output_tokens = 15
+        first_chunks = [
+            _make_litellm_chunk(tool_calls=[tc_delta]),
+            _make_litellm_chunk(finish_reason="tool_calls"),
+        ]
 
-        first_final = MagicMock()
-        first_final.usage = first_usage
-        first_final.stop_reason = "tool_use"
-        first_final.content = [tool_use_block]
+        second_chunks = [
+            _make_litellm_chunk(content="Done"),
+            _make_litellm_chunk(finish_reason="stop"),
+        ]
 
-        first_stream = _make_mock_stream([], first_final)
-
-        # -- Second call: model returns text --
-        second_usage = MagicMock()
-        second_usage.input_tokens = 100
-        second_usage.output_tokens = 30
-
-        second_final = MagicMock()
-        second_final.usage = second_usage
-        second_final.stop_reason = "end_turn"
-        second_final.content = [MagicMock(type="text", text="Done")]
-
-        second_stream = _make_mock_stream([_make_text_delta_event("Done")], second_final)
-
-        mock_client = MagicMock()
-        mock_client.messages.stream = MagicMock(side_effect=[first_stream, second_stream])
+        mock_litellm.acompletion = AsyncMock(
+            side_effect=[
+                _make_litellm_stream(first_chunks),
+                _make_litellm_stream(second_chunks),
+            ]
+        )
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1395,8 +1301,7 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=mock_client,
-            chat_model="claude-haiku-4-5-20251001",
+            chat_model="anthropic/claude-haiku-4-5-20251001",
         )
         service._search_repo = MagicMock()
         service._search_repo.search_books = AsyncMock(
@@ -1410,35 +1315,23 @@ class TestChatService:
             )
         ]
 
-        # Simulate the round-trip: serialize to JSON (as the DB would store) and deserialize
         for tool_msg in service.tool_messages:
             serialized = json.dumps(tool_msg["content_blocks"])
             deserialized = json.loads(serialized)
-
-            # Deserialized should match original
             assert deserialized == tool_msg["content_blocks"]
 
-            # Verify it can be used as Anthropic API content
             api_message = {"role": tool_msg["role"], "content": deserialized}
             assert api_message["role"] in ("assistant", "user")
             assert isinstance(api_message["content"], list)
 
-    async def test_no_tool_messages_for_plain_response(self):
+    @patch("app.services.chat.litellm")
+    async def test_no_tool_messages_for_plain_response(self, mock_litellm):
         """Test that tool_messages is empty when no tools are used."""
-        mock_usage = MagicMock()
-        mock_usage.input_tokens = 100
-        mock_usage.output_tokens = 50
-
-        mock_final_message = MagicMock()
-        mock_final_message.usage = mock_usage
-        mock_final_message.stop_reason = "end_turn"
-        mock_final_message.content = [MagicMock(type="text", text="Hello")]
-
-        events = [_make_text_delta_event("Hello")]
-        mock_stream = _make_mock_stream(events, mock_final_message)
-
-        mock_client = MagicMock()
-        mock_client.messages.stream = MagicMock(return_value=mock_stream)
+        chunks = [
+            _make_litellm_chunk(content="Hello"),
+            _make_litellm_chunk(finish_reason="stop"),
+        ]
+        mock_litellm.acompletion = AsyncMock(return_value=_make_litellm_stream(chunks))
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1448,8 +1341,7 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=mock_client,
-            chat_model="claude-haiku-4-5-20251001",
+            chat_model="anthropic/claude-haiku-4-5-20251001",
         )
 
         _ = [
@@ -1470,7 +1362,6 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=MagicMock(),
             chat_model="claude-haiku-4-5-20251001",
         )
         service._search_repo = MagicMock()
@@ -1492,7 +1383,6 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=MagicMock(),
             chat_model="claude-haiku-4-5-20251001",
         )
         service._search_repo = MagicMock()
@@ -1511,7 +1401,6 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=MagicMock(),
             chat_model="claude-haiku-4-5-20251001",
         )
         mock_highlight = MagicMock()
@@ -1521,12 +1410,33 @@ class TestChatService:
 
         service._highlight_repo = MagicMock()
         service._highlight_repo.list_for_book = AsyncMock(return_value=[mock_highlight])
+        service._highlight_repo.count_for_book = AsyncMock(return_value=1)
 
         result = await service._execute_tool("get_book_highlights", {"book_id": 42})
         assert "highlights" in result
         assert len(result["highlights"]) == 1
         assert result["highlights"][0]["text"] == "Some text"
-        service._highlight_repo.list_for_book.assert_called_once_with(42)
+        assert "note" not in result  # nothing truncated
+        service._highlight_repo.list_for_book.assert_called_once_with(42, limit=100)
+
+    async def test_execute_tool_get_book_highlights_truncates(self):
+        """Tool result notes truncation when a book exceeds the cap."""
+        mock_db = AsyncMock()
+        service = ChatService(db=mock_db, chat_model="claude-haiku-4-5-20251001")
+
+        mock_highlight = MagicMock()
+        mock_highlight.text = "Some text"
+        mock_highlight.note = None
+        mock_highlight.page_number = None
+
+        service._highlight_repo = MagicMock()
+        service._highlight_repo.list_for_book = AsyncMock(return_value=[mock_highlight] * 100)
+        service._highlight_repo.count_for_book = AsyncMock(return_value=250)
+
+        result = await service._execute_tool("get_book_highlights", {"book_id": 42})
+        assert len(result["highlights"]) == 100
+        assert "note" in result
+        assert "250" in result["note"]
 
     async def test_execute_tool_unknown(self):
         """Test _execute_tool returns error for unknown tool."""
@@ -1537,81 +1447,9 @@ class TestChatService:
 
         service = ChatService(
             db=mock_db,
-            client=MagicMock(),
             chat_model="claude-haiku-4-5-20251001",
         )
 
         result = await service._execute_tool("unknown_tool", {})
         assert "error" in result
         assert "unknown_tool" in result["error"].lower()
-
-
-class TestSerializeContentBlocks:
-    """Tests for the _serialize_content_blocks helper."""
-
-    def test_serialize_text_block(self):
-        """Test serializing a text content block."""
-        from app.services.chat import _serialize_content_blocks
-
-        block = MagicMock()
-        block.type = "text"
-        block.text = "Hello world"
-
-        result = _serialize_content_blocks([block])
-        assert result == [{"type": "text", "text": "Hello world"}]
-
-    def test_serialize_tool_use_block(self):
-        """Test serializing a tool_use content block."""
-        from app.services.chat import _serialize_content_blocks
-
-        block = MagicMock()
-        block.type = "tool_use"
-        block.id = "tool_123"
-        block.name = "search_highlights"
-        block.input = {"query": "leadership"}
-
-        result = _serialize_content_blocks([block])
-        assert result == [
-            {
-                "type": "tool_use",
-                "id": "tool_123",
-                "name": "search_highlights",
-                "input": {"query": "leadership"},
-            }
-        ]
-
-    def test_serialize_mixed_blocks(self):
-        """Test serializing a mix of text and tool_use blocks."""
-        from app.services.chat import _serialize_content_blocks
-
-        text_block = MagicMock()
-        text_block.type = "text"
-        text_block.text = "Let me search for that."
-
-        tool_block = MagicMock()
-        tool_block.type = "tool_use"
-        tool_block.id = "tool_456"
-        tool_block.name = "search_books"
-        tool_block.input = {"query": "fiction"}
-
-        result = _serialize_content_blocks([text_block, tool_block])
-        assert len(result) == 2
-        assert result[0] == {"type": "text", "text": "Let me search for that."}
-        assert result[1]["type"] == "tool_use"
-        assert result[1]["name"] == "search_books"
-
-    def test_serialize_dict_passthrough(self):
-        """Test that plain dicts are passed through unchanged."""
-        from app.services.chat import _serialize_content_blocks
-
-        block = {"type": "tool_result", "tool_use_id": "tool_123", "content": "{}"}
-
-        result = _serialize_content_blocks([block])
-        assert result == [block]
-
-    def test_serialize_empty_list(self):
-        """Test serializing an empty list."""
-        from app.services.chat import _serialize_content_blocks
-
-        result = _serialize_content_blocks([])
-        assert result == []

@@ -1,18 +1,17 @@
 """Settings API routes."""
 
 import json
-from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.models.highlight import AnnotationType, Highlight, SyncStatus
-from app.services.readwise import ReadwiseService
+from app.core.model_registry import is_valid_chat_model
+from app.models.highlight import SyncStatus
+from app.repositories.highlight import HighlightRepository
+from app.services.readwise import ReadwiseService, sync_pending_highlights
 from app.services.settings import get_settings_service
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -24,6 +23,7 @@ class SettingsResponse(BaseModel):
     readwise_token_configured: bool
     readwise_auto_sync: bool
     chat_model: str
+    coaching_model: str
 
 
 class UpdateSettingsRequest(BaseModel):
@@ -32,6 +32,7 @@ class UpdateSettingsRequest(BaseModel):
     readwise_token: str | None = None
     readwise_auto_sync: bool | None = None
     chat_model: str | None = None
+    coaching_model: str | None = None
     coaching_enabled: bool | None = None
 
 
@@ -54,11 +55,13 @@ async def get_settings(
     token = await settings.get_readwise_token()
     auto_sync = await settings.get_readwise_auto_sync()
     chat_model = await settings.get_chat_model()
+    coaching_model = await settings.get_coaching_model()
 
     return SettingsResponse(
         readwise_token_configured=bool(token),
         readwise_auto_sync=auto_sync,
         chat_model=chat_model,
+        coaching_model=coaching_model,
     )
 
 
@@ -79,7 +82,14 @@ async def update_settings(
         await settings.set_readwise_auto_sync(request.readwise_auto_sync)
 
     if request.chat_model is not None:
+        if not is_valid_chat_model(request.chat_model):
+            raise HTTPException(status_code=422, detail=f"Unknown model: {request.chat_model}")
         await settings.set_chat_model(request.chat_model)
+
+    if request.coaching_model is not None:
+        if not is_valid_chat_model(request.coaching_model):
+            raise HTTPException(status_code=422, detail=f"Unknown model: {request.coaching_model}")
+        await settings.set_coaching_model(request.coaching_model)
 
     if request.coaching_enabled is not None:
         await settings.set_bool("coaching_enabled", request.coaching_enabled)
@@ -88,11 +98,13 @@ async def update_settings(
     token = await settings.get_readwise_token()
     auto_sync = await settings.get_readwise_auto_sync()
     chat_model = await settings.get_chat_model()
+    coaching_model = await settings.get_coaching_model()
 
     return SettingsResponse(
         readwise_token_configured=bool(token),
         readwise_auto_sync=auto_sync,
         chat_model=chat_model,
+        coaching_model=coaching_model,
     )
 
 
@@ -127,66 +139,15 @@ async def sync_all_highlights(
     if not token:
         return SyncAllResponse(total=0, synced=0, failed=0, already_synced=0)
 
-    # Get all pending highlights (not yet synced and not removed externally)
-    query = (
-        select(Highlight)
-        .where(Highlight.sync_status == SyncStatus.PENDING)
-        .where(Highlight.type == AnnotationType.HIGHLIGHT)
-        .options(selectinload(Highlight.book))
-    )
-    result = await db.execute(query)
-    pending = result.scalars().all()
+    highlight_repo = HighlightRepository(db)
+    already_synced = await highlight_repo.count_by_sync_status(SyncStatus.SYNCED)
 
-    # Count already synced (SYNCED status)
-    count_query = (
-        select(Highlight)
-        .where(Highlight.sync_status == SyncStatus.SYNCED)
-        .where(Highlight.type == AnnotationType.HIGHLIGHT)
-    )
-    count_result = await db.execute(count_query)
-    already_synced = len(count_result.scalars().all())
-
-    if not pending:
-        return SyncAllResponse(
-            total=0,
-            synced=0,
-            failed=0,
-            already_synced=already_synced,
-        )
-
-    # Build highlights list for batch sync
-    highlights_data = [
-        {
-            "text": h.text,
-            "title": h.book.title,
-            "author": h.book.author,
-            "note": h.note,
-            "page_number": h.page_number,
-            "highlighted_at": h.created_at,
-        }
-        for h in pending
-    ]
-
-    # Send to Readwise
-    async with ReadwiseService(api_token=token) as service:
-        batch_result = await service.send_highlights(highlights_data)
-
-    # Update synced highlights in database
-    synced_count = 0
-    for i, sync_result in enumerate(batch_result.results):
-        if sync_result.success and i < len(pending):
-            pending[i].synced_at = datetime.now(tz=UTC)
-            pending[i].sync_status = SyncStatus.SYNCED
-            if sync_result.readwise_id:
-                pending[i].readwise_id = sync_result.readwise_id
-            synced_count += 1
-
-    await db.commit()
+    result = await sync_pending_highlights(db, token)
 
     return SyncAllResponse(
-        total=len(pending),
-        synced=synced_count,
-        failed=len(pending) - synced_count,
+        total=result.total,
+        synced=result.synced,
+        failed=result.failed,
         already_synced=already_synced,
     )
 
@@ -201,8 +162,13 @@ async def sync_down_from_readwise(
     The final event contains the complete result.
     """
 
+    settings = await get_settings_service(db)
+    token = await settings.get_readwise_token()
+
     async def generate_events():
-        async with ReadwiseService() as service:
+        # Prefer the UI-configured token; ReadwiseService falls back to the
+        # READWISE_API_TOKEN environment variable when token is None.
+        async with ReadwiseService(api_token=token) as service:
             if not service.is_configured:
                 # Send error and complete
                 event_data = {
@@ -213,7 +179,8 @@ async def sync_down_from_readwise(
                     "highlights_imported": 0,
                     "highlights_skipped": 0,
                     "errors": [
-                        "Readwise API token not configured. Set READWISE_API_TOKEN environment variable."
+                        "Readwise API token not configured. "
+                        "Add a token in Settings or set READWISE_API_TOKEN."
                     ],
                 }
                 yield f"data: {json.dumps(event_data)}\n\n"

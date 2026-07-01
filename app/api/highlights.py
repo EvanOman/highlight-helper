@@ -28,7 +28,7 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
-from app.services.settings import get_settings_service
+from app.services.readwise import schedule_auto_sync
 
 router = APIRouter(prefix="/api/highlights", tags=["highlights"])
 
@@ -109,25 +109,13 @@ async def create_highlight(
     )
 
     # Schedule auto-sync to Readwise if enabled in app settings
-    app_settings = await get_settings_service(highlight_repo.db)
-    auto_sync = await app_settings.get_readwise_auto_sync()
-    token = await app_settings.get_readwise_token()
-    if auto_sync and token:
-        from app.services.readwise import sync_highlight_background_with_token
-
-        # ty type checker has a ParamSpec bug: even str() casts are reported as str|None
-        # See: book.author is Mapped[str] (non-nullable), function accepts str|None
-        background_tasks.add_task(
-            sync_highlight_background_with_token,
-            highlight_id=highlight.id,
-            book_title=book.title,
-            book_author=book.author,  # type: ignore[arg-type]
-            text=highlight.text,
-            note=highlight.note,
-            page_number=highlight.page_number,
-            created_at=highlight.created_at,
-            api_token=token,
-        )
+    await schedule_auto_sync(
+        background_tasks,
+        highlight_repo.db,
+        highlight,
+        book_title=book.title,
+        book_author=book.author,
+    )
 
     return HighlightResponse(
         id=highlight.id,

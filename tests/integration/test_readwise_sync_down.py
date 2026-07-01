@@ -403,28 +403,43 @@ class TestSyncDownErrorSchema:
 
 
 class TestSyncDownTokenSource:
-    """Tests that sync-down uses the env var token, not the DB-stored token."""
+    """Tests that sync-down prefers the UI-configured (DB) token.
 
-    async def test_endpoint_does_not_query_db_for_token(self, client):
-        """The sync-down endpoint should use ReadwiseService() directly (env var),
-        not call get_settings_service/get_readwise_token from the DB."""
+    Falls back to the READWISE_API_TOKEN environment variable when no token
+    is stored in app settings — consistent with validate and sync-all.
+    """
+
+    async def test_endpoint_uses_db_token_when_configured(self, client, test_session):
+        """A token stored via the settings UI is passed to ReadwiseService."""
+        from sqlalchemy import delete
+
+        from app.models.settings import AppSetting
+        from app.services.settings import READWISE_API_TOKEN
+
+        await test_session.execute(delete(AppSetting).where(AppSetting.key == READWISE_API_TOKEN))
+        test_session.add(AppSetting(key=READWISE_API_TOKEN, value="db-stored-token"))
+        await test_session.flush()
+
         mock_client = MagicMock()
         mock_client.v2.export_highlights.return_value = iter([])
         mock_client.close = MagicMock()
 
         with (
-            _configured_readwise_patch(),
             patch(
                 "app.services.readwise.ReadwiseService._create_client",
                 return_value=mock_client,
             ),
-            patch("app.api.settings.get_settings_service") as mock_get_settings_svc,
+            patch(
+                "app.api.settings.ReadwiseService",
+                wraps=__import__(
+                    "app.services.readwise", fromlist=["ReadwiseService"]
+                ).ReadwiseService,
+            ) as service_cls,
         ):
             response = await client.post("/api/settings/readwise/sync-down")
 
         assert response.status_code == 200
-        # The endpoint should NOT call get_settings_service at all for sync-down
-        mock_get_settings_svc.assert_not_called()
+        service_cls.assert_called_once_with(api_token="db-stored-token")
 
 
 class TestSyncDownCacheHeaders:

@@ -620,7 +620,7 @@ class TestBookStarring:
         """Test that star button is rendered on the book detail page."""
         response = await client.get(f"/books/{sample_book.id}")
         assert response.status_code == 200
-        assert "toggleStarDetail" in response.text
+        assert "toggleStar" in response.text
         assert "detail-star-btn" in response.text
 
 

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.model_registry import normalize_model_id
 from app.models.api_usage import APIUsage
 from app.models.settings import AppSetting
 
@@ -23,6 +24,7 @@ class APIUsageMetrics(BaseModel):
 READWISE_API_TOKEN = "readwise_api_token"
 READWISE_AUTO_SYNC = "readwise_auto_sync"
 CHAT_MODEL = "chat_model"
+COACHING_MODEL = "coaching_model"
 
 
 class SettingsService:
@@ -38,7 +40,12 @@ class SettingsService:
         return setting.value if setting else default
 
     async def set(self, key: str, value: str | None) -> None:
-        """Set a setting value."""
+        """Set a setting value.
+
+        The write is committed by the session owner (get_db / get_async_session)
+        at the end of the request or task, keeping the operation transactional
+        with the rest of the request.
+        """
         result = await self.db.execute(select(AppSetting).where(AppSetting.key == key))
         setting = result.scalar_one_or_none()
 
@@ -47,8 +54,6 @@ class SettingsService:
         else:
             setting = AppSetting(key=key, value=value)
             self.db.add(setting)
-
-        await self.db.commit()
 
     async def get_bool(self, key: str, default: bool = False) -> bool:
         """Get a boolean setting value."""
@@ -70,12 +75,28 @@ class SettingsService:
         await self.set(READWISE_API_TOKEN, token)
 
     async def get_chat_model(self) -> str:
-        """Get the configured chat model."""
-        return await self.get(CHAT_MODEL, default="claude-opus-4-6") or "claude-opus-4-6"
+        """Get the configured chat model as a canonical provider-prefixed id."""
+        from app.core.config import get_settings
+
+        default = get_settings().chat_model
+        value = await self.get(CHAT_MODEL, default=default) or default
+        return normalize_model_id(value)
 
     async def set_chat_model(self, model: str) -> None:
-        """Set the chat model."""
-        await self.set(CHAT_MODEL, model)
+        """Set the chat model (stored in canonical provider-prefixed form)."""
+        await self.set(CHAT_MODEL, normalize_model_id(model))
+
+    async def get_coaching_model(self) -> str:
+        """Get the configured coaching model as a canonical provider-prefixed id."""
+        from app.core.config import get_settings
+
+        default = get_settings().coaching_model
+        value = await self.get(COACHING_MODEL, default=default) or default
+        return normalize_model_id(value)
+
+    async def set_coaching_model(self, model: str) -> None:
+        """Set the coaching model (stored in canonical provider-prefixed form)."""
+        await self.set(COACHING_MODEL, normalize_model_id(model))
 
     async def get_readwise_auto_sync(self) -> bool:
         """Get the Readwise auto-sync setting."""

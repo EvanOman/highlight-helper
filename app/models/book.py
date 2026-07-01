@@ -37,11 +37,15 @@ class Book(Base):
     )
 
     # Relationships
+    # lazy="raise" prevents implicit per-book highlight loads (views query
+    # highlights explicitly); passive_deletes lets SQLite's ON DELETE CASCADE
+    # remove children instead of the ORM loading and deleting them row-by-row.
     highlights: Mapped[list[Highlight]] = relationship(
         "Highlight",
         back_populates="book",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        passive_deletes=True,
+        lazy="raise",
     )
 
     def __repr__(self) -> str:

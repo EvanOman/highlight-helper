@@ -8,6 +8,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
+# Re-exported for backward compatibility; the registry is the source of truth.
+from app.core.model_registry import calculate_cost
+
+__all__ = ["APIUsage", "calculate_cost"]
+
 
 class APIUsage(Base):
     """Model for tracking API usage and costs per request."""
@@ -32,46 +37,3 @@ class APIUsage(Base):
 
     def __repr__(self) -> str:
         return f"<APIUsage(id={self.id}, model='{self.model}', cost=${self.cost_usd:.6f})>"
-
-
-# Token pricing constants (per million tokens)
-# GPT-5.2 pricing as of 2026
-MODEL_PRICING = {
-    "openai/gpt-5.2": {
-        "input": 1.75,  # $1.75 per 1M input tokens
-        "output": 14.0,  # $14.00 per 1M output tokens
-    },
-    "claude-opus-4-6": {
-        "input": 15.0,  # $15.00 per 1M input tokens
-        "output": 75.0,  # $75.00 per 1M output tokens
-    },
-    "claude-sonnet-4-5-20250929": {
-        "input": 3.0,  # $3.00 per 1M input tokens
-        "output": 15.0,  # $15.00 per 1M output tokens
-    },
-    "claude-haiku-4-5-20251001": {
-        "input": 0.80,  # $0.80 per 1M input tokens
-        "output": 4.0,  # $4.00 per 1M output tokens
-    },
-    "default": {
-        "input": 2.0,
-        "output": 15.0,
-    },
-}
-
-
-def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Calculate the cost in USD for a given token usage.
-
-    Args:
-        model: The model name (e.g., "openai/gpt-5.2")
-        input_tokens: Number of input/prompt tokens
-        output_tokens: Number of output/completion tokens
-
-    Returns:
-        Cost in USD
-    """
-    pricing = MODEL_PRICING.get(model, MODEL_PRICING["default"])
-    input_cost = (input_tokens / 1_000_000) * pricing["input"]
-    output_cost = (output_tokens / 1_000_000) * pricing["output"]
-    return input_cost + output_cost

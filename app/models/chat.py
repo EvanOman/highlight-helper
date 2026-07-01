@@ -20,8 +20,9 @@ class ChatThread(Base):
     book_id: Mapped[int | None] = mapped_column(
         ForeignKey("books.id", ondelete="CASCADE"), nullable=True
     )
+    # use_alter breaks the chat_threads <-> coaching_cards FK cycle for DDL ordering
     coaching_card_id: Mapped[int | None] = mapped_column(
-        ForeignKey("coaching_cards.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("coaching_cards.id", ondelete="SET NULL", use_alter=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -35,11 +36,15 @@ class ChatThread(Base):
     )
 
     # Relationships
+    # lazy="raise" prevents loading every message of every thread when listing
+    # threads (messages are fetched explicitly via list_messages); passive_deletes
+    # lets ON DELETE CASCADE clean up instead of row-by-row ORM deletes.
     messages: Mapped[list[ChatMessage]] = relationship(
         "ChatMessage",
         back_populates="thread",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        passive_deletes=True,
+        lazy="raise",
         order_by="ChatMessage.created_at.asc()",
     )
 

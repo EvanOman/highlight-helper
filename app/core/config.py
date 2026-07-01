@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     # Model configuration
     vision_model: str = "openai/gpt-5.4"
     vision_fallback_model: str = "groq/meta-llama/llama-4-scout-17b-16e-instruct"
-    chat_model: str = "claude-opus-4-6"
+    chat_model: str = "anthropic/claude-opus-4-6"
+    coaching_model: str = "anthropic/claude-sonnet-4-5-20250929"
 
     # Readwise (optional)
     readwise_api_token: str | None = None

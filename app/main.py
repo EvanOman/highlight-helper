@@ -14,9 +14,14 @@ from app.api.readwise import router as readwise_router
 from app.api.settings import router as settings_router
 from app.api.views import router as views_router
 from app.core.config import get_settings
-from app.core.database import init_db
+from app.core.database import engine, init_db
 from app.core.exceptions import NotFoundError
-from app.core.telemetry import instrument_fastapi, instrument_httpx, setup_telemetry
+from app.core.telemetry import (
+    instrument_fastapi,
+    instrument_httpx,
+    instrument_sqlalchemy,
+    setup_telemetry,
+)
 from app.services.book_lookup import book_lookup_service
 
 # Configure root logger so app module loggers (readwise, chat, etc.) are visible
@@ -29,6 +34,7 @@ async def lifespan(app: FastAPI):
     # Startup
     setup_telemetry()
     instrument_httpx()
+    instrument_sqlalchemy(engine.sync_engine)
     await init_db()
     yield
     # Shutdown
