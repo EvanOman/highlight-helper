@@ -126,11 +126,13 @@ class TestChatSSEStreaming:
         self, client: AsyncClient, test_session: AsyncSession
     ):
         """POST /api/chat/chat with mocked litellm yields init/text/done events."""
+        from app.services.chat_events import TextChunk
+
         mock_service = MagicMock()
 
         async def fake_stream(*args, **kwargs):
-            yield "Hello, "
-            yield "world!"
+            yield TextChunk("Hello, ")
+            yield TextChunk("world!")
 
         mock_service.send_message_from_history = fake_stream
         mock_service.tool_messages = []
@@ -166,10 +168,12 @@ class TestChatSSEStreaming:
         self, client: AsyncClient, test_session: AsyncSession
     ):
         """A chat message without thread_id creates a new thread."""
+        from app.services.chat_events import TextChunk
+
         mock_service = MagicMock()
 
         async def fake_stream(*args, **kwargs):
-            yield "Response text"
+            yield TextChunk("Response text")
 
         mock_service.send_message_from_history = fake_stream
         mock_service.tool_messages = []

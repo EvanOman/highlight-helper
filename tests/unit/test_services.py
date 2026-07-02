@@ -7,6 +7,7 @@ from readwise_sdk.v2.models import HighlightUpdate
 
 from app.services.book_lookup import BookLookupService
 from app.services.chat import ChatService
+from app.services.chat_events import TextChunk, ToolUseFinished, ToolUseStarted
 from app.services.highlight_extractor import (
     ExtractedHighlight,
     HighlightExtractorService,
@@ -1109,14 +1110,16 @@ class TestChatService:
             chat_model="anthropic/claude-haiku-4-5-20251001",
         )
 
-        result_chunks = [
-            chunk
-            async for chunk in service.send_message_from_history(
+        events_out = [
+            event
+            async for event in service.send_message_from_history(
                 history=[{"role": "user", "content": "Hello"}],
             )
         ]
 
-        assert result_chunks == ["Hello", " world"]
+        # Extract text from TextChunk events
+        text_chunks = [e.text for e in events_out if isinstance(e, TextChunk)]
+        assert text_chunks == ["Hello", " world"]
         assert service.last_metrics is not None
         assert service.last_metrics["model"] == "anthropic/claude-haiku-4-5-20251001"
         assert service.last_metrics["input_tokens"] == 100
@@ -1148,22 +1151,21 @@ class TestChatService:
             chat_model="anthropic/claude-haiku-4-5-20251001",
         )
 
-        result_chunks = [
-            chunk
-            async for chunk in service.send_message_from_history(
+        events_out = [
+            event
+            async for event in service.send_message_from_history(
                 history=[{"role": "user", "content": "Hello"}],
             )
         ]
 
-        assert len(result_chunks) == 1
-        assert "error" in result_chunks[0].lower()
+        assert len(events_out) == 1
+        assert isinstance(events_out[0], TextChunk)
+        assert "error" in events_out[0].text.lower()
         assert service.last_metrics is None
 
     @patch("app.services.chat.llm_gateway.stream")
     async def test_tool_use_loop(self, mock_stream):
         """Test that tool_calls finish_reason triggers the tool loop and re-streams."""
-        import json
-
         # -- First call: model requests a tool --
         tc_delta = _make_tool_call_delta(
             0, "tool_abc123", "search_highlights", '{"query": "leadership"}'
@@ -1217,31 +1219,30 @@ class TestChatService:
             ]
         )
 
-        result_chunks = [
-            chunk
-            async for chunk in service.send_message_from_history(
+        events_out = [
+            event
+            async for event in service.send_message_from_history(
                 history=[{"role": "user", "content": "find highlights about leadership"}],
             )
         ]
 
-        tool_use_chunks = [c for c in result_chunks if c.startswith("__tool_use__:")]
-        tool_done_chunks = [c for c in result_chunks if c.startswith("__tool_done__:")]
-        text_chunks = [
-            c
-            for c in result_chunks
-            if not c.startswith("__tool_use__:") and not c.startswith("__tool_done__:")
-        ]
+        # Should have ToolUseStarted + ToolUseFinished events + TextChunk events
+        tool_started = [e for e in events_out if isinstance(e, ToolUseStarted)]
+        tool_finished = [e for e in events_out if isinstance(e, ToolUseFinished)]
+        text_events = [e for e in events_out if isinstance(e, TextChunk)]
 
-        assert len(tool_use_chunks) == 1
-        tool_data = json.loads(tool_use_chunks[0].replace("__tool_use__:", ""))
-        assert tool_data["tool"] == "search_highlights"
+        assert len(tool_started) == 1
+        assert tool_started[0].tool_name == "search_highlights"
+        assert tool_started[0].tool_id == "tool_abc123"
+        assert tool_started[0].tool_input == {"query": "leadership"}
 
-        assert len(tool_done_chunks) == 1
-        done_data = json.loads(tool_done_chunks[0].replace("__tool_done__:", ""))
-        assert tool_data["tool"] == "search_highlights"
-        assert "Found" in done_data["summary"]
+        assert len(tool_finished) == 1
+        assert tool_finished[0].tool_name == "search_highlights"
+        assert "Found" in tool_finished[0].summary
 
-        assert text_chunks == ["\n\n", "Here are ", "your results"]
+        # Round separator ("\n\n") is yielded before round 2's text
+        text_values = [e.text for e in text_events]
+        assert text_values == ["\n\n", "Here are ", "your results"]
 
     @patch("app.services.chat.llm_gateway.stream")
     async def test_tool_messages_captured_for_persistence(self, mock_stream):
@@ -1286,8 +1287,8 @@ class TestChatService:
         )
 
         _ = [
-            chunk
-            async for chunk in service.send_message_from_history(
+            event
+            async for event in service.send_message_from_history(
                 history=[{"role": "user", "content": "find highlights about leadership"}],
             )
         ]
@@ -1351,8 +1352,8 @@ class TestChatService:
         )
 
         _ = [
-            chunk
-            async for chunk in service.send_message_from_history(
+            event
+            async for event in service.send_message_from_history(
                 history=[{"role": "user", "content": "search for fiction books"}],
             )
         ]
@@ -1387,8 +1388,8 @@ class TestChatService:
         )
 
         _ = [
-            chunk
-            async for chunk in service.send_message_from_history(
+            event
+            async for event in service.send_message_from_history(
                 history=[{"role": "user", "content": "Hello"}],
             )
         ]

@@ -18,6 +18,7 @@ from app.repositories.chat import ChatRepository, get_chat_repo
 from app.repositories.coaching import CoachingRepository
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.chat import ChatService, get_chat_service
+from app.services.chat_events import StreamNotice, TextChunk, ToolUseFinished, ToolUseStarted
 from app.services.settings import SettingsService
 
 logger = logging.getLogger(__name__)
@@ -322,41 +323,36 @@ async def _chat_events(
     # 1. init event with thread_id
     yield ChatEvent.init(thread_id=str(thread_id))
 
-    # 2. Stream text and tool events
+    # 2. Stream typed events and translate to chatkit SSE events
     full_response = ""
-    async for chunk in chat_service.send_message_from_history(
+    async for event in chat_service.send_message_from_history(
         history=history,
         book_id=book_id,
         coaching_system_prompt=coaching_prompt,
     ):
-        # Detect tool-use markers emitted by ChatService
-        if chunk.startswith("__tool_use__:"):
-            payload = json.loads(chunk[len("__tool_use__:") :])
+        if isinstance(event, ToolUseStarted):
             yield ChatEvent(
                 type=ChatEventType.TOOL_USE,
                 data=json.dumps(
                     {
-                        "tool_name": payload["tool"],
-                        "tool_id": payload["id"],
+                        "tool_name": event.tool_name,
+                        "tool_id": event.tool_id,
                     }
                 ),
             )
-            continue
-        if chunk.startswith("__tool_done__:"):
-            payload = json.loads(chunk[len("__tool_done__:") :])
+        elif isinstance(event, ToolUseFinished):
             yield ChatEvent(
                 type=ChatEventType.TOOL_DONE,
                 data=json.dumps(
                     {
-                        "tool_id": payload["id"],
-                        "summary": payload["summary"],
+                        "tool_id": event.tool_id,
+                        "summary": event.summary,
                     }
                 ),
             )
-            continue
-
-        full_response += chunk
-        yield ChatEvent.text(chunk)
+        elif isinstance(event, (TextChunk, StreamNotice)):
+            full_response += event.text
+            yield ChatEvent.text(event.text)
 
     # 3. Save tool messages and assistant response using independent session
     try:

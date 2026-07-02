@@ -447,10 +447,12 @@ class TestGenerateEndpoint:
         await test_session.flush()
 
         # Mock the chat service to avoid real API calls
+        from app.services.chat_events import TextChunk
+
         mock_service = MagicMock()
 
         async def fake_stream(*args, **kwargs):
-            yield "Hello from coach"
+            yield TextChunk("Hello from coach")
 
         mock_service.send_message_from_history = fake_stream
         mock_service.tool_messages = []
