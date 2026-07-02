@@ -6,19 +6,16 @@ import time
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
-import litellm
 from fastapi import Depends
-from opentelemetry import context as context_api
-from opentelemetry.trace import Status, StatusCode, set_span_in_context
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.model_registry import calculate_cost, get_context_window, normalize_model_id
-from app.core.telemetry import get_tracer
+from app.core.model_registry import get_context_window, normalize_model_id
 from app.repositories.book import BookRepository
 from app.repositories.highlight import HighlightRepository
 from app.repositories.search import SearchRepository
+from app.services import llm as llm_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -346,17 +343,16 @@ Here is a summary of the user's library:
         messages.append({"role": "user", "content": message})
 
         try:
-            response = await litellm.acompletion(
+            async with llm_gateway.stream(
                 model=self._chat_model,
-                max_tokens=16384,
                 messages=messages,
+                max_tokens=16384,
                 tools=CHAT_TOOLS,
-                stream=True,
-            )
-            async for chunk in response:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    yield delta.content
+            ) as llm_stream:
+                async for chunk in llm_stream:
+                    delta = chunk.choices[0].delta
+                    if delta.content:
+                        yield delta.content
         except Exception as e:
             logger.error(f"Error in chat stream: {e}")
             yield f"I apologize, but I encountered an error: {e!s}"
@@ -392,22 +388,13 @@ Here is a summary of the user's library:
             highlights_context, book_id, coaching_system_prompt=coaching_system_prompt
         )
 
-        tracer = get_tracer("chat")
-        span = tracer.start_span(
-            "chat.stream",
-            attributes={
-                "gen_ai.system": "litellm",
-                "gen_ai.request.model": self._chat_model,
-            },
-        )
-        token = context_api.attach(set_span_in_context(span))
-
         t_start = time.monotonic()
         t_first_token = None
 
         # Accumulate total usage across tool-use turns
         total_input_tokens = 0
         total_output_tokens = 0
+        total_cost_usd = 0.0
         final_finish_reason = None
 
         try:
@@ -422,51 +409,48 @@ Here is a summary of the user's library:
                 collected_content = ""
                 tool_call_buffers: dict[int, dict] = {}
 
-                response = await litellm.acompletion(
+                async with llm_gateway.stream(
                     model=self._chat_model,
-                    max_tokens=16384,
                     messages=messages,
+                    max_tokens=16384,
                     tools=CHAT_TOOLS,
-                    stream=True,
-                    stream_options={"include_usage": True},
-                )
+                ) as llm_stream:
+                    async for chunk in llm_stream:
+                        delta = chunk.choices[0].delta
+                        finish_reason = chunk.choices[0].finish_reason
 
-                async for chunk in response:
-                    delta = chunk.choices[0].delta
-                    finish_reason = chunk.choices[0].finish_reason
+                        if finish_reason:
+                            final_finish_reason = finish_reason
 
-                    if finish_reason:
-                        final_finish_reason = finish_reason
+                        # Stream text content
+                        if delta.content:
+                            if t_first_token is None:
+                                t_first_token = time.monotonic()
+                            collected_content += delta.content
+                            yield delta.content
 
-                    # Stream text content
-                    if delta.content:
-                        if t_first_token is None:
-                            t_first_token = time.monotonic()
-                        collected_content += delta.content
-                        yield delta.content
+                        # Accumulate tool calls (they come in pieces across chunks)
+                        if delta.tool_calls:
+                            for tc in delta.tool_calls:
+                                idx = tc.index
+                                if idx not in tool_call_buffers:
+                                    tool_call_buffers[idx] = {
+                                        "id": tc.id or "",
+                                        "name": tc.function.name or "" if tc.function else "",
+                                        "arguments": "",
+                                    }
+                                else:
+                                    if tc.id:
+                                        tool_call_buffers[idx]["id"] = tc.id
+                                    if tc.function and tc.function.name:
+                                        tool_call_buffers[idx]["name"] = tc.function.name
+                                if tc.function and tc.function.arguments:
+                                    tool_call_buffers[idx]["arguments"] += tc.function.arguments
 
-                    # Accumulate tool calls (they come in pieces across chunks)
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            idx = tc.index
-                            if idx not in tool_call_buffers:
-                                tool_call_buffers[idx] = {
-                                    "id": tc.id or "",
-                                    "name": tc.function.name or "" if tc.function else "",
-                                    "arguments": "",
-                                }
-                            else:
-                                if tc.id:
-                                    tool_call_buffers[idx]["id"] = tc.id
-                                if tc.function and tc.function.name:
-                                    tool_call_buffers[idx]["name"] = tc.function.name
-                            if tc.function and tc.function.arguments:
-                                tool_call_buffers[idx]["arguments"] += tc.function.arguments
-
-                    # Collect usage from the final chunk
-                    if hasattr(chunk, "usage") and chunk.usage:
-                        total_input_tokens += chunk.usage.prompt_tokens or 0
-                        total_output_tokens += chunk.usage.completion_tokens or 0
+                # Usage from the gateway (populated after context exit)
+                total_input_tokens += llm_stream.usage.input_tokens
+                total_output_tokens += llm_stream.usage.output_tokens
+                total_cost_usd += llm_stream.usage.cost_usd
 
                 # Check if we got tool calls
                 if tool_call_buffers:
@@ -570,7 +554,6 @@ Here is a summary of the user's library:
             tokens_per_sec = (
                 (total_output_tokens / generation_time) if generation_time > 0 else None
             )
-            cost_usd = calculate_cost(self._chat_model, total_input_tokens, total_output_tokens)
 
             context_window = get_context_window(self._chat_model)
             context_utilization_pct = (total_input_tokens / context_window) * 100
@@ -580,7 +563,7 @@ Here is a summary of the user's library:
                 "input_tokens": total_input_tokens,
                 "output_tokens": total_output_tokens,
                 "total_tokens": total_tokens,
-                "cost_usd": cost_usd,
+                "cost_usd": total_cost_usd,
                 "ttft_ms": round(ttft_ms, 1) if ttft_ms is not None else None,
                 "total_latency_ms": round(total_latency_ms, 1),
                 "tokens_per_sec": round(tokens_per_sec, 1) if tokens_per_sec is not None else None,
@@ -588,26 +571,9 @@ Here is a summary of the user's library:
                 "context_utilization_pct": round(context_utilization_pct, 2),
             }
 
-            # Set span attributes with final metrics
-            span.set_attribute("gen_ai.usage.input_tokens", total_input_tokens)
-            span.set_attribute("gen_ai.usage.output_tokens", total_output_tokens)
-            span.set_attribute("gen_ai.response.finish_reasons", [final_finish_reason or "unknown"])
-            if ttft_ms is not None:
-                span.set_attribute("chat.ttft_ms", round(ttft_ms, 1))
-            span.set_attribute("chat.total_latency_ms", round(total_latency_ms, 1))
-            if tokens_per_sec is not None:
-                span.set_attribute("chat.tokens_per_sec", round(tokens_per_sec, 1))
-            span.set_attribute("chat.cost_usd", cost_usd)
-            span.set_status(Status(StatusCode.OK))
-
         except Exception as e:
             logger.error(f"Error in chat stream: {e}")
-            span.record_exception(e)
-            span.set_status(Status(StatusCode.ERROR, str(e)))
             yield f"I apologize, but I encountered an error: {e!s}"
-        finally:
-            span.end()
-            context_api.detach(token)
 
 
 async def get_chat_service(db: AsyncSession = Depends(get_db)) -> ChatService:

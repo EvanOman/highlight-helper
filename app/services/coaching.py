@@ -5,15 +5,15 @@ import logging
 import random
 from datetime import UTC, datetime, timedelta
 
-import litellm
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.model_registry import calculate_cost, normalize_model_id
+from app.core.model_registry import normalize_model_id
 from app.models.book import Book
 from app.models.coaching import CoachingCardType
 from app.models.highlight import Highlight
 from app.repositories.coaching import CoachingRepository
+from app.services import llm as llm_gateway
 from app.services.settings import SettingsService
 
 logger = logging.getLogger(__name__)
@@ -125,16 +125,14 @@ class CoachingService:
 
         model = await self._resolve_model()
         try:
-            response = await litellm.acompletion(
+            text, usage = await llm_gateway.complete(
                 model=model,
-                max_tokens=2048,
                 messages=[
                     {"role": "system", "content": BASE_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
+                max_tokens=2048,
             )
-
-            text = response.choices[0].message.content
 
             if not text:
                 logger.error("No text content in coaching card response")
@@ -159,14 +157,10 @@ class CoachingService:
                 logger.warning("JSON parse failed, raw text:\n%s", text[:2000])
                 return None
 
-            input_tokens = response.usage.prompt_tokens
-            output_tokens = response.usage.completion_tokens
-            cost = calculate_cost(model, input_tokens, output_tokens)
-
-            card_data["model"] = model
-            card_data["input_tokens"] = input_tokens
-            card_data["output_tokens"] = output_tokens
-            card_data["cost_usd"] = cost
+            card_data["model"] = usage.model
+            card_data["input_tokens"] = usage.input_tokens
+            card_data["output_tokens"] = usage.output_tokens
+            card_data["cost_usd"] = usage.cost_usd
 
             return card_data
 

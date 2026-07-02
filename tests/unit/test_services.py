@@ -15,6 +15,7 @@ from app.services.isbn_extractor import (
     ExtractedISBN,
     ISBNExtractorService,
 )
+from app.services.llm import LLMStream
 from app.services.readwise import (
     ReadwiseService,
     ReadwiseSyncResult,
@@ -1030,17 +1031,61 @@ def _make_litellm_chunk(content=None, tool_calls=None, finish_reason=None, usage
     return chunk
 
 
-async def _make_litellm_stream(chunks):
-    """Create an async iterator from a list of chunks (simulates LiteLLM streaming)."""
-    for chunk in chunks:
-        yield chunk
+# ---------------------------------------------------------------------------
+# Gateway stream mocking helpers
+# ---------------------------------------------------------------------------
+
+
+class _FakeRawStream:
+    """An async iterable over pre-built LiteLLM chunks."""
+
+    def __init__(self, chunks):
+        self._chunks = list(chunks)
+
+    def __aiter__(self):
+        return self._iter()
+
+    async def _iter(self):
+        for c in self._chunks:
+            yield c
+
+
+class _GatewayStreamCM:
+    """Async context manager mimicking llm_gateway.stream().
+
+    Wraps chunks in a real ``LLMStream`` so that usage accumulation
+    works identically to production code.
+    """
+
+    def __init__(self, chunks, model="anthropic/claude-haiku-4-5-20251001"):
+        self._chunks = chunks
+        self._model = model
+        self._stream: LLMStream | None = None
+
+    async def __aenter__(self):
+        self._stream = LLMStream(_FakeRawStream(self._chunks), self._model)
+        return self._stream
+
+    async def __aexit__(self, *args):
+        if self._stream is not None:
+            self._stream._finalise()
+        return False
+
+
+def _make_gateway_stream(chunks, model="anthropic/claude-haiku-4-5-20251001"):
+    """Build an async context manager wrapping chunks in a real LLMStream.
+
+    Use as ``mock_stream.return_value = _make_gateway_stream(chunks)``
+    or ``mock_stream.side_effect = [_make_gateway_stream(c1), ...]``.
+    """
+    return _GatewayStreamCM(chunks, model)
 
 
 class TestChatService:
     """Tests for the ChatService metrics capture."""
 
-    @patch("app.services.chat.litellm")
-    async def test_last_metrics_populated_after_streaming(self, mock_litellm):
+    @patch("app.services.chat.llm_gateway.stream")
+    async def test_last_metrics_populated_after_streaming(self, mock_stream):
         """Test that last_metrics is populated after streaming completes."""
         usage = MagicMock()
         usage.prompt_tokens = 100
@@ -1051,7 +1096,7 @@ class TestChatService:
             _make_litellm_chunk(content=" world"),
             _make_litellm_chunk(finish_reason="stop", usage=usage),
         ]
-        mock_litellm.acompletion = AsyncMock(return_value=_make_litellm_stream(chunks))
+        mock_stream.return_value = _make_gateway_stream(chunks)
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1084,10 +1129,13 @@ class TestChatService:
         assert service.last_metrics["cost_usd"] is not None
         assert service.last_metrics["context_utilization_pct"] is not None
 
-    @patch("app.services.chat.litellm")
-    async def test_last_metrics_none_on_error(self, mock_litellm):
+    @patch("app.services.chat.llm_gateway.stream")
+    async def test_last_metrics_none_on_error(self, mock_stream):
         """Test that last_metrics stays None when stream errors."""
-        mock_litellm.acompletion = AsyncMock(side_effect=Exception("API Error"))
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(side_effect=Exception("API Error"))
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_stream.return_value = mock_cm
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1111,8 +1159,8 @@ class TestChatService:
         assert "error" in result_chunks[0].lower()
         assert service.last_metrics is None
 
-    @patch("app.services.chat.litellm")
-    async def test_tool_use_loop(self, mock_litellm):
+    @patch("app.services.chat.llm_gateway.stream")
+    async def test_tool_use_loop(self, mock_stream):
         """Test that tool_calls finish_reason triggers the tool loop and re-streams."""
         import json
 
@@ -1137,12 +1185,10 @@ class TestChatService:
             _make_litellm_chunk(finish_reason="stop", usage=usage),
         ]
 
-        mock_litellm.acompletion = AsyncMock(
-            side_effect=[
-                _make_litellm_stream(first_chunks),
-                _make_litellm_stream(second_chunks),
-            ]
-        )
+        mock_stream.side_effect = [
+            _make_gateway_stream(first_chunks),
+            _make_gateway_stream(second_chunks),
+        ]
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1197,8 +1243,8 @@ class TestChatService:
 
         assert text_chunks == ["\n\n", "Here are ", "your results"]
 
-    @patch("app.services.chat.litellm")
-    async def test_tool_messages_captured_for_persistence(self, mock_litellm):
+    @patch("app.services.chat.llm_gateway.stream")
+    async def test_tool_messages_captured_for_persistence(self, mock_stream):
         """Test that tool_messages list is populated with serialized tool context."""
         import json
 
@@ -1219,12 +1265,10 @@ class TestChatService:
             _make_litellm_chunk(finish_reason="stop"),
         ]
 
-        mock_litellm.acompletion = AsyncMock(
-            side_effect=[
-                _make_litellm_stream(first_chunks),
-                _make_litellm_stream(second_chunks),
-            ]
-        )
+        mock_stream.side_effect = [
+            _make_gateway_stream(first_chunks),
+            _make_gateway_stream(second_chunks),
+        ]
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1269,8 +1313,8 @@ class TestChatService:
         parsed_result = json.loads(result_blocks[0]["content"])
         assert "highlights" in parsed_result
 
-    @patch("app.services.chat.litellm")
-    async def test_tool_messages_round_trip_as_json(self, mock_litellm):
+    @patch("app.services.chat.llm_gateway.stream")
+    async def test_tool_messages_round_trip_as_json(self, mock_stream):
         """Test that tool_messages can be JSON-serialized and deserialized."""
         import json
 
@@ -1286,12 +1330,10 @@ class TestChatService:
             _make_litellm_chunk(finish_reason="stop"),
         ]
 
-        mock_litellm.acompletion = AsyncMock(
-            side_effect=[
-                _make_litellm_stream(first_chunks),
-                _make_litellm_stream(second_chunks),
-            ]
-        )
+        mock_stream.side_effect = [
+            _make_gateway_stream(first_chunks),
+            _make_gateway_stream(second_chunks),
+        ]
 
         mock_db = AsyncMock()
         mock_result = MagicMock()
@@ -1324,14 +1366,14 @@ class TestChatService:
             assert api_message["role"] in ("assistant", "user")
             assert isinstance(api_message["content"], list)
 
-    @patch("app.services.chat.litellm")
-    async def test_no_tool_messages_for_plain_response(self, mock_litellm):
+    @patch("app.services.chat.llm_gateway.stream")
+    async def test_no_tool_messages_for_plain_response(self, mock_stream):
         """Test that tool_messages is empty when no tools are used."""
         chunks = [
             _make_litellm_chunk(content="Hello"),
             _make_litellm_chunk(finish_reason="stop"),
         ]
-        mock_litellm.acompletion = AsyncMock(return_value=_make_litellm_stream(chunks))
+        mock_stream.return_value = _make_gateway_stream(chunks)
 
         mock_db = AsyncMock()
         mock_result = MagicMock()

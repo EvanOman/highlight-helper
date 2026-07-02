@@ -2,13 +2,14 @@
 
 import json
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from app.models.book import Book
 from app.models.coaching import CoachingCard, CoachingCardStatus, CoachingCardType
 from app.models.highlight import Highlight
 from app.models.settings import AppSetting
 from app.services.coaching import CoachingService
+from app.services.llm import LLMUsage
 
 COACHING_MODEL = "anthropic/claude-sonnet-4-5-20250929"
 
@@ -16,27 +17,26 @@ COACHING_MODEL = "anthropic/claude-sonnet-4-5-20250929"
 class TestGenerateCard:
     """Tests for CoachingService.generate_card()."""
 
-    @patch("app.services.coaching.litellm")
-    async def test_generate_card_returns_expected_structure(self, mock_litellm, test_session):
+    @patch("app.services.coaching.llm_gateway.complete")
+    async def test_generate_card_returns_expected_structure(self, mock_complete, test_session):
         """Test that generate_card returns card data with all required fields."""
-        mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(
-                message=MagicMock(
-                    content=json.dumps(
-                        {
-                            "title": "Unexpected Parallels",
-                            "body": "These two books share a surprising insight about human nature.",
-                            "chat_prompt": "I noticed both books discuss the nature of habits.",
-                            "coaching_system_prompt": "You are a reading coach. Guide the reader through...",
-                        }
-                    )
-                )
-            )
-        ]
-        mock_response.usage.prompt_tokens = 500
-        mock_response.usage.completion_tokens = 300
-        mock_litellm.acompletion = AsyncMock(return_value=mock_response)
+        card_json = json.dumps(
+            {
+                "title": "Unexpected Parallels",
+                "body": "These two books share a surprising insight about human nature.",
+                "chat_prompt": "I noticed both books discuss the nature of habits.",
+                "coaching_system_prompt": "You are a reading coach. Guide the reader through...",
+            }
+        )
+        mock_complete.return_value = (
+            card_json,
+            LLMUsage(
+                input_tokens=500,
+                output_tokens=300,
+                cost_usd=0.006,
+                model=COACHING_MODEL,
+            ),
+        )
 
         service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
@@ -61,10 +61,10 @@ class TestGenerateCard:
         assert result["output_tokens"] == 300
         assert result["cost_usd"] > 0
 
-    @patch("app.services.coaching.litellm")
-    async def test_generate_card_returns_none_on_api_error(self, mock_litellm, test_session):
+    @patch("app.services.coaching.llm_gateway.complete")
+    async def test_generate_card_returns_none_on_api_error(self, mock_complete, test_session):
         """Test that generate_card returns None when the API call fails."""
-        mock_litellm.acompletion = AsyncMock(side_effect=Exception("API error"))
+        mock_complete.side_effect = Exception("API error")
 
         service = CoachingService(test_session, coaching_model=COACHING_MODEL)
 
