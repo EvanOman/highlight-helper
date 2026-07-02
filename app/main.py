@@ -23,6 +23,7 @@ from app.core.telemetry import (
     setup_telemetry,
 )
 from app.services.book_lookup import book_lookup_service
+from app.services.jobs import start_worker, stop_worker
 
 # Configure root logger so app module loggers (readwise, chat, etc.) are visible
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
@@ -36,8 +37,10 @@ async def lifespan(app: FastAPI):
     instrument_httpx()
     instrument_sqlalchemy(engine.sync_engine)
     await init_db()
+    start_worker()
     yield
     # Shutdown
+    await stop_worker()
     await book_lookup_service.close()
 
 

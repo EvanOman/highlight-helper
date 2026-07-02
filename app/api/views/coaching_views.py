@@ -10,6 +10,7 @@ from app.models.coaching import CoachingCardStatus
 from app.repositories.chat import ChatRepository, get_chat_repo
 from app.repositories.coaching import CoachingRepository, get_coaching_repo
 from app.services.coaching import CoachingService
+from app.services.jobs import enqueue, has_pending_job
 
 from ._common import router
 
@@ -23,27 +24,31 @@ async def get_coaching_card(
 ):
     """Get or generate a coaching card.
 
-    Returns existing pending card if available, otherwise attempts
-    to generate a new one. Returns {"card": null} if no card available.
+    * Returns ``{"card": {...}}`` when a card is ready (pending/shown).
+    * Returns ``{"status": "generating"}`` when generation is in progress
+      or was just enqueued (the frontend should poll).
+    * Returns ``{"card": null}`` when no card is available and generation
+      is not warranted.
     """
-    # Check for existing pending card
+    # 1. Return existing card immediately
     existing = await coaching_repo.get_pending_card()
     if existing:
-        # Mark as shown if still pending
         if existing.status == CoachingCardStatus.PENDING:
             existing = await coaching_repo.mark_shown(existing.id)
         return {"card": CoachingService._serialize_card(existing)}
 
-    # Try to generate a new card
-    service = CoachingService(db)
-    card_data = await service.select_and_generate()
-    if card_data:
-        # The card was just created, mark it shown
-        await coaching_repo.mark_shown(card_data["id"])
-        card_data["status"] = CoachingCardStatus.SHOWN.value
-        return {"card": card_data}
+    # 2. Already generating?
+    if await has_pending_job(db, "coaching.generate"):
+        return {"status": "generating"}
 
-    return {"card": None}
+    # 3. Check eligibility (lightweight -- no LLM call)
+    service = CoachingService(db)
+    if not await service.is_generation_warranted():
+        return {"card": None}
+
+    # 4. Enqueue generation job
+    await enqueue(db, "coaching.generate")
+    return {"status": "generating"}
 
 
 @router.post("/api/coaching/card/{card_id}/engage")

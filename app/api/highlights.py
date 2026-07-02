@@ -2,7 +2,6 @@
 
 from fastapi import (
     APIRouter,
-    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -94,7 +93,6 @@ async def list_all_highlights(
 async def create_highlight(
     book_id: int,
     highlight_data: HighlightCreate,
-    background_tasks: BackgroundTasks,
     book_repo: BookRepository = Depends(get_book_repo),
     highlight_repo: HighlightRepository = Depends(get_highlight_repo),
 ) -> HighlightResponse:
@@ -110,7 +108,6 @@ async def create_highlight(
 
     # Schedule auto-sync to Readwise if enabled in app settings
     await schedule_auto_sync(
-        background_tasks,
         highlight_repo.db,
         highlight,
         book_title=book.title,

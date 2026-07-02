@@ -9,8 +9,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fastapi import BackgroundTasks
-
     from app.models.highlight import Highlight
 
 from readwise_sdk import ReadwiseClient
@@ -901,16 +899,19 @@ async def sync_pending_highlights(
 
 
 async def schedule_auto_sync(
-    background_tasks: "BackgroundTasks",
     db: AsyncSession,
     highlight: "Highlight",
     book_title: str,
     book_author: str | None,
 ) -> None:
-    """Schedule a background Readwise sync for a new highlight if enabled.
+    """Enqueue a Readwise sync job for a new highlight if enabled.
 
     Checks the app-level auto-sync setting and token; no-op when either is
-    missing. Shared by the REST API and the HTML form view.
+    missing.  Uses the background job queue (with max_attempts=3) instead of
+    fire-and-forget BackgroundTasks.  The handler reads the Readwise API
+    token from app settings at execution time.
+
+    Shared by the REST API and the HTML form view.
     """
     from app.services.settings import SettingsService
 
@@ -920,16 +921,19 @@ async def schedule_auto_sync(
     if not (auto_sync and token):
         return
 
-    # ty ParamSpec bug: kwargs of the task function are inferred incorrectly,
-    # book_author is declared `str | None` on sync_highlight_background.
-    background_tasks.add_task(
-        sync_highlight_background,
-        highlight_id=highlight.id,
-        book_title=book_title,
-        book_author=book_author,  # type: ignore[invalid-argument-type]
-        text=highlight.text,
-        note=highlight.note,
-        page_number=highlight.page_number,
-        created_at=highlight.created_at,
-        api_token=token,
+    from app.services.jobs import enqueue
+
+    await enqueue(
+        db,
+        "readwise.sync_highlight",
+        {
+            "highlight_id": highlight.id,
+            "book_title": book_title,
+            "book_author": book_author,
+            "text": highlight.text,
+            "note": highlight.note,
+            "page_number": highlight.page_number,
+            "created_at": highlight.created_at.isoformat() if highlight.created_at else None,
+        },
+        max_attempts=3,
     )

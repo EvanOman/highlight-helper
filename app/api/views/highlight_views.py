@@ -3,7 +3,6 @@
 from datetime import UTC, datetime
 
 from fastapi import (
-    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -138,7 +137,6 @@ async def extract_highlight_form(
 @router.post("/books/{book_id}/highlights/create")
 async def create_highlight_form(
     book_id: int,
-    background_tasks: BackgroundTasks,
     text: str = Form(...),
     note: str = Form(""),
     page_number: str = Form(""),
@@ -158,7 +156,6 @@ async def create_highlight_form(
 
     # Schedule auto-sync to Readwise if enabled (check app settings)
     await schedule_auto_sync(
-        background_tasks,
         db,
         highlight,
         book_title=book.title,

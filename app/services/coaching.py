@@ -168,6 +168,34 @@ class CoachingService:
             logger.exception("Failed to generate coaching card")
             return None
 
+    async def is_generation_warranted(self) -> bool:
+        """Quick eligibility check -- no LLM call, no type selection.
+
+        Used by the API endpoint to decide whether to enqueue a generation job.
+        The full ``select_and_generate`` performs its own (stricter) checks inside
+        the worker, so a ``True`` here does not guarantee a card will be created.
+        """
+        existing = await self._repo.get_pending_card()
+        if existing:
+            return False
+
+        latest = await self._repo.get_latest_card()
+        if latest and latest.created_at:
+            since = datetime.now(UTC) - latest.created_at.replace(tzinfo=UTC)
+            if since < timedelta(hours=FREQUENCY_CAP_HOURS):
+                return False
+
+        enabled = await self._settings.get_bool("coaching_enabled", default=True)
+        if not enabled:
+            return False
+
+        book_count_result = await self.db.execute(select(func.count(Book.id)))
+        book_count = book_count_result.scalar() or 0
+        highlight_count_result = await self.db.execute(select(func.count(Highlight.id)))
+        highlight_count = highlight_count_result.scalar() or 0
+
+        return not (book_count == 0 or highlight_count < 3)
+
     async def select_and_generate(self) -> dict | None:
         """Select an appropriate card type and generate a card.
 

@@ -6,11 +6,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.book import Book
 from app.models.chat import ChatThread
 from app.models.coaching import CoachingCard, CoachingCardStatus, CoachingCardType
+from app.models.highlight import Highlight
+from app.models.job import Job
 from app.repositories.coaching import CoachingRepository
 
 
@@ -22,6 +25,81 @@ class TestGetCoachingCard:
         response = await client.get("/api/coaching/card")
         assert response.status_code == 200
         assert response.json() == {"card": None}
+
+    async def test_returns_existing_pending_card(
+        self, client: AsyncClient, test_session: AsyncSession
+    ):
+        """An existing pending card is returned and marked shown."""
+        card = CoachingCard(
+            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
+            status=CoachingCardStatus.PENDING.value,
+            title="Existing Card",
+            body="Body text",
+            chat_prompt="Prompt",
+            coaching_system_prompt="System",
+            model="claude-sonnet-4-5-20250929",
+        )
+        test_session.add(card)
+        await test_session.flush()
+
+        response = await client.get("/api/coaching/card")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["card"] is not None
+        assert data["card"]["title"] == "Existing Card"
+        assert data["card"]["status"] == "shown"
+
+    async def test_returns_generating_when_eligible(
+        self, client: AsyncClient, test_session: AsyncSession
+    ):
+        """With enough content, enqueues a job and returns generating status."""
+        book = Book(title="Test Book", author="Author")
+        test_session.add(book)
+        await test_session.flush()
+
+        for i in range(3):
+            test_session.add(Highlight(book_id=book.id, text=f"Highlight {i}"))
+        await test_session.flush()
+
+        response = await client.get("/api/coaching/card")
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("status") == "generating"
+
+        # Verify a job was enqueued
+        result = await test_session.execute(select(Job).where(Job.kind == "coaching.generate"))
+        job = result.scalar_one()
+        assert job.status == "queued"
+
+    async def test_returns_generating_when_job_in_flight(
+        self, client: AsyncClient, test_session: AsyncSession
+    ):
+        """When a coaching job is already running, returns generating."""
+        job = Job(kind="coaching.generate", payload="{}", status="running")
+        test_session.add(job)
+        await test_session.flush()
+
+        response = await client.get("/api/coaching/card")
+        assert response.status_code == 200
+        assert response.json().get("status") == "generating"
+
+    async def test_does_not_double_enqueue(self, client: AsyncClient, test_session: AsyncSession):
+        """Calling the endpoint twice doesn't create a second job."""
+        book = Book(title="Test Book", author="Author")
+        test_session.add(book)
+        await test_session.flush()
+        for i in range(3):
+            test_session.add(Highlight(book_id=book.id, text=f"Highlight {i}"))
+        await test_session.flush()
+
+        # First call enqueues
+        await client.get("/api/coaching/card")
+        # Second call sees the queued job
+        response = await client.get("/api/coaching/card")
+        assert response.json().get("status") == "generating"
+
+        result = await test_session.execute(select(Job).where(Job.kind == "coaching.generate"))
+        assert len(result.scalars().all()) == 1
 
 
 class TestCoachingCardLifecycle:
