@@ -28,6 +28,7 @@ dependencies = [
     "litellm>=1.40.0",
     "chatkit[fastapi]",
     "sse-starlette>=2.0",
+    "alembic>=1.18.0",
 ]
 
 [build-system]

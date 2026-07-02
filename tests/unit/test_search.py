@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.database import Base, _run_migrations
+from app.core.database import Base, create_fts_and_indexes
 from app.models.book import Book
 from app.models.highlight import Highlight
 from app.repositories.search import SearchRepository
@@ -18,7 +18,7 @@ async def fts_engine():
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(_run_migrations)
+        await conn.run_sync(create_fts_and_indexes)
     yield engine
     await engine.dispose()
 
@@ -72,11 +72,11 @@ class TestFTS5Setup:
         names = {row[0] for row in result.fetchall()}
         assert names == {"highlights_ai", "highlights_ad", "highlights_au"}
 
-    async def test_idempotent_migration(self, fts_engine):
-        """Running migrations twice should not error."""
+    async def test_idempotent_fts_setup(self, fts_engine):
+        """Running FTS setup twice should not error."""
         async with fts_engine.begin() as conn:
-            # Migrations already ran in fixture; run again
-            await conn.run_sync(_run_migrations)
+            # FTS already created in fixture; run again to test idempotence
+            await conn.run_sync(create_fts_and_indexes)
 
 
 class TestSearchBooks:

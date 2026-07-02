@@ -1,10 +1,12 @@
 """Database connection and session management."""
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from sqlalchemy import event, text
+from sqlalchemy import event, inspect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -82,190 +84,168 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def init_db() -> None:
-    """Initialize the database, creating all tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        # Run migrations for schema changes
-        await conn.run_sync(_run_migrations)
+def _run_alembic_command(command: str, revision: str = "head") -> None:
+    """Run an alembic command synchronously (designed for asyncio.to_thread).
+
+    Args:
+        command: "upgrade" or "stamp"
+        revision: Target revision (default "head")
+    """
+    from alembic.config import Config
+
+    from alembic import command as alembic_command
+
+    alembic_cfg = Config()
+    alembic_cfg.set_main_option(
+        "script_location", str(Path(__file__).resolve().parent.parent.parent / "alembic")
+    )
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
+
+    if command == "upgrade":
+        alembic_command.upgrade(alembic_cfg, revision)
+    elif command == "stamp":
+        alembic_command.stamp(alembic_cfg, revision)
 
 
-def _run_migrations(conn) -> None:
-    """Run database migrations for schema changes."""
-    from sqlalchemy import inspect
+def _detect_db_state(conn) -> str:
+    """Detect the current state of the database.
 
+    Returns one of:
+    - "fresh": No tables exist at all
+    - "pre_alembic": Tables exist but no alembic_version table (production case)
+    - "alembic": alembic_version table exists
+    """
     inspector = inspect(conn)
-
-    # Check if highlights table exists and needs migrations
-    if "highlights" in inspector.get_table_names():
-        columns = {c["name"]: c for c in inspector.get_columns("highlights")}
-
-        # Migration 1: Add type column if missing
-        if "type" not in columns:
-            conn.execute(
-                text("ALTER TABLE highlights ADD COLUMN type VARCHAR(20) DEFAULT 'HIGHLIGHT'")
-            )
-            conn.execute(text("UPDATE highlights SET type = 'HIGHLIGHT' WHERE type IS NULL"))
-        else:
-            # Fix any lowercase values from previous migration
-            conn.execute(text("UPDATE highlights SET type = 'HIGHLIGHT' WHERE type = 'highlight'"))
-            conn.execute(text("UPDATE highlights SET type = 'NOTE' WHERE type = 'note'"))
-
-        # Migration 2: Make text column nullable (SQLite workaround - recreate table)
-        # SQLite doesn't support ALTER COLUMN, so we need to recreate the table
-        # Check if text column is nullable by trying to insert NULL
-        text_col = columns.get("text", {})
-        if text_col and text_col.get("nullable") is False:
-            # SQLite workaround: create new table, copy data, drop old, rename
-            conn.execute(
-                text("""
-                CREATE TABLE IF NOT EXISTS highlights_new (
-                    id INTEGER PRIMARY KEY,
-                    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-                    text TEXT,
-                    note TEXT,
-                    page_number VARCHAR(50),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    type VARCHAR(20) DEFAULT 'HIGHLIGHT',
-                    readwise_id VARCHAR(255),
-                    synced_at TIMESTAMP,
-                    sync_status VARCHAR(20) DEFAULT 'PENDING'
-                )
-            """)
-            )
-            conn.execute(
-                text("""
-                INSERT INTO highlights_new
-                SELECT id, book_id, text, note, page_number, created_at, type, readwise_id, synced_at, sync_status
-                FROM highlights
-            """)
-            )
-            conn.execute(text("DROP TABLE highlights"))
-            conn.execute(text("ALTER TABLE highlights_new RENAME TO highlights"))
-
-        # Migration 3: Add unique index on readwise_id (for sync-down deduplication)
-        # SQLite supports partial indexes with WHERE clause
-        conn.execute(
-            text("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_readwise_id
-            ON highlights(readwise_id) WHERE readwise_id IS NOT NULL
-        """)
-        )
-
-    # Migration 4: Add is_starred column to books table
-    if "books" in inspector.get_table_names():
-        book_columns = {c["name"]: c for c in inspector.get_columns("books")}
-        if "is_starred" not in book_columns:
-            conn.execute(text("ALTER TABLE books ADD COLUMN is_starred BOOLEAN NOT NULL DEFAULT 0"))
-
-    # Migration 5: FTS5 full-text search tables for books and highlights
     table_names = inspector.get_table_names()
 
+    if not table_names:
+        return "fresh"
+    if "alembic_version" in table_names:
+        return "alembic"
+    return "pre_alembic"
+
+
+async def init_db() -> None:
+    """Initialize the database using Alembic migrations.
+
+    Handles three scenarios:
+    - Fresh DB (no tables): run alembic upgrade head to create everything.
+    - Existing DB without alembic_version: stamp baseline (DB already matches),
+      then upgrade head for any subsequent migrations.
+    - Existing DB with alembic_version: upgrade head.
+    """
+    # Ensure models are imported so Base.metadata is populated
+    import app.models  # noqa: F401
+
+    # Detect DB state using the async engine
+    async with engine.connect() as conn:
+        db_state = await conn.run_sync(_detect_db_state)
+
+    logger.info(f"Database state detected: {db_state}")
+
+    if db_state == "fresh":
+        # Brand new database - run all migrations from scratch
+        await asyncio.to_thread(_run_alembic_command, "upgrade", "head")
+        logger.info("Database initialized with alembic upgrade head")
+    elif db_state == "pre_alembic":
+        # Existing database that predates alembic - stamp the baseline
+        # then run any migrations added after the baseline
+        await asyncio.to_thread(_run_alembic_command, "stamp", "0001")
+        logger.info("Existing database stamped at baseline revision 0001")
+        await asyncio.to_thread(_run_alembic_command, "upgrade", "head")
+        logger.info("Database upgraded to head after baseline stamp")
+    else:
+        # Database already managed by alembic - just upgrade
+        await asyncio.to_thread(_run_alembic_command, "upgrade", "head")
+        logger.info("Database upgraded to head")
+
+
+def create_fts_and_indexes(conn) -> None:
+    """Create FTS5 virtual tables, triggers, and indexes.
+
+    This is used by tests that run create_all on in-memory databases and need
+    the FTS/index schema that Alembic normally provides. Not used in production
+    (Alembic handles it via the baseline migration).
+    """
+    from sqlalchemy import text
+
+    inspector = inspect(conn)
+    table_names = inspector.get_table_names()
+
+    # FTS5 for books
     if "books" in table_names and "books_fts" not in table_names:
-        # Create FTS5 virtual table for books
         conn.execute(
-            text("""
-            CREATE VIRTUAL TABLE books_fts USING fts5(
-                title, author,
-                content=books, content_rowid=id
+            text(
+                "CREATE VIRTUAL TABLE books_fts USING fts5("
+                "title, author, content=books, content_rowid=id)"
             )
-        """)
-        )
-
-        # Triggers to keep books_fts in sync
-        conn.execute(
-            text("""
-            CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
-                INSERT INTO books_fts(rowid, title, author)
-                VALUES (new.id, new.title, new.author);
-            END
-        """)
         )
         conn.execute(
-            text("""
-            CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
-                INSERT INTO books_fts(books_fts, rowid, title, author)
-                VALUES ('delete', old.id, old.title, old.author);
-            END
-        """)
+            text(
+                "CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN "
+                "INSERT INTO books_fts(rowid, title, author) "
+                "VALUES (new.id, new.title, new.author); END"
+            )
         )
         conn.execute(
-            text("""
-            CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
-                INSERT INTO books_fts(books_fts, rowid, title, author)
-                VALUES ('delete', old.id, old.title, old.author);
-                INSERT INTO books_fts(rowid, title, author)
-                VALUES (new.id, new.title, new.author);
-            END
-        """)
+            text(
+                "CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN "
+                "INSERT INTO books_fts(books_fts, rowid, title, author) "
+                "VALUES ('delete', old.id, old.title, old.author); END"
+            )
         )
-
-        # Populate FTS from existing data
+        conn.execute(
+            text(
+                "CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN "
+                "INSERT INTO books_fts(books_fts, rowid, title, author) "
+                "VALUES ('delete', old.id, old.title, old.author); "
+                "INSERT INTO books_fts(rowid, title, author) "
+                "VALUES (new.id, new.title, new.author); END"
+            )
+        )
         conn.execute(text("INSERT INTO books_fts(books_fts) VALUES('rebuild')"))
 
+    # FTS5 for highlights
     if "highlights" in table_names and "highlights_fts" not in table_names:
-        # Create FTS5 virtual table for highlights
         conn.execute(
-            text("""
-            CREATE VIRTUAL TABLE highlights_fts USING fts5(
-                text, note,
-                content=highlights, content_rowid=id
+            text(
+                "CREATE VIRTUAL TABLE highlights_fts USING fts5("
+                "text, note, content=highlights, content_rowid=id)"
             )
-        """)
-        )
-
-        # Triggers to keep highlights_fts in sync
-        conn.execute(
-            text("""
-            CREATE TRIGGER IF NOT EXISTS highlights_ai AFTER INSERT ON highlights BEGIN
-                INSERT INTO highlights_fts(rowid, text, note)
-                VALUES (new.id, new.text, new.note);
-            END
-        """)
         )
         conn.execute(
-            text("""
-            CREATE TRIGGER IF NOT EXISTS highlights_ad AFTER DELETE ON highlights BEGIN
-                INSERT INTO highlights_fts(highlights_fts, rowid, text, note)
-                VALUES ('delete', old.id, old.text, old.note);
-            END
-        """)
+            text(
+                "CREATE TRIGGER IF NOT EXISTS highlights_ai AFTER INSERT ON highlights BEGIN "
+                "INSERT INTO highlights_fts(rowid, text, note) "
+                "VALUES (new.id, new.text, new.note); END"
+            )
         )
         conn.execute(
-            text("""
-            CREATE TRIGGER IF NOT EXISTS highlights_au AFTER UPDATE ON highlights BEGIN
-                INSERT INTO highlights_fts(highlights_fts, rowid, text, note)
-                VALUES ('delete', old.id, old.text, old.note);
-                INSERT INTO highlights_fts(rowid, text, note)
-                VALUES (new.id, new.text, new.note);
-            END
-        """)
+            text(
+                "CREATE TRIGGER IF NOT EXISTS highlights_ad AFTER DELETE ON highlights BEGIN "
+                "INSERT INTO highlights_fts(highlights_fts, rowid, text, note) "
+                "VALUES ('delete', old.id, old.text, old.note); END"
+            )
         )
-
-        # Populate FTS from existing data
+        conn.execute(
+            text(
+                "CREATE TRIGGER IF NOT EXISTS highlights_au AFTER UPDATE ON highlights BEGIN "
+                "INSERT INTO highlights_fts(highlights_fts, rowid, text, note) "
+                "VALUES ('delete', old.id, old.text, old.note); "
+                "INSERT INTO highlights_fts(rowid, text, note) "
+                "VALUES (new.id, new.text, new.note); END"
+            )
+        )
         conn.execute(text("INSERT INTO highlights_fts(highlights_fts) VALUES('rebuild')"))
 
-    # Migration 6: Add index on highlights.book_id for efficient book detail queries
+    # Partial unique index on readwise_id
     if "highlights" in table_names:
         conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_highlights_book_id ON highlights (book_id)")
-        )
-
-    # Migration 7: Add content_blocks column to chat_messages table
-    if "chat_messages" in table_names:
-        chat_msg_columns = {c["name"]: c for c in inspector.get_columns("chat_messages")}
-        if "content_blocks" not in chat_msg_columns:
-            conn.execute(text("ALTER TABLE chat_messages ADD COLUMN content_blocks TEXT"))
-
-    # Migration 8: Add coaching_card_id column to chat_threads table
-    if "chat_threads" in table_names:
-        thread_columns = {c["name"]: c for c in inspector.get_columns("chat_threads")}
-        if "coaching_card_id" not in thread_columns:
-            conn.execute(
-                text(
-                    "ALTER TABLE chat_threads ADD COLUMN coaching_card_id INTEGER REFERENCES coaching_cards(id) ON DELETE SET NULL"
-                )
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_readwise_id "
+                "ON highlights(readwise_id) WHERE readwise_id IS NOT NULL"
             )
+        )
 
 
 @asynccontextmanager

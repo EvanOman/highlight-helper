@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.database import Base, _run_migrations
+from app.core.database import Base, create_fts_and_indexes
 from app.models.book import Book
 from app.models.highlight import AnnotationType, Highlight, SyncStatus
 from app.services.readwise import (
@@ -31,7 +31,7 @@ async def db_engine():
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(_run_migrations)
+        await conn.run_sync(create_fts_and_indexes)
     yield engine
     await engine.dispose()
 

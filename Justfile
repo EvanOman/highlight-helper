@@ -142,6 +142,18 @@ service-restart:
     sudo systemctl restart highlight-helper
 
 # =============================================================================
+# Database Migrations (Alembic)
+# =============================================================================
+
+# Run pending migrations
+migrate:
+    uv run alembic upgrade head
+
+# Create a new auto-generated migration
+migration name:
+    uv run alembic revision --autogenerate -m "{{name}}"
+
+# =============================================================================
 # Database Backup Commands
 # =============================================================================
 

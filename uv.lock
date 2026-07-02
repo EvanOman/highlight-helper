@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-14T04:12:03.742683129Z"
+exclude-newer = "2026-06-25T03:39:48.537566135Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -771,6 +771,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
+    { name = "alembic" },
     { name = "chatkit", extra = ["fastapi"] },
     { name = "dspy" },
     { name = "fastapi" },
@@ -808,6 +809,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20.0" },
+    { name = "alembic", specifier = ">=1.18.0" },
     { name = "chatkit", extras = ["fastapi"], path = "chatkit-0.1.0-py3-none-any.whl" },
     { name = "dspy", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.115.0" },

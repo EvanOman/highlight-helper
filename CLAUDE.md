@@ -29,7 +29,14 @@ If E2E tests fail with connection errors, check that port 8765 is free.
 
 The production SQLite database (`highlight_helper.db`) contains real user data. **Never delete or overwrite it.** Tests use isolated in-memory or temp databases.
 
-When writing new test fixtures that need a database, always use the existing `test_session` / `override_get_db` fixtures from `tests/conftest.py`, or the temp-directory approach in the E2E server fixture. Never reference `highlight_helper.db` directly in tests.
+Schema migrations are managed by **Alembic** (`alembic/` directory). On startup, `init_db()` detects the database state and either runs migrations from scratch (fresh DB), stamps the baseline then upgrades (pre-Alembic DB), or simply upgrades to head (already managed).
+
+```bash
+just migrate             # Run pending migrations
+just migration "add foo" # Create a new auto-generated migration
+```
+
+When writing new test fixtures that need a database, always use the existing `test_session` / `override_get_db` fixtures from `tests/conftest.py`, or the temp-directory approach in the E2E server fixture. Never reference `highlight_helper.db` directly in tests. Tests use `Base.metadata.create_all` directly (not Alembic) for speed.
 
 ## Architecture
 

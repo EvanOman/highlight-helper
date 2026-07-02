@@ -39,6 +39,9 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application code
 COPY app/ ./app/
 COPY static/ ./static/
+# Alembic migrations run at startup via init_db()
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
 
 # Create directories for data, certs, and backups (will be mounted as volumes)
 RUN mkdir -p /app/data /app/certs /app/backups && chown -R appuser:appuser /app
