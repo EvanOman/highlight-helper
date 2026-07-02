@@ -23,6 +23,14 @@ lint-fix:
 type:
     uv run ty check .
 
+# Build Tailwind CSS (minified)
+css:
+    TAILWINDCSS_VERSION=v3.4.17 uv run tailwindcss -i static/css/input.css -o static/css/app.css --minify
+
+# Watch Tailwind CSS for changes (dev mode)
+css-watch:
+    TAILWINDCSS_VERSION=v3.4.17 uv run tailwindcss -i static/css/input.css -o static/css/app.css --watch
+
 # Run unit and integration tests
 test:
     uv run pytest tests/unit tests/integration
@@ -36,7 +44,7 @@ test-all:
     uv run pytest tests/
 
 # FIX + CHECK: Run before every commit
-fc: fmt lint-fix lint type test
+fc: css fmt lint-fix lint type test
 
 # CI checks (no auto-fix)
 ci: lint format-check type test

@@ -56,6 +56,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
+      - name: Install just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Build Tailwind CSS
+        run: just css
+
       - name: Install Playwright browsers
         run: uv run playwright install chromium
 
