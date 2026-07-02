@@ -8,6 +8,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -36,9 +37,15 @@ class CoachingCard(Base):
     __tablename__ = "coaching_cards"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    card_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), default="pending", server_default="pending", nullable=False
+    card_type: Mapped[CoachingCardType] = mapped_column(
+        SQLEnum(CoachingCardType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
+    status: Mapped[CoachingCardStatus] = mapped_column(
+        SQLEnum(CoachingCardStatus, values_callable=lambda e: [m.value for m in e]),
+        default=CoachingCardStatus.PENDING,
+        server_default=CoachingCardStatus.PENDING.value,
+        nullable=False,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -67,4 +74,6 @@ class CoachingCard(Base):
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
-        return f"<CoachingCard(id={self.id}, type='{self.card_type}', status='{self.status}')>"
+        ct = self.card_type.value if hasattr(self.card_type, "value") else self.card_type
+        st = self.status.value if hasattr(self.status, "value") else self.status
+        return f"<CoachingCard(id={self.id}, type='{ct}', status='{st}')>"

@@ -16,9 +16,39 @@ class ChatMetricRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create(self, **kwargs) -> ChatMetric:
+    async def create(
+        self,
+        *,
+        model: str,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        total_tokens: int = 0,
+        cost_usd: float | Decimal = 0.0,
+        thread_id: int | None = None,
+        book_id: int | None = None,
+        ttft_ms: float | None = None,
+        total_latency_ms: float | None = None,
+        tokens_per_sec: float | None = None,
+        stop_reason: str | None = None,
+        message_count: int | None = None,
+        context_utilization_pct: float | None = None,
+    ) -> ChatMetric:
         """Create a new chat metric record."""
-        metric = ChatMetric(**kwargs)
+        metric = ChatMetric(
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost_usd,
+            thread_id=thread_id,
+            book_id=book_id,
+            ttft_ms=ttft_ms,
+            total_latency_ms=total_latency_ms,
+            tokens_per_sec=tokens_per_sec,
+            stop_reason=stop_reason,
+            message_count=message_count,
+            context_utilization_pct=context_utilization_pct,
+        )
         self.db.add(metric)
         await self.db.flush()
         await self.db.refresh(metric)

@@ -33,7 +33,7 @@ class TestCoachingCardModel:
 
     async def test_create_card(self, test_session):
         card = CoachingCard(
-            card_type=CoachingCardType.CROSS_BOOK_CONNECTION.value,
+            card_type=CoachingCardType.CROSS_BOOK_CONNECTION,
             title="Test Connection",
             body="A fascinating connection between two books.",
             chat_prompt="Help me explore this connection.",
@@ -47,14 +47,14 @@ class TestCoachingCardModel:
         await test_session.flush()
 
         assert card.id is not None
-        assert card.card_type == "cross_book_connection"
-        assert card.status == "pending"
+        assert card.card_type == CoachingCardType.CROSS_BOOK_CONNECTION
+        assert card.status == CoachingCardStatus.PENDING
         assert card.title == "Test Connection"
         assert card.created_at is not None
 
     async def test_card_default_status(self, test_session):
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
             title="Test",
             body="Test body",
             chat_prompt="Test prompt",
@@ -64,11 +64,11 @@ class TestCoachingCardModel:
         test_session.add(card)
         await test_session.flush()
 
-        assert card.status == "pending"
+        assert card.status == CoachingCardStatus.PENDING
 
     async def test_card_nullable_fks(self, test_session):
         card = CoachingCard(
-            card_type=CoachingCardType.SPACED_REVIEW.value,
+            card_type=CoachingCardType.SPACED_REVIEW,
             title="Test",
             body="Test body",
             chat_prompt="Test prompt",
@@ -84,7 +84,7 @@ class TestCoachingCardModel:
 
     async def test_card_with_book_fks(self, test_session, sample_book):
         card = CoachingCard(
-            card_type=CoachingCardType.CROSS_BOOK_CONNECTION.value,
+            card_type=CoachingCardType.CROSS_BOOK_CONNECTION,
             title="Test",
             body="Test body",
             chat_prompt="Test prompt",
@@ -99,7 +99,7 @@ class TestCoachingCardModel:
 
     async def test_card_repr(self, test_session):
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
             title="Test",
             body="Test body",
             chat_prompt="Test prompt",

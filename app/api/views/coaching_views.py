@@ -6,6 +6,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.coaching import CoachingCardStatus
 from app.repositories.chat import ChatRepository, get_chat_repo
 from app.repositories.coaching import CoachingRepository, get_coaching_repo
 from app.services.coaching import CoachingService
@@ -29,7 +30,7 @@ async def get_coaching_card(
     existing = await coaching_repo.get_pending_card()
     if existing:
         # Mark as shown if still pending
-        if existing.status == "pending":
+        if existing.status == CoachingCardStatus.PENDING:
             existing = await coaching_repo.mark_shown(existing.id)
         return {"card": CoachingService._serialize_card(existing)}
 
@@ -39,7 +40,7 @@ async def get_coaching_card(
     if card_data:
         # The card was just created, mark it shown
         await coaching_repo.mark_shown(card_data["id"])
-        card_data["status"] = "shown"
+        card_data["status"] = CoachingCardStatus.SHOWN.value
         return {"card": card_data}
 
     return {"card": None}

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat import ChatThread
@@ -29,8 +30,8 @@ class TestCoachingCardLifecycle:
     async def test_engage_creates_thread(self, client: AsyncClient, test_session: AsyncSession):
         """Test that engaging a card creates a coaching thread and links it."""
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.SHOWN.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.SHOWN,
             title="Test Coaching Card",
             body="Test body text",
             chat_prompt="Help me think about this concept.",
@@ -60,15 +61,15 @@ class TestCoachingCardLifecycle:
 
         # Verify card status updated
         await test_session.refresh(card)
-        assert card.status == CoachingCardStatus.ENGAGED.value
+        assert card.status == CoachingCardStatus.ENGAGED
         assert card.thread_id == thread_id
         assert card.responded_at is not None
 
     async def test_dismiss_updates_status(self, client: AsyncClient, test_session: AsyncSession):
         """Test that dismissing a card updates its status."""
         card = CoachingCard(
-            card_type=CoachingCardType.SPACED_REVIEW.value,
-            status=CoachingCardStatus.SHOWN.value,
+            card_type=CoachingCardType.SPACED_REVIEW,
+            status=CoachingCardStatus.SHOWN,
             title="Dismiss Test",
             body="Body",
             chat_prompt="Prompt",
@@ -84,7 +85,7 @@ class TestCoachingCardLifecycle:
         assert response.json() == {"ok": True}
 
         await test_session.refresh(card)
-        assert card.status == CoachingCardStatus.DISMISSED.value
+        assert card.status == CoachingCardStatus.DISMISSED
         assert card.responded_at is not None
 
     async def test_engage_nonexistent_card_returns_404(self, client: AsyncClient):
@@ -112,8 +113,8 @@ class TestCoachingStats:
         """Test stats reflect card statuses correctly."""
         cards = [
             CoachingCard(
-                card_type=CoachingCardType.CROSS_BOOK_CONNECTION.value,
-                status=CoachingCardStatus.ENGAGED.value,
+                card_type=CoachingCardType.CROSS_BOOK_CONNECTION,
+                status=CoachingCardStatus.ENGAGED,
                 title="Engaged",
                 body="B",
                 chat_prompt="P",
@@ -121,8 +122,8 @@ class TestCoachingStats:
                 model="claude-sonnet-4-5-20250929",
             ),
             CoachingCard(
-                card_type=CoachingCardType.CROSS_BOOK_CONNECTION.value,
-                status=CoachingCardStatus.DISMISSED.value,
+                card_type=CoachingCardType.CROSS_BOOK_CONNECTION,
+                status=CoachingCardStatus.DISMISSED,
                 title="Dismissed",
                 body="B",
                 chat_prompt="P",
@@ -130,8 +131,8 @@ class TestCoachingStats:
                 model="claude-sonnet-4-5-20250929",
             ),
             CoachingCard(
-                card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-                status=CoachingCardStatus.SHOWN.value,
+                card_type=CoachingCardType.COMPREHENSION_CHECK,
+                status=CoachingCardStatus.SHOWN,
                 title="Shown",
                 body="B",
                 chat_prompt="P",
@@ -165,8 +166,8 @@ class TestCoachingRepository:
         repo = CoachingRepository(test_session)
 
         expired_card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.PENDING.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.PENDING,
             title="Expired",
             body="B",
             chat_prompt="P",
@@ -185,8 +186,8 @@ class TestCoachingRepository:
         repo = CoachingRepository(test_session)
 
         card = CoachingCard(
-            card_type=CoachingCardType.SPACED_REVIEW.value,
-            status=CoachingCardStatus.PENDING.value,
+            card_type=CoachingCardType.SPACED_REVIEW,
+            status=CoachingCardStatus.PENDING,
             title="Valid",
             body="B",
             chat_prompt="P",
@@ -206,7 +207,7 @@ class TestCoachingRepository:
         repo = CoachingRepository(test_session)
 
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
             title="Test",
             body="B",
             chat_prompt="P",
@@ -217,7 +218,7 @@ class TestCoachingRepository:
         await test_session.flush()
 
         updated = await repo.mark_shown(card.id)
-        assert updated.status == CoachingCardStatus.SHOWN.value
+        assert updated.status == CoachingCardStatus.SHOWN
         assert updated.shown_at is not None
 
     async def test_type_engagement_rates(self, test_session: AsyncSession):
@@ -226,12 +227,12 @@ class TestCoachingRepository:
 
         # Create 3 cards of same type: 1 engaged, 2 dismissed
         for status in [
-            CoachingCardStatus.ENGAGED.value,
-            CoachingCardStatus.DISMISSED.value,
-            CoachingCardStatus.DISMISSED.value,
+            CoachingCardStatus.ENGAGED,
+            CoachingCardStatus.DISMISSED,
+            CoachingCardStatus.DISMISSED,
         ]:
             card = CoachingCard(
-                card_type=CoachingCardType.CROSS_BOOK_CONNECTION.value,
+                card_type=CoachingCardType.CROSS_BOOK_CONNECTION,
                 status=status,
                 title="T",
                 body="B",
@@ -248,6 +249,41 @@ class TestCoachingRepository:
         assert rates["cross_book_connection"]["engaged"] == 1
         assert rates["cross_book_connection"]["rate"] == pytest.approx(1 / 3, abs=0.01)
 
+    async def test_create_card_round_trip_storage_format(self, test_session: AsyncSession):
+        """Test that enum columns store lowercase values matching pre-enum format.
+
+        Write a card via the repository, then read the raw stored values with
+        a raw SQL SELECT to confirm the on-disk format hasn't changed.
+        """
+        repo = CoachingRepository(test_session)
+
+        card = await repo.create_card(
+            card_type=CoachingCardType.CROSS_BOOK_CONNECTION,
+            title="Round-trip Test",
+            body="Body",
+            chat_prompt="Prompt",
+            coaching_system_prompt="System",
+            model="claude-sonnet-4-5-20250929",
+            input_tokens=10,
+            output_tokens=20,
+            cost_usd=0.001,
+        )
+
+        # Verify ORM returns enum members
+        assert card.card_type == CoachingCardType.CROSS_BOOK_CONNECTION
+        assert card.status == CoachingCardStatus.PENDING
+
+        # Read raw stored values via raw SQL
+        raw = await test_session.execute(
+            text("SELECT card_type, status FROM coaching_cards WHERE id = :id"),
+            {"id": card.id},
+        )
+        row = raw.one()
+        assert row[0] == "cross_book_connection", (
+            f"Expected raw card_type 'cross_book_connection', got '{row[0]}'"
+        )
+        assert row[1] == "pending", f"Expected raw status 'pending', got '{row[1]}'"
+
 
 class TestThreadDetail:
     """Tests for GET /api/chat/threads/{id}/detail."""
@@ -257,8 +293,8 @@ class TestThreadDetail:
     ):
         """Coaching thread detail includes card title and body."""
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.ENGAGED.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.ENGAGED,
             title="Deep Dive Title",
             body="Card body with context",
             chat_prompt="Prompt",
@@ -309,8 +345,8 @@ class TestGenerateEndpoint:
     async def test_generate_streams_response(self, client: AsyncClient, test_session: AsyncSession):
         """Generate endpoint returns an SSE stream."""
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.ENGAGED.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.ENGAGED,
             title="Test",
             body="Body",
             chat_prompt="Think about this",
@@ -384,8 +420,8 @@ class TestCoachingThreadsInGlobalList:
         await test_session.refresh(book)
 
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.ENGAGED.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.ENGAGED,
             title="Card",
             body="B",
             chat_prompt="P",

@@ -1,6 +1,7 @@
 """Repository for coaching card database operations."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from fastapi import Depends
 from sqlalchemy import case, func, select
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.models.chat import ChatMessage, ChatThread
-from app.models.coaching import CoachingCard, CoachingCardStatus
+from app.models.coaching import CoachingCard, CoachingCardStatus, CoachingCardType
 
 
 class CoachingRepository:
@@ -18,9 +19,45 @@ class CoachingRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def create_card(self, **kwargs) -> CoachingCard:
+    async def create_card(
+        self,
+        *,
+        card_type: CoachingCardType,
+        title: str,
+        body: str,
+        chat_prompt: str,
+        coaching_system_prompt: str,
+        model: str,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        cost_usd: float | Decimal = 0.0,
+        status: CoachingCardStatus = CoachingCardStatus.PENDING,
+        highlight_ids_json: str | None = None,
+        primary_book_id: int | None = None,
+        secondary_book_id: int | None = None,
+        thread_id: int | None = None,
+        eligible_after: datetime | None = None,
+        expires_at: datetime | None = None,
+    ) -> CoachingCard:
         """Create and persist a coaching card."""
-        card = CoachingCard(**kwargs)
+        card = CoachingCard(
+            card_type=card_type,
+            title=title,
+            body=body,
+            chat_prompt=chat_prompt,
+            coaching_system_prompt=coaching_system_prompt,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost_usd,
+            status=status,
+            highlight_ids_json=highlight_ids_json,
+            primary_book_id=primary_book_id,
+            secondary_book_id=secondary_book_id,
+            thread_id=thread_id,
+            eligible_after=eligible_after,
+            expires_at=expires_at,
+        )
         self.db.add(card)
         await self.db.flush()
         await self.db.refresh(card)
@@ -46,8 +83,8 @@ class CoachingRepository:
             .where(
                 CoachingCard.status.in_(
                     [
-                        CoachingCardStatus.PENDING.value,
-                        CoachingCardStatus.SHOWN.value,
+                        CoachingCardStatus.PENDING,
+                        CoachingCardStatus.SHOWN,
                     ]
                 ),
                 (CoachingCard.expires_at.is_(None)) | (CoachingCard.expires_at > now),
@@ -67,7 +104,7 @@ class CoachingRepository:
     async def mark_shown(self, card_id: int) -> CoachingCard:
         """Mark a card as shown to the user."""
         card = await self.get_card_or_raise(card_id)
-        card.status = CoachingCardStatus.SHOWN.value
+        card.status = CoachingCardStatus.SHOWN
         card.shown_at = datetime.now(UTC)
         await self.db.flush()
         await self.db.refresh(card)
@@ -76,7 +113,7 @@ class CoachingRepository:
     async def mark_engaged(self, card_id: int, thread_id: int) -> CoachingCard:
         """Mark a card as engaged (user started coaching conversation)."""
         card = await self.get_card_or_raise(card_id)
-        card.status = CoachingCardStatus.ENGAGED.value
+        card.status = CoachingCardStatus.ENGAGED
         card.responded_at = datetime.now(UTC)
         card.thread_id = thread_id
         await self.db.flush()
@@ -86,7 +123,7 @@ class CoachingRepository:
     async def mark_dismissed(self, card_id: int) -> CoachingCard:
         """Mark a card as dismissed by the user."""
         card = await self.get_card_or_raise(card_id)
-        card.status = CoachingCardStatus.DISMISSED.value
+        card.status = CoachingCardStatus.DISMISSED
         card.responded_at = datetime.now(UTC)
         await self.db.flush()
         await self.db.refresh(card)
@@ -107,13 +144,13 @@ class CoachingRepository:
                 func.count(CoachingCard.id).label("total"),
                 func.sum(
                     case(
-                        (CoachingCard.status == CoachingCardStatus.ENGAGED.value, 1),
+                        (CoachingCard.status == CoachingCardStatus.ENGAGED, 1),
                         else_=0,
                     )
                 ).label("engaged"),
                 func.sum(
                     case(
-                        (CoachingCard.status == CoachingCardStatus.DISMISSED.value, 1),
+                        (CoachingCard.status == CoachingCardStatus.DISMISSED, 1),
                         else_=0,
                     )
                 ).label("dismissed"),
@@ -142,21 +179,21 @@ class CoachingRepository:
                 func.count(CoachingCard.id).label("total_cards"),
                 func.sum(
                     case(
-                        (CoachingCard.status == CoachingCardStatus.SHOWN.value, 1),
-                        (CoachingCard.status == CoachingCardStatus.ENGAGED.value, 1),
-                        (CoachingCard.status == CoachingCardStatus.DISMISSED.value, 1),
+                        (CoachingCard.status == CoachingCardStatus.SHOWN, 1),
+                        (CoachingCard.status == CoachingCardStatus.ENGAGED, 1),
+                        (CoachingCard.status == CoachingCardStatus.DISMISSED, 1),
                         else_=0,
                     )
                 ).label("shown"),
                 func.sum(
                     case(
-                        (CoachingCard.status == CoachingCardStatus.ENGAGED.value, 1),
+                        (CoachingCard.status == CoachingCardStatus.ENGAGED, 1),
                         else_=0,
                     )
                 ).label("engaged"),
                 func.sum(
                     case(
-                        (CoachingCard.status == CoachingCardStatus.DISMISSED.value, 1),
+                        (CoachingCard.status == CoachingCardStatus.DISMISSED, 1),
                         else_=0,
                     )
                 ).label("dismissed"),

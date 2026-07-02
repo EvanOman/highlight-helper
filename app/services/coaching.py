@@ -259,7 +259,7 @@ class CoachingService:
         now = datetime.now(UTC)
         highlight_ids = [h.id for h in highlights]
         card = await self._repo.create_card(
-            card_type=card_type.value,
+            card_type=card_type,
             title=card_data["title"],
             body=card_data["body"],
             chat_prompt=card_data["chat_prompt"],
@@ -422,8 +422,8 @@ class CoachingService:
         """Serialize a CoachingCard to a dict for API response."""
         return {
             "id": card.id,
-            "card_type": card.card_type,
-            "status": card.status,
+            "card_type": card.card_type.value,
+            "status": card.status.value,
             "title": card.title,
             "body": card.body,
             "chat_prompt": card.chat_prompt,

@@ -107,8 +107,8 @@ class TestSelectAndGenerate:
     async def test_returns_none_when_pending_card_exists(self, test_session):
         """Test that select_and_generate returns None if pending card exists."""
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.PENDING.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.PENDING,
             title="Existing",
             body="Body",
             chat_prompt="Prompt",
@@ -131,8 +131,8 @@ class TestSelectAndGenerate:
 
         # Create a recently dismissed card (within 24h)
         card = CoachingCard(
-            card_type=CoachingCardType.COMPREHENSION_CHECK.value,
-            status=CoachingCardStatus.DISMISSED.value,
+            card_type=CoachingCardType.COMPREHENSION_CHECK,
+            status=CoachingCardStatus.DISMISSED,
             title="Recent",
             body="Body",
             chat_prompt="Prompt",
