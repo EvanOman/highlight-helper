@@ -1,7 +1,7 @@
 """Unit tests for ReadwiseService.sync_down() and related methods."""
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -657,89 +657,47 @@ class TestFetchBooks:
         assert result[0].title == "Book"
 
 
-class TestPaginateCursorMonkeyPatch:
-    """Tests for the monkey-patched ReadwiseClient.paginate that handles integer cursors.
+class TestPaginationCursorHandling:
+    """Tests that the SDK's parse_pagination_cursor handles integer cursors.
 
-    The Readwise API returns integer nextPageCursor values, but the original SDK
-    code calls .startswith("http") on the cursor, crashing with AttributeError.
-    Our monkey-patch converts the cursor to a string first.
+    The Readwise export API returns integer nextPageCursor values. The SDK's
+    parse_pagination_cursor (fixed in readwise-plus >=0.2.1 with the str()
+    coercion) handles these without crashing.
     """
 
     def test_integer_cursor_does_not_crash(self):
-        """paginate() handles integer nextPageCursor without AttributeError."""
-        from app.services.readwise import _patched_paginate
+        """parse_pagination_cursor handles integer cursor without AttributeError."""
+        from typing import cast
 
-        mock_client = Mock()
-        # Page 1 returns data with an integer cursor
-        page1_response = Mock()
-        page1_response.json.return_value = {
-            "results": [{"id": 1, "title": "Book 1"}],
-            "nextPageCursor": 12345,  # integer, not string!
-        }
-        # Page 2 returns data with no cursor (end of pagination)
-        page2_response = Mock()
-        page2_response.json.return_value = {
-            "results": [{"id": 2, "title": "Book 2"}],
-            "nextPageCursor": None,
-        }
-        mock_client.get = Mock(side_effect=[page1_response, page2_response])
+        from readwise_sdk._utils import parse_pagination_cursor
 
-        results = list(
-            _patched_paginate(
-                mock_client,
-                "https://readwise.io/api/v2/export/",
-                params={},
-                cursor_key="nextPageCursor",
-            )
-        )
-
-        assert len(results) == 2
-        assert results[0]["title"] == "Book 1"
-        assert results[1]["title"] == "Book 2"
-        # Verify pageCursor was passed as string on second request
-        second_call_params = mock_client.get.call_args_list[1][1].get(
-            "params",
-            mock_client.get.call_args_list[1][0][1]
-            if len(mock_client.get.call_args_list[1][0]) > 1
-            else {},
-        )
-        assert second_call_params.get("pageCursor") == "12345"
+        # The Readwise export API returns integer nextPageCursor values;
+        # cast mirrors what json.loads -> dict.get actually produces at runtime.
+        cursor = cast(str, 12345)
+        url, params = parse_pagination_cursor(cursor, "https://readwise.io/api/v2/export/", {})
+        assert params.get("pageCursor") == "12345"
+        assert url == "https://readwise.io/api/v2/export/"
 
     def test_string_url_cursor_still_works(self):
-        """paginate() still handles full URL cursors correctly."""
-        from app.services.readwise import _patched_paginate
+        """parse_pagination_cursor still handles full URL cursors correctly."""
+        from readwise_sdk._utils import parse_pagination_cursor
 
-        mock_client = Mock()
-        page1_response = Mock()
-        page1_response.json.return_value = {
-            "results": [{"id": 1}],
-            "next": "https://readwise.io/api/v2/books/?page=2&token=abc",
-        }
-        page2_response = Mock()
-        page2_response.json.return_value = {
-            "results": [{"id": 2}],
-            "next": None,
-        }
-        mock_client.get = Mock(side_effect=[page1_response, page2_response])
+        url, params = parse_pagination_cursor(
+            "https://readwise.io/api/v2/books/?page=2&token=abc",
+            "https://readwise.io/api/v2/books/",
+            {},
+        )
+        assert url == "https://readwise.io/api/v2/books/"
+        assert params.get("page") == "2"
+        assert params.get("token") == "abc"
 
-        results = list(_patched_paginate(mock_client, "https://readwise.io/api/v2/books/"))
-        assert len(results) == 2
+    def test_string_cursor_works(self):
+        """parse_pagination_cursor handles string cursors correctly."""
+        from readwise_sdk._utils import parse_pagination_cursor
 
-    def test_none_cursor_stops_pagination(self):
-        """paginate() stops when cursor is None."""
-        from app.services.readwise import _patched_paginate
-
-        mock_client = Mock()
-        response = Mock()
-        response.json.return_value = {
-            "results": [{"id": 1}],
-            "next": None,
-        }
-        mock_client.get = Mock(return_value=response)
-
-        results = list(_patched_paginate(mock_client, "https://example.com/api/"))
-        assert len(results) == 1
-        assert mock_client.get.call_count == 1
+        url, params = parse_pagination_cursor("abc123", "https://readwise.io/api/v2/export/", {})
+        assert params.get("pageCursor") == "abc123"
+        assert url == "https://readwise.io/api/v2/export/"
 
 
 class TestSyncDownFetchErrorMidStream:

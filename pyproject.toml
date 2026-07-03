@@ -24,7 +24,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.48b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
     "opentelemetry-exporter-otlp>=1.27.0",
-    "readwise-sdk",
+    "readwise-plus>=0.2.1",
     "litellm>=1.40.0",
     "chatkit[fastapi]",
     "sse-starlette>=2.0",
@@ -51,7 +51,7 @@ dev = [
 packages = ["app"]
 
 [tool.uv.sources]
-readwise-sdk = { path = "readwise_sdk-0.1.0-py3-none-any.whl" }
+readwise-plus = { path = "../readwise-sdk" }
 chatkit = { path = "chatkit-0.1.0-py3-none-any.whl" }
 
 [tool.ruff]

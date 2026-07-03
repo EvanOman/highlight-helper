@@ -23,33 +23,6 @@ from app.core.telemetry import add_span_attributes, create_span, set_span_status
 logger = logging.getLogger(__name__)
 
 
-# Monkey-patch readwise_sdk paginate() to handle integer cursors.
-# The Readwise API returns integer nextPageCursor values, but the SDK
-# assumes they are strings and calls .startswith("http") on them.
-def _patched_paginate(self, url, params=None, results_key="results", cursor_key="next"):
-    params = params.copy() if params else {}
-    while True:
-        response = self.get(url, params=params)
-        data = response.json()
-        results = data.get(results_key, [])
-        yield from results
-        next_cursor = data.get(cursor_key)
-        if not next_cursor:
-            break
-        next_cursor = str(next_cursor)
-        if next_cursor.startswith("http"):
-            from urllib.parse import parse_qs, urlparse
-
-            parsed = urlparse(next_cursor)
-            url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-            params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
-        else:
-            params["pageCursor"] = next_cursor
-
-
-ReadwiseClient.paginate = _patched_paginate  # type: ignore[assignment]
-
-
 # Readwise API field length limits
 READWISE_MAX_TEXT_LENGTH = 8191
 READWISE_MAX_TITLE_LENGTH = 511
