@@ -5,11 +5,15 @@
 # Usage: ./scripts/backup_db.sh [database_path] [backup_dir]
 #
 # Features:
-# - Uses SQLite .backup command for consistent snapshots
-# - Checkpoints WAL before backup
+# - Uses SQLite's online backup API (via Python) for consistent snapshots,
+#   safe to run while the app is writing (WAL contents are included)
 # - Verifies backup integrity
-# - Rotates old backups (keeps last N backups)
+# - Rotates old backups (keeps last N highlight_helper_*.db backups;
+#   other filenames, e.g. milestone backups, are never rotated)
 # - Sets secure file permissions on backups
+#
+# Requires: uv (the backup itself runs through `uv run python` so no
+# sqlite3 CLI is needed on the host).
 
 set -euo pipefail
 
@@ -23,40 +27,15 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 DB_PATH="${1:-$DEFAULT_DB_PATH}"
 BACKUP_DIR="${2:-$DEFAULT_BACKUP_DIR}"
 
-# Security: Validate paths to prevent directory traversal
-validate_path() {
-    local path="$1"
-    local description="$2"
-
-    # Check for null bytes
-    if [[ "$path" == *$'\0'* ]]; then
-        echo "Error: $description contains null bytes" >&2
-        exit 1
-    fi
-
-    # Check for directory traversal attempts
-    # Normalize the path and check it doesn't escape
-    local normalized
-    normalized=$(realpath -m "$path" 2>/dev/null) || {
-        echo "Error: Cannot normalize $description: $path" >&2
-        exit 1
-    }
-
-    # For backup directory, ensure it's under the project or an absolute path we trust
-    if [[ "$description" == "backup directory" ]]; then
-        # Allow absolute paths or paths relative to current directory
-        if [[ ! "$normalized" =~ ^/ ]] && [[ "$normalized" == *".."* ]]; then
-            echo "Error: $description appears to escape current directory" >&2
-            exit 1
-        fi
-    fi
-
-    echo "$normalized"
+# Normalize paths (also rejects paths that cannot resolve)
+DB_PATH=$(realpath -m "$DB_PATH") || {
+    echo "Error: cannot normalize database path" >&2
+    exit 1
 }
-
-# Validate paths
-DB_PATH=$(validate_path "$DB_PATH" "database path")
-BACKUP_DIR=$(validate_path "$BACKUP_DIR" "backup directory")
+BACKUP_DIR=$(realpath -m "$BACKUP_DIR") || {
+    echo "Error: cannot normalize backup directory" >&2
+    exit 1
+}
 
 BACKUP_FILE="$BACKUP_DIR/highlight_helper_$TIMESTAMP.db"
 
@@ -75,31 +54,42 @@ fi
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
 
-# Checkpoint WAL to ensure all changes are in main database
-# Use readonly mode to avoid modifying the source
-echo "Checkpointing WAL..."
-sqlite3 "file:${DB_PATH}?mode=ro" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || {
-    echo "Note: WAL checkpoint skipped (database may not be in WAL mode or is locked)"
-}
-
-# Create backup using SQLite's backup command with readonly mode
+# Create and verify the backup using SQLite's online backup API.
+# The backup API takes a consistent snapshot including WAL contents,
+# without blocking or modifying the running application.
 echo "Creating backup..."
-sqlite3 "file:${DB_PATH}?mode=ro" ".backup '$BACKUP_FILE'"
+SRC="$DB_PATH" DEST="$BACKUP_FILE" uv run python - <<'PYEOF'
+import os
+import sqlite3
+import sys
+
+src_path = os.environ["SRC"]
+dest_path = os.environ["DEST"]
+
+src = sqlite3.connect(f"file:{src_path}?mode=ro", uri=True)
+dest = sqlite3.connect(dest_path)
+try:
+    src.backup(dest)
+finally:
+    dest.close()
+    src.close()
+
+check = sqlite3.connect(dest_path)
+try:
+    result = check.execute("PRAGMA integrity_check").fetchone()[0]
+finally:
+    check.close()
+
+if result != "ok":
+    print(f"Error: backup integrity check failed: {result}", file=sys.stderr)
+    os.unlink(dest_path)
+    sys.exit(1)
+
+print("Backup verified successfully.")
+PYEOF
 
 # Set secure permissions on backup file (readable only by owner)
 chmod 600 "$BACKUP_FILE"
-
-# Verify backup integrity
-echo "Verifying backup integrity..."
-INTEGRITY=$(sqlite3 "$BACKUP_FILE" "PRAGMA integrity_check;")
-if [[ "$INTEGRITY" != "ok" ]]; then
-    echo "Error: Backup integrity check failed!" >&2
-    echo "$INTEGRITY" >&2
-    rm -f "$BACKUP_FILE"
-    exit 1
-fi
-
-echo "Backup verified successfully."
 
 # Get backup size
 BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
@@ -125,7 +115,7 @@ echo "Backup saved to: $BACKUP_FILE"
 # List all backups
 echo ""
 echo "Available backups:"
-find "$BACKUP_DIR" -name "highlight_helper_*.db" -type f | sort | while read -r backup; do
+find "$BACKUP_DIR" -name "*.db" -type f | sort | while read -r backup; do
     size=$(du -h "$backup" | cut -f1)
     perms=$(stat -c "%a" "$backup")
     echo "  $(basename "$backup") ($size, mode $perms)"
