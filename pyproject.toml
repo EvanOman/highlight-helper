@@ -51,7 +51,7 @@ dev = [
 packages = ["app"]
 
 [tool.uv.sources]
-readwise-plus = { path = "../readwise-sdk" }
+readwise-plus = { path = "readwise_plus-0.2.1-py3-none-any.whl" }
 chatkit = { path = "chatkit-0.1.0-py3-none-any.whl" }
 
 [tool.ruff]
