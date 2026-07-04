@@ -31,6 +31,18 @@ css:
 css-watch:
     TAILWINDCSS_VERSION=v3.4.17 uv run tailwindcss -i static/css/input.css -o static/css/app.css --watch
 
+# Cross-boundary contract checks (SSE protocol coverage, self-contained deps, Dockerfile sources)
+lint-contracts:
+    uv run python scripts/check_contracts.py
+
+# Full-stack chat self-test in a real browser with a deterministic fake LLM (no API cost)
+selftest:
+    uv run pytest tests/e2e/test_chat_selftest.py -v
+
+# Read-only smoke check against a running instance (default: local prod container)
+smoke url="http://127.0.0.1:18742/highlights":
+    uv run python scripts/smoke.py {{url}}
+
 # Run unit and integration tests
 test:
     uv run pytest tests/unit tests/integration
@@ -44,10 +56,10 @@ test-all:
     uv run pytest tests/
 
 # FIX + CHECK: Run before every commit
-fc: css fmt lint-fix lint type test
+fc: css fmt lint-fix lint lint-contracts type test
 
 # CI checks (no auto-fix)
-ci: lint format-check type test
+ci: lint format-check lint-contracts type test
 
 # Update vendored chatkit assets from sibling repo
 update-chatkit:
@@ -122,8 +134,11 @@ docker-status:
 # Rebuild and restart container
 docker-restart: docker-build docker-down docker-up
 
-# Redeploy: rebuild and restart the production container (alias for docker-restart)
+# Redeploy: rebuild, restart, wait for health, then smoke-check the live instance
 redeploy: docker-restart
+    @echo "Waiting for container health..."
+    @timeout 90 bash -c 'until [ "$(docker inspect -f "{{{{.State.Health.Status}}" highlight-helper 2>/dev/null)" = "healthy" ]; do sleep 2; done'
+    just smoke
 
 # =============================================================================
 # Service Management (systemd)

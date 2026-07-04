@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # Replace all LLM calls with deterministic fakes (full-stack self-tests only)
+    fake_llm: bool = False
+
     # Root path for subpath deployment (e.g., "/highlights" when behind Tailscale Serve)
     root_path: str = ""
 

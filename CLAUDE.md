@@ -3,11 +3,29 @@
 ## Quick Reference
 
 ```bash
-just fc          # Format, lint, type-check, unit+integration tests (run before every commit)
+just fc          # Format, lint, contract checks, type-check, unit+integration tests (run before every commit)
 just test-e2e    # E2E tests with Playwright (run before pushing to GitHub)
 just test-all    # All tests (unit + integration + e2e)
-just redeploy    # Rebuild and restart Docker container for local deployment
+just selftest    # Full-stack chat self-test in a real browser (FAKE_LLM, no API cost)
+just smoke [url] # Read-only smoke check of a running instance (default: local prod)
+just redeploy    # Rebuild, restart, wait for health, then smoke-check production
 ```
+
+## Contract checks and self-tests
+
+`just lint-contracts` (part of `fc` and `ci`) guards cross-boundary seams that
+unit tests can't see: every SSE event the backend emits must have a handler in
+the vendored chatkit bundle (`static/chatkit/`), pyproject/uv.lock must not
+reference paths outside the repo (Docker can't see them — vendor a wheel), and
+every Dockerfile COPY source must exist.
+
+`just selftest` drives a real chat turn (tool call round-trip included) through
+uvicorn + SSE + the chatkit frontend in Chromium using `FAKE_LLM=1`
+(deterministic fake responses, zero API cost). Run it after touching the chat
+pipeline, the SSE protocol, or re-vendoring chatkit.
+
+After changing chatkit (`../chatkit`): rebuild there (`npm run build`), then
+`just update-chatkit`, then `just selftest`.
 
 ## Testing
 

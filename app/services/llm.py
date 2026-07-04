@@ -19,6 +19,7 @@ import litellm
 from opentelemetry import context as context_api
 from opentelemetry.trace import Status, StatusCode, set_span_in_context
 
+from app.core.config import get_settings
 from app.core.model_registry import calculate_cost, normalize_model_id
 from app.core.telemetry import get_tracer
 
@@ -117,16 +118,21 @@ async def complete(
     token = context_api.attach(set_span_in_context(span))
 
     try:
-        response = await litellm.acompletion(
-            model=model,
-            max_tokens=max_tokens,
-            messages=messages,
-            **kwargs,
-        )
+        if get_settings().fake_llm:
+            from app.services.llm_fake import fake_completion_text
 
-        text = response.choices[0].message.content or ""
-        input_tokens = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
+            text = fake_completion_text(messages)
+            input_tokens, output_tokens = 100, 20
+        else:
+            response = await litellm.acompletion(
+                model=model,
+                max_tokens=max_tokens,
+                messages=messages,
+                **kwargs,
+            )
+            text = response.choices[0].message.content or ""
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
         cost = calculate_cost(model, input_tokens, output_tokens)
 
         usage = LLMUsage(
@@ -189,18 +195,23 @@ async def stream(
     otel_token = context_api.attach(set_span_in_context(span))
 
     try:
-        call_kwargs: dict[str, Any] = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": messages,
-            "stream": True,
-            "stream_options": {"include_usage": True},
-            **kwargs,
-        }
-        if tools:
-            call_kwargs["tools"] = tools
+        if get_settings().fake_llm:
+            from app.services.llm_fake import fake_stream_chunks
 
-        raw_response = await litellm.acompletion(**call_kwargs)
+            raw_response: Any = fake_stream_chunks(messages)
+        else:
+            call_kwargs: dict[str, Any] = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": messages,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+                **kwargs,
+            }
+            if tools:
+                call_kwargs["tools"] = tools
+
+            raw_response = await litellm.acompletion(**call_kwargs)
         llm_stream = LLMStream(raw_response, model)
 
         yield llm_stream
