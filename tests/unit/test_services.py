@@ -308,6 +308,8 @@ class TestHighlightExtractorService:
             "page_number": "42",
             "highlight_start": 0,
             "highlight_end": 9,
+            "match_status": "not_found",
+            "match_quality": 0.0,
             "usage": None,
         }
 
