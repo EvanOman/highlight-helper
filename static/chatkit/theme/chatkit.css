@@ -9,37 +9,39 @@
 
 /* ── Dark theme (default) ── */
 :root {
-  --ck-bg: #212121;
-  --ck-bg-sidebar: #171717;
-  --ck-bg-surface: #2f2f2f;
-  --ck-bg-surface-hover: #3a3a3a;
-  --ck-bg-user-msg: #303030;
-  --ck-bg-input: #303030;
+  --ck-bg: #0A0A0A;
+  --ck-bg-sidebar: #050505;
+  --ck-bg-surface: #141414;
+  --ck-bg-surface-hover: #1e1e1e;
+  --ck-bg-user-msg: #141414;
+  --ck-bg-input: #141414;
   --ck-bg-code: #0d1117;
-  --ck-bg-error: #3b1818;
-  --ck-bg-status: #1a1a3e;
+  --ck-bg-error: #2a0a0a;
+  --ck-bg-status: #052e16;
 
-  --ck-text: #ececec;
-  --ck-text-secondary: #b4b4b4;
-  --ck-text-muted: #777;
-  --ck-text-error: #f87171;
-  --ck-text-status: #a5b4fc;
-  --ck-text-success: #4ade80;
+  --ck-text: #F0F0F0;
+  --ck-text-secondary: #A1A1A1;
+  --ck-text-muted: #5a5a5a;
+  --ck-text-error: #ff6b6b;
+  --ck-text-status: #4ade80;
+  --ck-text-success: #34d399;
 
-  --ck-border: #3d3d3d;
-  --ck-border-error: #5c2626;
-  --ck-border-status: #2e2b5e;
+  --ck-border: #1e1e1e;
+  --ck-border-error: #4c1d1d;
+  --ck-border-status: #14532d;
 
-  --ck-accent: #8b7cf6;
-  --ck-accent-hover: #7a6be5;
-  --ck-accent-soft: rgba(139, 124, 246, 0.12);
+  --ck-accent: #22c55e;
+  --ck-accent-hover: #16a34a;
+  --ck-accent-soft: rgba(34, 197, 94, 0.10);
+  --ck-accent-glow: rgba(34, 197, 94, 0.25);
 
-  --ck-scrollbar: #4a4a4a;
-  --ck-shadow: rgba(0, 0, 0, 0.2);
+  --ck-scrollbar: #2a2a2a;
+  --ck-shadow: rgba(0, 0, 0, 0.5);
+  --ck-shadow-accent: rgba(34, 197, 94, 0.15);
 
-  --ck-table-header: #2a2a2a;
-  --ck-table-stripe: #262626;
-  --ck-table-hover: #1e1b4b;
+  --ck-table-header: #111111;
+  --ck-table-stripe: #0e0e0e;
+  --ck-table-hover: #052e16;
 
   /* Sizing */
   --ck-sidebar-width: 16rem;
@@ -59,37 +61,39 @@
 /* ── Light theme ── */
 html.light,
 [data-theme="light"] {
-  --ck-bg: #ffffff;
-  --ck-bg-sidebar: #f7f7f8;
-  --ck-bg-surface: #f4f4f4;
-  --ck-bg-surface-hover: #e8e8e8;
+  --ck-bg: #fafafa;
+  --ck-bg-sidebar: #f2f2f3;
+  --ck-bg-surface: #ffffff;
+  --ck-bg-surface-hover: #ececec;
   --ck-bg-user-msg: #f0f0f0;
-  --ck-bg-input: #f4f4f4;
+  --ck-bg-input: #ffffff;
   --ck-bg-code: #f6f8fa;
   --ck-bg-error: #fef2f2;
   --ck-bg-status: #eef2ff;
 
-  --ck-text: #1a1a1a;
+  --ck-text: #111111;
   --ck-text-secondary: #555;
   --ck-text-muted: #999;
   --ck-text-error: #dc2626;
-  --ck-text-status: #4f46e5;
+  --ck-text-status: #16a34a;
   --ck-text-success: #16a34a;
 
-  --ck-border: #e5e5e5;
+  --ck-border: #e0e0e0;
   --ck-border-error: #fca5a5;
-  --ck-border-status: #c7d2fe;
+  --ck-border-status: #bbf7d0;
 
-  --ck-accent: #7c6cf0;
-  --ck-accent-hover: #6b5bdf;
-  --ck-accent-soft: rgba(124, 108, 240, 0.08);
+  --ck-accent: #16a34a;
+  --ck-accent-hover: #15803d;
+  --ck-accent-soft: rgba(22, 163, 74, 0.06);
+  --ck-accent-glow: rgba(22, 163, 74, 0.12);
 
   --ck-scrollbar: #ccc;
   --ck-shadow: rgba(0, 0, 0, 0.06);
+  --ck-shadow-accent: rgba(22, 163, 74, 0.08);
 
   --ck-table-header: #f0f0f0;
   --ck-table-stripe: #fafafa;
-  --ck-table-hover: #eef2ff;
+  --ck-table-hover: #f0fdf4;
 }
 
 /* ── Reduced motion ── */

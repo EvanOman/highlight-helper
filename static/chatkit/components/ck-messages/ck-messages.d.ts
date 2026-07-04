@@ -8,6 +8,9 @@ export declare class CkMessages extends CkBase {
     resetTurn(): void;
     /** Add a child element to the current turn as a new phase. */
     addTurnPhase(element: HTMLElement): void;
+    /** Find a rendered element by selector. Content lives in the shadow root,
+     * so external `querySelector` calls cannot reach it — use this instead. */
+    findRendered<T extends Element>(selector: string): T | null;
     /** Add a standalone element outside of turns (e.g., user messages). */
     addMessage(element: HTMLElement): void;
     /** Show a status message with pulsing dots. */

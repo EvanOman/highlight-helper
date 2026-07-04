@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, cast
+from typing import Any
 
 from chatkit import ChatEvent, ChatEventType, ChatRequest, stream_chat_events
 from fastapi import APIRouter, Depends, Request
@@ -24,6 +24,60 @@ from app.services.settings import SettingsService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
+
+
+def _restore_history(messages: list) -> list[dict]:
+    """Rebuild an OpenAI-format conversation history from persisted messages.
+
+    Tool interactions are persisted as Anthropic-style content blocks
+    (text / tool_use / tool_result) in ChatMessage.content_blocks — both by
+    the current code and by rows written before the LiteLLM migration.
+    LiteLLM expects OpenAI chat-completion messages, so blocks are converted:
+
+    - assistant text + tool_use blocks -> one assistant message with a
+      ``tool_calls`` array
+    - user tool_result blocks -> one ``role="tool"`` message per block
+    """
+    history: list[dict] = []
+    for m in messages:
+        if not m.content_blocks:
+            history.append({"role": m.role, "content": m.content})
+            continue
+
+        blocks = json.loads(m.content_blocks)
+        if m.role == "assistant":
+            text_parts = [b["text"] for b in blocks if b.get("type") == "text"]
+            tool_calls = [
+                {
+                    "id": b["id"],
+                    "type": "function",
+                    "function": {
+                        "name": b["name"],
+                        "arguments": json.dumps(b.get("input", {})),
+                    },
+                }
+                for b in blocks
+                if b.get("type") == "tool_use"
+            ]
+            msg: dict = {"role": "assistant", "content": "\n".join(text_parts) or None}
+            if tool_calls:
+                msg["tool_calls"] = tool_calls
+            history.append(msg)
+        else:
+            # User-role rows carrying tool_result blocks become tool messages
+            for b in blocks:
+                if b.get("type") == "tool_result":
+                    content = b.get("content", "")
+                    if not isinstance(content, str):
+                        content = json.dumps(content)
+                    history.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": b.get("tool_use_id", ""),
+                            "content": content,
+                        }
+                    )
+    return history
 
 
 # View endpoints for HTML pages
@@ -207,15 +261,9 @@ async def send_chat_message(
     await chat_repo.create_message(thread_id=thread_id, role="user", content=request.message)
 
     # Load full conversation history from DB, restoring structured content
-    # blocks (tool_use / tool_result) when available.
+    # blocks (tool_use / tool_result) in OpenAI format.
     messages = await chat_repo.list_messages(thread_id)
-    history: list[dict] = []
-    for m in messages:
-        if m.content_blocks:
-            blocks = json.loads(m.content_blocks)
-            history.append(cast(dict, {"role": m.role, "content": blocks}))
-        else:
-            history.append(cast(dict, {"role": m.role, "content": m.content}))
+    history = _restore_history(messages)
 
     # Load coaching context if thread is linked to a coaching card
     coaching_prompt: str | None = None
@@ -281,15 +329,9 @@ async def generate_thread_response(
     thread = await chat_repo.get_thread_or_raise(thread_id)
     await chat_repo.update_thread_timestamp(thread_id)
 
-    # Load full conversation history
+    # Load full conversation history (OpenAI format)
     messages = await chat_repo.list_messages(thread_id)
-    history: list[dict] = []
-    for m in messages:
-        if m.content_blocks:
-            blocks = json.loads(m.content_blocks)
-            history.append(cast(dict, {"role": m.role, "content": blocks}))
-        else:
-            history.append(cast(dict, {"role": m.role, "content": m.content}))
+    history = _restore_history(messages)
 
     # Load coaching context
     coaching_prompt: str | None = None

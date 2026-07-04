@@ -213,8 +213,8 @@ resetSheet.replaceSync(`
 const animationsSheet = new CSSStyleSheet();
 animationsSheet.replaceSync(`
   @keyframes ck-fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
   }
   @keyframes ck-pulse-dot {
     0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
@@ -222,6 +222,10 @@ animationsSheet.replaceSync(`
   }
   @keyframes ck-spin {
     to { transform: rotate(360deg); }
+  }
+  @keyframes ck-glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--ck-accent-glow, rgba(34, 197, 94, 0.25)); }
+    50% { box-shadow: 0 0 16px 2px var(--ck-accent-glow, rgba(34, 197, 94, 0.25)); }
   }
 `);
 const markdownSheet = new CSSStyleSheet();
@@ -250,10 +254,11 @@ markdownSheet.replaceSync(`
   .ck-markdown li { margin-bottom: 0.25em; }
   .ck-markdown code {
     background: var(--ck-bg-code, #0d1117);
-    padding: 0.15em 0.35em;
+    padding: 0.15em 0.4em;
     border-radius: 4px;
     font-family: var(--ck-font-mono, monospace);
-    font-size: 0.875em;
+    font-size: 0.85em;
+    border: 1px solid var(--ck-border, #1e1e1e);
   }
   .ck-markdown pre {
     background: var(--ck-bg-code, #0d1117);
@@ -261,17 +266,19 @@ markdownSheet.replaceSync(`
     border-radius: var(--ck-radius, 0.75rem);
     overflow-x: auto;
     margin-bottom: 0.75em;
+    border: 1px solid var(--ck-border, #1e1e1e);
   }
   .ck-markdown pre code {
     background: none;
     padding: 0;
     font-size: 0.85em;
+    border: none;
   }
   .ck-markdown blockquote {
-    border-left: 3px solid var(--ck-accent, #8b7cf6);
+    border-left: 3px solid var(--ck-accent, #22c55e);
     padding-left: 1em;
     margin-bottom: 0.75em;
-    color: var(--ck-text-secondary, #b4b4b4);
+    color: var(--ck-text-secondary, #A1A1A1);
   }
   .ck-markdown table {
     width: 100%;
@@ -289,7 +296,7 @@ markdownSheet.replaceSync(`
     font-weight: 600;
   }
   .ck-markdown a {
-    color: var(--ck-accent, #8b7cf6);
+    color: var(--ck-accent, #22c55e);
     text-decoration: none;
   }
   .ck-markdown a:hover {
@@ -310,8 +317,11 @@ componentSheet$6.replaceSync(`
     height: 100%;
     width: 100%;
     overflow: hidden;
-    background: var(--ck-bg, #212121);
-    color: var(--ck-text, #ececec);
+    background:
+      radial-gradient(ellipse at 70% 20%, var(--ck-accent-glow, rgba(34, 197, 94, 0.25)) 0%, transparent 50%),
+      radial-gradient(ellipse at 20% 80%, rgba(5, 150, 105, 0.06) 0%, transparent 40%),
+      var(--ck-bg, #0A0A0A);
+    color: var(--ck-text, #F0F0F0);
   }
   .sidebar-area {
     flex-shrink: 0;
@@ -571,16 +581,21 @@ class CkApp extends CkBase {
         break;
       }
       case EventType.CODE: {
-        if (!this.#currentAssistantMsg) {
-          this.#currentAssistantMsg = document.createElement("ck-message");
-          this.#currentAssistantMsg.role = "assistant";
-          this.#currentAssistantMsg.startStreaming();
-          messages.addTurnPhase(this.#currentAssistantMsg);
+        if (this.#currentAssistantMsg) {
+          this.#currentAssistantMsg.endStreaming();
+          this.#currentAssistantMsg = null;
         }
-        this.#currentAssistantMsg.appendCodeBlock(data);
+        const codeMsg = document.createElement("ck-message");
+        codeMsg.role = "assistant";
+        codeMsg.appendCodeBlock(data);
+        messages.addTurnPhase(codeMsg);
         break;
       }
       case EventType.TOOL_USE: {
+        if (this.#currentAssistantMsg) {
+          this.#currentAssistantMsg.endStreaming();
+          this.#currentAssistantMsg = null;
+        }
         const parsed = this.#parseJSON(data);
         const card = document.createElement("ck-tool-card");
         card.toolName = parsed?.tool_name ?? "Tool";
@@ -594,7 +609,7 @@ class CkApp extends CkBase {
       case EventType.TOOL_DONE: {
         const parsed = this.#parseJSON(data);
         if (parsed?.tool_id) {
-          const card = messages.querySelector(
+          const card = messages.findRendered(
             `ck-tool-card[data-tool-id="${CSS.escape(parsed.tool_id)}"]`
           );
           if (card) {
@@ -605,6 +620,10 @@ class CkApp extends CkBase {
         break;
       }
       case EventType.ARTIFACT: {
+        if (this.#currentAssistantMsg) {
+          this.#currentAssistantMsg.endStreaming();
+          this.#currentAssistantMsg = null;
+        }
         const parsed = this.#parseJSON(data);
         if (parsed) {
           const artifact = document.createElement("ck-artifact");
@@ -696,8 +715,8 @@ componentSheet$5.replaceSync(`
     display: block;
     width: var(--ck-sidebar-width, 16rem);
     height: 100%;
-    background: var(--ck-bg-sidebar, #171717);
-    border-right: 1px solid var(--ck-border, #3d3d3d);
+    background: var(--ck-bg-sidebar, #050505);
+    border-right: 1px solid var(--ck-border, #1e1e1e);
     overflow: hidden;
     flex-shrink: 0;
   }
@@ -717,17 +736,22 @@ componentSheet$5.replaceSync(`
     gap: 0.5rem;
     width: 100%;
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--ck-border, #3d3d3d);
+    border: 1px solid var(--ck-border, #1e1e1e);
     border-radius: 0.5rem;
     background: transparent;
-    color: var(--ck-text, #ececec);
+    color: var(--ck-text, #F0F0F0);
     font-family: var(--ck-font, system-ui, sans-serif);
     font-size: 0.875rem;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
   }
   .new-chat-btn:hover {
-    background: var(--ck-bg-surface-hover, #2a2a2a);
+    background: var(--ck-bg-surface-hover, #1e1e1e);
+    border-color: var(--ck-accent, #22c55e);
+    box-shadow: 0 0 12px var(--ck-accent-glow, rgba(34, 197, 94, 0.25));
+  }
+  .new-chat-btn:active {
+    transform: scale(0.98);
   }
   .new-chat-btn svg {
     width: 1rem;
@@ -743,24 +767,28 @@ componentSheet$5.replaceSync(`
     width: 4px;
   }
   .thread-list::-webkit-scrollbar-thumb {
-    background: var(--ck-border, #3d3d3d);
+    background: var(--ck-border, #1e1e1e);
     border-radius: 2px;
   }
   .thread-item {
     display: flex;
     align-items: center;
     padding: 0.5rem 0.75rem;
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.1s;
     position: relative;
-    margin-bottom: 1px;
+    margin-bottom: 2px;
   }
   .thread-item:hover {
-    background: var(--ck-bg-surface-hover, #2a2a2a);
+    background: var(--ck-bg-surface-hover, #1e1e1e);
+  }
+  .thread-item:active {
+    transform: scale(0.98);
   }
   .thread-item.active {
-    background: var(--ck-accent-soft, rgba(139, 124, 246, 0.15));
+    background: var(--ck-accent-soft, rgba(34, 197, 94, 0.10));
+    border-left: 2px solid var(--ck-accent, #22c55e);
   }
   .thread-title {
     flex: 1;
@@ -768,10 +796,11 @@ componentSheet$5.replaceSync(`
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.8125rem;
-    color: var(--ck-text-secondary, #b4b4b4);
+    color: var(--ck-text-secondary, #A1A1A1);
   }
   .thread-item.active .thread-title {
-    color: var(--ck-text, #ececec);
+    color: var(--ck-text, #F0F0F0);
+    font-weight: 500;
   }
   .delete-btn {
     display: none;
@@ -782,7 +811,7 @@ componentSheet$5.replaceSync(`
     border: none;
     border-radius: 0.25rem;
     background: transparent;
-    color: var(--ck-text-muted, #777);
+    color: var(--ck-text-muted, #5a5a5a);
     cursor: pointer;
     flex-shrink: 0;
     transition: color 0.15s, background 0.15s;
@@ -791,8 +820,8 @@ componentSheet$5.replaceSync(`
     display: flex;
   }
   .delete-btn:hover {
-    color: var(--ck-text, #ececec);
-    background: var(--ck-bg-surface-hover, #2a2a2a);
+    color: var(--ck-text-error, #ff6b6b);
+    background: var(--ck-bg-error, #2a0a0a);
   }
   .delete-btn svg {
     width: 0.875rem;
@@ -801,7 +830,7 @@ componentSheet$5.replaceSync(`
   .empty-state {
     padding: 1.5rem 0.75rem;
     text-align: center;
-    color: var(--ck-text-muted, #777);
+    color: var(--ck-text-muted, #5a5a5a);
     font-size: 0.8125rem;
   }
 
@@ -810,7 +839,8 @@ componentSheet$5.replaceSync(`
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
     z-index: 99;
   }
 
@@ -823,12 +853,12 @@ componentSheet$5.replaceSync(`
       height: 100%;
       z-index: 100;
       transform: translateX(-100%);
-      transition: transform 0.25s ease;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       box-shadow: none;
     }
     :host([open]) {
       transform: translateX(0);
-      box-shadow: var(--ck-shadow, 0 4px 24px rgba(0, 0, 0, 0.4));
+      box-shadow: 4px 0 32px rgba(0, 0, 0, 0.5);
     }
     :host([open]) .backdrop {
       display: block;
@@ -3067,7 +3097,7 @@ const componentSheet$4 = new CSSStyleSheet();
 componentSheet$4.replaceSync(`
   :host {
     display: block;
-    animation: ck-fade-in 0.2s ease-out;
+    animation: ck-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .bubble {
     padding: 0.75rem 1rem;
@@ -3075,32 +3105,39 @@ componentSheet$4.replaceSync(`
     max-width: var(--ck-max-message-width, 48rem);
     word-wrap: break-word;
     overflow-wrap: break-word;
+    transition: box-shadow 0.2s ease;
   }
   .bubble.user {
-    background: var(--ck-accent, #8b7cf6);
+    background: linear-gradient(135deg, var(--ck-accent, #22c55e) 0%, #059669 100%);
     color: #fff;
     margin-left: auto;
     border-bottom-right-radius: 4px;
     max-width: 80%;
+    box-shadow: 0 2px 16px var(--ck-shadow-accent, rgba(34, 197, 94, 0.15));
   }
   .bubble.assistant {
-    background: var(--ck-bg-surface, #2f2f2f);
+    background: var(--ck-bg-surface, #141414);
+    border: 1px solid var(--ck-border, #1e1e1e);
     border-bottom-left-radius: 4px;
   }
   .bubble.error {
-    background: var(--ck-bg-error, #3b1818);
-    color: var(--ck-text-error, #f87171);
-    border: 1px solid var(--ck-border-error, #5c2626);
+    background: var(--ck-bg-error, #2a0a0a);
+    color: var(--ck-text-error, #ff6b6b);
+    border: 1px solid var(--ck-border-error, #4c1d1d);
   }
   .code-block {
     margin: 0.5rem 0;
   }
   .code-block summary {
     cursor: pointer;
-    color: var(--ck-text-muted, #777);
+    color: var(--ck-text-muted, #5a5a5a);
     font-size: var(--ck-font-size-sm, 0.8125rem);
     font-family: var(--ck-font-mono, monospace);
     padding: 0.25rem 0;
+    transition: color 0.15s;
+  }
+  .code-block summary:hover {
+    color: var(--ck-text-secondary, #A1A1A1);
   }
   .code-block pre {
     background: var(--ck-bg-code, #0d1117);
@@ -3110,6 +3147,7 @@ componentSheet$4.replaceSync(`
     font-family: var(--ck-font-mono, monospace);
     font-size: 0.85em;
     line-height: 1.5;
+    border: 1px solid var(--ck-border, #1e1e1e);
   }
 `);
 class CkMessage extends CkBase {
@@ -3173,7 +3211,7 @@ class CkMessage extends CkBase {
   }
   /** Append a collapsible code block to the message. */
   appendCodeBlock(code, label = "Code") {
-    if (!this.#container) return;
+    this.#ensureContainer();
     const details = document.createElement("details");
     details.className = "code-block";
     const summary = document.createElement("summary");
@@ -3185,6 +3223,24 @@ class CkMessage extends CkBase {
     details.appendChild(summary);
     details.appendChild(pre);
     this.#container.appendChild(details);
+  }
+  /** Eagerly create the container if update() hasn't run yet. */
+  #ensureContainer() {
+    if (this.#container) return;
+    const shadow = this.shadowRoot;
+    shadow.innerHTML = "";
+    const bubble = document.createElement("div");
+    const role = this.role ?? "assistant";
+    bubble.className = `bubble ${role}`;
+    if (role === "user") {
+      this.#container = bubble;
+    } else {
+      const markdown = document.createElement("div");
+      markdown.className = "ck-markdown";
+      bubble.appendChild(markdown);
+      this.#container = markdown;
+    }
+    shadow.appendChild(bubble);
   }
   #sanitizeContainer() {
     if (!this.#container) return;
@@ -3274,6 +3330,19 @@ componentSheet$3.replaceSync(`
     padding: 1rem;
     scroll-behavior: auto;
   }
+  :host::-webkit-scrollbar {
+    width: 6px;
+  }
+  :host::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  :host::-webkit-scrollbar-thumb {
+    background: var(--ck-scrollbar, #2a2a2a);
+    border-radius: 3px;
+  }
+  :host::-webkit-scrollbar-thumb:hover {
+    background: var(--ck-text-muted, #5a5a5a);
+  }
   .messages-inner {
     display: flex;
     flex-direction: column;
@@ -3292,7 +3361,6 @@ componentSheet$3.replaceSync(`
     margin-top: 0.25rem;
   }
   .turn-phase + .turn-phase {
-    border-top: 1px solid var(--ck-border, #3d3d3d);
     padding-top: 0.5rem;
   }
   .status-bubble {
@@ -3300,12 +3368,12 @@ componentSheet$3.replaceSync(`
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: var(--ck-bg-status, #1a1a3e);
-    color: var(--ck-text-status, #a5b4fc);
+    background: var(--ck-bg-status, #0f0d2e);
+    color: var(--ck-text-status, #818cf8);
     border-radius: var(--ck-radius, 0.75rem);
-    border: 1px solid var(--ck-border-status, #2e2b5e);
+    border: 1px solid var(--ck-border-status, #312e81);
     font-size: var(--ck-font-size-sm, 0.8125rem);
-    animation: ck-fade-in 0.15s ease-out;
+    animation: ck-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .pulse-dots {
     display: flex;
@@ -3315,7 +3383,7 @@ componentSheet$3.replaceSync(`
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: var(--ck-text-status, #a5b4fc);
+    background: var(--ck-text-status, #818cf8);
     animation: ck-pulse-dot 1.4s ease-in-out infinite;
   }
   .pulse-dots span:nth-child(2) { animation-delay: 0.2s; }
@@ -3326,13 +3394,18 @@ componentSheet$3.replaceSync(`
     align-items: center;
     justify-content: center;
     flex: 1;
-    color: var(--ck-text-muted, #777);
-    gap: 0.5rem;
+    color: var(--ck-text-muted, #5a5a5a);
+    gap: 0.75rem;
     padding: 2rem;
   }
   .empty-state-title {
-    font-size: 1.1rem;
-    font-weight: 500;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--ck-text-secondary, #A1A1A1);
+    letter-spacing: -0.01em;
+  }
+  .empty-state-subtitle {
+    font-size: 0.875rem;
   }
   .scroll-sentinel {
     height: 0;
@@ -3369,6 +3442,11 @@ class CkMessages extends CkBase {
     element.classList.add("turn-phase");
     turn.appendChild(element);
     this.scheduleScroll();
+  }
+  /** Find a rendered element by selector. Content lives in the shadow root,
+   * so external `querySelector` calls cannot reach it — use this instead. */
+  findRendered(selector) {
+    return this.shadowRoot?.querySelector(selector) ?? null;
   }
   /** Add a standalone element outside of turns (e.g., user messages). */
   addMessage(element) {
@@ -3436,7 +3514,7 @@ class CkMessages extends CkBase {
     this.#emptyState.className = "empty-state";
     this.#emptyState.innerHTML = `
       <div class="empty-state-title">Start a conversation</div>
-      <div>Send a message to begin</div>
+      <div class="empty-state-subtitle">Send a message to begin</div>
     `;
     shadow.appendChild(this.#emptyState);
     this.#inner = document.createElement("div");
@@ -3457,29 +3535,34 @@ componentSheet$2.replaceSync(`
   :host {
     display: block;
     padding: 0.75rem 1rem;
-    border-top: 1px solid var(--ck-border, #3d3d3d);
-    background: var(--ck-bg, #212121);
+    background: var(--ck-bg, #0A0A0A);
   }
   .input-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: var(--ck-bg-input, #303030);
+    background: var(--ck-bg-input, #141414);
+    border: 1px solid var(--ck-border, #1e1e1e);
     border-radius: 1.5rem;
     padding: 0.375rem 0.375rem 0.375rem 1rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .input-row:focus-within {
+    border-color: var(--ck-accent, #22c55e);
+    box-shadow: 0 0 0 3px var(--ck-accent-glow, rgba(34, 197, 94, 0.25)), 0 0 20px var(--ck-accent-glow, rgba(34, 197, 94, 0.25));
   }
   input {
     flex: 1;
     border: none;
     outline: none;
     background: transparent;
-    color: var(--ck-text, #ececec);
+    color: var(--ck-text, #F0F0F0);
     font-family: var(--ck-font, system-ui, sans-serif);
     font-size: var(--ck-font-size, 0.9375rem);
     line-height: 1.4;
   }
   input::placeholder {
-    color: var(--ck-text-muted, #777);
+    color: var(--ck-text-muted, #5a5a5a);
   }
   .btn {
     display: flex;
@@ -3491,25 +3574,35 @@ componentSheet$2.replaceSync(`
     border: none;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
   }
   .send-btn {
-    background: var(--ck-accent, #8b7cf6);
+    background: var(--ck-accent, #22c55e);
     color: #fff;
   }
   .send-btn:hover {
-    background: var(--ck-accent-hover, #7a6be5);
+    background: var(--ck-accent-hover, #16a34a);
+    transform: scale(1.08);
+    box-shadow: 0 0 12px var(--ck-accent-glow, rgba(34, 197, 94, 0.25));
+  }
+  .send-btn:active {
+    transform: scale(0.95);
   }
   .send-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.3;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
   .stop-btn {
-    background: var(--ck-text-error, #f87171);
+    background: var(--ck-text-error, #ff6b6b);
     color: #fff;
   }
   .stop-btn:hover {
-    opacity: 0.85;
+    transform: scale(1.08);
+  }
+  .stop-btn:active {
+    transform: scale(0.95);
   }
   .btn svg {
     width: 1rem;
@@ -3594,39 +3687,49 @@ const componentSheet$1 = new CSSStyleSheet();
 componentSheet$1.replaceSync(`
   :host {
     display: block;
-    animation: ck-fade-in 0.15s ease-out;
+    animation: ck-fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .card {
     display: flex;
     align-items: center;
     gap: 0.625rem;
     padding: 0.5rem 0.875rem;
-    background: var(--ck-bg-surface, #2f2f2f);
-    border: 1px solid var(--ck-border, #3d3d3d);
+    background: var(--ck-bg-surface, #141414);
+    border: 1px solid var(--ck-border, #1e1e1e);
     border-radius: var(--ck-radius, 0.75rem);
     font-size: var(--ck-font-size-sm, 0.8125rem);
+    transition: border-color 0.2s;
+  }
+  .card.running {
+    border-color: var(--ck-accent, #22c55e);
+    box-shadow: 0 0 8px var(--ck-accent-glow, rgba(34, 197, 94, 0.25));
+  }
+  .card.done {
+    border-color: var(--ck-border, #1e1e1e);
   }
   .spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid var(--ck-border, #3d3d3d);
-    border-top-color: var(--ck-accent, #8b7cf6);
+    border: 2px solid var(--ck-border, #1e1e1e);
+    border-top-color: var(--ck-accent, #22c55e);
     border-radius: 50%;
     animation: ck-spin 0.7s linear infinite;
     flex-shrink: 0;
   }
   .check {
-    color: var(--ck-text-success, #4ade80);
+    color: var(--ck-text-success, #34d399);
     flex-shrink: 0;
     font-size: 1rem;
     line-height: 1;
   }
   .tool-name {
     font-weight: 500;
-    color: var(--ck-text, #ececec);
+    color: var(--ck-text, #F0F0F0);
+    font-family: var(--ck-font-mono, monospace);
+    font-size: 0.8em;
   }
   .summary {
-    color: var(--ck-text-secondary, #b4b4b4);
+    color: var(--ck-text-secondary, #A1A1A1);
   }
 `);
 class CkToolCard extends CkBase {
@@ -3641,7 +3744,7 @@ class CkToolCard extends CkBase {
     const isRunning = (this.status ?? "running") === "running";
     shadow.innerHTML = "";
     const card = document.createElement("div");
-    card.className = "card";
+    card.className = `card ${isRunning ? "running" : "done"}`;
     if (isRunning) {
       card.innerHTML = `
         <div class="spinner"></div>
@@ -3666,26 +3769,26 @@ const componentSheet = new CSSStyleSheet();
 componentSheet.replaceSync(`
   :host {
     display: block;
-    animation: ck-fade-in 0.2s ease-out;
+    animation: ck-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .card {
-    border: 1px solid var(--ck-border, #3d3d3d);
+    border: 1px solid var(--ck-border, #1e1e1e);
     border-radius: var(--ck-radius, 0.75rem);
     overflow: hidden;
-    background: var(--ck-bg-surface, #2f2f2f);
+    background: var(--ck-bg-surface, #141414);
   }
   .tab-bar {
     display: flex;
     gap: 0;
-    border-bottom: 1px solid var(--ck-border, #3d3d3d);
-    background: var(--ck-table-header, #2a2a2a);
+    border-bottom: 1px solid var(--ck-border, #1e1e1e);
+    background: var(--ck-table-header, #111111);
     overflow-x: auto;
   }
   .tab-btn {
-    padding: 0.375rem 0.875rem;
+    padding: 0.5rem 1rem;
     border: none;
     background: transparent;
-    color: var(--ck-text-secondary, #b4b4b4);
+    color: var(--ck-text-muted, #5a5a5a);
     font-size: var(--ck-font-size-sm, 0.8125rem);
     font-family: var(--ck-font, system-ui, sans-serif);
     cursor: pointer;
@@ -3694,16 +3797,24 @@ componentSheet.replaceSync(`
     transition: color 0.15s, border-color 0.15s;
   }
   .tab-btn:hover {
-    color: var(--ck-text, #ececec);
+    color: var(--ck-text, #F0F0F0);
   }
   .tab-btn.active {
-    color: var(--ck-accent, #8b7cf6);
-    border-bottom-color: var(--ck-accent, #8b7cf6);
+    color: var(--ck-accent, #22c55e);
+    border-bottom-color: var(--ck-accent, #22c55e);
   }
   .tab-content {
     padding: 0.75rem 1rem;
     max-height: 24rem;
     overflow: auto;
+  }
+  .tab-content::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .tab-content::-webkit-scrollbar-thumb {
+    background: var(--ck-scrollbar, #2a2a2a);
+    border-radius: 2px;
   }
   .tab-content pre {
     margin: 0;
@@ -3719,21 +3830,28 @@ componentSheet.replaceSync(`
     font-size: 0.85em;
   }
   .data-table th, .data-table td {
-    padding: 0.375rem 0.625rem;
-    border: 1px solid var(--ck-border, #3d3d3d);
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--ck-border, #1e1e1e);
     text-align: left;
   }
   .data-table th {
-    background: var(--ck-table-header, #2a2a2a);
+    background: var(--ck-table-header, #111111);
     font-weight: 600;
     position: sticky;
     top: 0;
+    color: var(--ck-text-secondary, #A1A1A1);
+    text-transform: uppercase;
+    font-size: 0.75em;
+    letter-spacing: 0.05em;
   }
   .data-table tr:nth-child(even) td {
-    background: var(--ck-table-stripe, #262626);
+    background: var(--ck-table-stripe, #0e0e0e);
+  }
+  .data-table tr:hover td {
+    background: var(--ck-table-hover, #1a1540);
   }
   .error-text {
-    color: var(--ck-text-error, #f87171);
+    color: var(--ck-text-error, #ff6b6b);
   }
 `);
 class CkArtifact extends CkBase {
