@@ -88,8 +88,8 @@ def fake_completion_text(messages: list[dict[str, Any]]) -> str:
 # The add-highlight E2E flow needs deterministic extraction results without
 # vision API calls. Behavior is keyed off the user's instructions text:
 #   - contains "FAKE_EMPTY"   -> empty extraction (the service's failure shape)
-#   - contains "FAKE_NOMATCH" -> whole-page fallback offsets with a highlight
-#                                that isn't in full_text (failed span match)
+#   - contains "FAKE_NOMATCH" -> not_found match (highlight isn't in full_text;
+#                                (0, 0) sentinel span, never a whole-page one)
 #   - otherwise               -> a clean exact-substring extraction whose span
 #                                crosses a hyphenated line break, so saving
 #                                exercises the offset-slice + rejoin rule.
@@ -124,13 +124,17 @@ class FakeHighlightExtractorService:
             )
 
         if "FAKE_NOMATCH" in instructions:
+            # Matcher couldn't locate the passage: not_found with the (0, 0)
+            # sentinel span (never a fabricated whole-page selection).
             return ExtractedHighlight(
                 full_text=FAKE_PAGE_TEXT,
                 highlight_text="This passage does not appear on the page.",
                 confidence="high",  # honest UI must not trust this
                 page_number="42",
                 highlight_start=0,
-                highlight_end=len(FAKE_PAGE_TEXT),
+                highlight_end=0,
+                match_status="not_found",
+                match_quality=0.0,
             )
 
         start = FAKE_PAGE_TEXT.find(FAKE_HIGHLIGHT_RAW)
@@ -141,4 +145,6 @@ class FakeHighlightExtractorService:
             page_number="42",
             highlight_start=start,
             highlight_end=start + len(FAKE_HIGHLIGHT_RAW),
+            match_status="exact",
+            match_quality=1.0,
         )

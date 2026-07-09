@@ -129,7 +129,11 @@
     }
 
     if (saveButton) {
-      saveButton.disabled = !hiddenInput.value.trim();
+      var disabled = !hiddenInput.value.trim();
+      saveButton.disabled = disabled;
+      // Keep aria-disabled in sync with the property so assistive tech (and
+      // Playwright's enabled check) don't see a stale server-rendered value.
+      saveButton.setAttribute("aria-disabled", disabled ? "true" : "false");
     }
   }
 

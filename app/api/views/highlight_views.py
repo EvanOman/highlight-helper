@@ -26,6 +26,7 @@ from app.services.highlight_extractor import (
 from app.services.image_stash import ImageStash, get_image_stash
 from app.services.readwise import ReadwiseService, schedule_auto_sync
 from app.services.settings import get_settings_service
+from app.services.text_matching import MatchStatus
 
 from ._common import router, settings, templates
 
@@ -36,37 +37,26 @@ EXTRACTION_FAILED_MESSAGE = (
 IMAGE_EXPIRED_MESSAGE = "That photo is no longer available on the server — please upload it again."
 
 
-def _derive_match_status(result: ExtractedHighlight) -> str:
-    """Classify how trustworthy the located highlight span is.
+def _ui_match_status(result: ExtractedHighlight) -> str:
+    """Translate the matcher's native ``match_status`` into the editor's
+    vocabulary.
 
-    Returns one of: "exact", "fuzzy", "failed".
-
-    If the extractor grows a native match_status/match_quality field (W2/W3),
-    it takes precedence here — only the normalization mapping below needs to
-    know about new values.
+    The span locator (``text_matching.locate_highlight``) reports one of
+    ``exact | normalized | fuzzy | not_found``. The editor only needs to know
+    whether a passage was located at all: ``not_found`` becomes ``"failed"``
+    (no pre-selection, manual selection required); every located status is
+    passed through unchanged so the confidence rule below can grade it.
     """
-    native = getattr(result, "match_status", None) or getattr(result, "match_quality", None)
-    if isinstance(native, str) and native:
-        return {"not_found": "failed", "normalized": "exact"}.get(native, native)
-
-    full_text = result.full_text
-    highlight_text = result.highlight_text
-    if not full_text or not highlight_text:
-        return "failed"
-    if highlight_text in full_text:
-        return "exact"
-    if result.highlight_start == 0 and result.highlight_end == len(full_text):
-        # The matcher's whole-page fallback: offsets span the entire page but
-        # the highlight text isn't actually there. Not a real result.
-        return "failed"
-    return "fuzzy"
+    status = result.match_status or MatchStatus.NOT_FOUND.value
+    return "failed" if status == MatchStatus.NOT_FOUND.value else status
 
 
 def _display_confidence(llm_confidence: str, match_status: str) -> str:
     """Combine LLM self-rated confidence with span-match quality.
 
     A failed match shows no badge at all (the failed-match notice replaces it);
-    any non-exact match caps the badge at "medium" (yellow).
+    any non-exact match — including a normalized or fuzzy one — caps the badge
+    at "medium" (yellow), since only a verbatim exact hit earns green.
     """
     if match_status == "failed":
         return ""
@@ -127,7 +117,7 @@ async def _run_extraction(
             _phase1_context(book, instructions, EXTRACTION_FAILED_MESSAGE),
         )
 
-    match_status = _derive_match_status(result)
+    match_status = _ui_match_status(result)
     return templates.TemplateResponse(
         request,
         "add_highlight.html",

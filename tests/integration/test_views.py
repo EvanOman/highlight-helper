@@ -265,10 +265,10 @@ class TestAddHighlightView:
         # Manual entry accordion is open as the fallback path
         assert '<div id="manual-section" class="">' in response.text
 
-    async def test_extract_whole_page_fallback_renders_failed_match(
+    async def test_extract_not_found_renders_failed_match(
         self, client: AsyncClient, sample_book, mock_highlight_extractor_service
     ):
-        """Whole-page matcher fallback must not masquerade as a real result."""
+        """A not_found match must not masquerade as a real result."""
         from app.services.highlight_extractor import ExtractedHighlight
 
         full_text = "Some page text that was read correctly from the photo."
@@ -277,8 +277,11 @@ class TestAddHighlightView:
             highlight_text="a passage that is not in the page text",
             confidence="high",
             page_number="7",
+            # not_found carries the (0, 0) sentinel span — never a whole-page one.
             highlight_start=0,
-            highlight_end=len(full_text),
+            highlight_end=0,
+            match_status="not_found",
+            match_quality=0.0,
         )
 
         response = await client.post(
@@ -310,6 +313,8 @@ class TestAddHighlightView:
             page_number=None,
             highlight_start=4,
             highlight_end=19,
+            match_status="fuzzy",
+            match_quality=0.85,
         )
 
         response = await client.post(

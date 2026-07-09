@@ -4,7 +4,7 @@ Runs the real server with FAKE_LLM=1 so the vision extractor is a
 deterministic fake (see app/services/llm_fake.py). Behavior is keyed off
 the instructions text:
   - "FAKE_EMPTY"   -> empty extraction (silent-failure regression coverage)
-  - "FAKE_NOMATCH" -> whole-page fallback (failed-match flow)
+  - "FAKE_NOMATCH" -> not_found match (failed-match flow, no pre-selection)
   - anything else  -> exact match spanning a hyphenated line break, so a
                       save round-trip proves offset-sliced text fidelity.
 """

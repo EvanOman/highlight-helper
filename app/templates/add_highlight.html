@@ -584,7 +584,11 @@ window.__highlightData = {
             hiddenInput.value = this.value;
             // Typing a highlight manually satisfies the failed-match save gate
             var saveBtn = document.getElementById('save-highlight-btn');
-            if (saveBtn) saveBtn.disabled = !this.value.trim();
+            if (saveBtn) {
+                var disabled = !this.value.trim();
+                saveBtn.disabled = disabled;
+                saveBtn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            }
         });
     }
 })();

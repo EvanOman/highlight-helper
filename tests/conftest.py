@@ -99,6 +99,8 @@ def mock_highlight_extractor_service():
             page_number="42",
             highlight_start=20,
             highlight_end=50,
+            match_status="exact",
+            match_quality=1.0,
         )
     )
     return service
