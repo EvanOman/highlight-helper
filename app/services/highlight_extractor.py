@@ -327,5 +327,13 @@ def _get_service() -> HighlightExtractorService:
 
 
 async def get_highlight_extractor_service() -> HighlightExtractorService:
-    """Dependency that provides the highlight extractor service."""
+    """Dependency that provides the highlight extractor service.
+
+    Under FAKE_LLM (full-stack self-tests) a deterministic fake is served
+    instead, so the add-highlight flow can run end-to-end with no API calls.
+    """
+    if get_settings().fake_llm:
+        from app.services.llm_fake import FakeHighlightExtractorService
+
+        return FakeHighlightExtractorService()  # type: ignore[return-value]
     return _get_service()

@@ -18,6 +18,7 @@ from app.services.highlight_extractor import (
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.image_stash import ImageStash, get_image_stash
 from app.services.isbn_extractor import (
     ExtractedISBN,
     ISBNExtractorService,
@@ -98,9 +99,17 @@ def mock_highlight_extractor_service():
             page_number="42",
             highlight_start=20,
             highlight_end=50,
+            match_status="exact",
+            match_quality=1.0,
         )
     )
     return service
+
+
+@pytest.fixture
+def test_image_stash(tmp_path):
+    """Isolated image stash on a temp directory."""
+    return ImageStash(directory=tmp_path / "image_stash")
 
 
 @pytest.fixture
@@ -157,6 +166,7 @@ async def client(
     mock_highlight_extractor_service,
     mock_isbn_extractor_service,
     mock_readwise_service,
+    test_image_stash,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
     # Configure DB-backed app settings for "configured" Readwise flows
@@ -165,6 +175,7 @@ async def client(
     await test_session.flush()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_image_stash] = lambda: test_image_stash
     app.dependency_overrides[get_book_lookup_service] = lambda: mock_book_lookup_service
     app.dependency_overrides[get_highlight_extractor_service] = (
         lambda: mock_highlight_extractor_service

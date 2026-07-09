@@ -1,9 +1,13 @@
 /**
  * Highlight Editor - Word-level selection UI for adjusting extracted highlights.
  *
- * Reads window.__highlightData = { fullText, highlightStart, highlightEnd }
+ * Reads window.__highlightData = { fullText, highlightStart, highlightEnd, matchStatus }
  * Renders words as spans, highlights the selected range, and provides
  * draggable handles to adjust the selection boundaries.
+ *
+ * When matchStatus is "failed" (the extractor couldn't locate the highlighted
+ * passage in the page text), nothing is pre-selected: the user must tap the
+ * first and last word of the passage, and Save stays disabled until they do.
  */
 (function () {
   "use strict";
@@ -15,7 +19,24 @@
   const hiddenInput = document.getElementById("highlight-text-input");
   if (!container || !hiddenInput) return;
 
-  // Split full text into words, preserving whitespace info
+  const saveButton = document.getElementById("save-highlight-btn");
+  const matchStatus = data.matchStatus || "exact";
+
+  /**
+   * Build the saved highlight from the exact character-offset slice of the
+   * full text (never a word join, which would reflow spacing), then apply one
+   * deterministic cleanup rule:
+   *   1. Rejoin hyphenated line breaks ("beau-\ntiful" -> "beautiful") when
+   *      the continuation starts with a lowercase letter.
+   *   2. Collapse each line-break whitespace run to a single space.
+   */
+  function sliceHighlightText(fullText, charStart, charEnd) {
+    var raw = fullText.slice(charStart, charEnd);
+    var rejoined = raw.replace(/([A-Za-z])-[ \t]*\r?\n[ \t]*([a-z])/g, "$1$2");
+    return rejoined.replace(/[ \t]*(?:\r?\n[ \t]*)+/g, " ").trim();
+  }
+
+  // Split full text into words, preserving character offsets
   const words = [];
   const regex = /(\S+)/g;
   let match;
@@ -29,21 +50,30 @@
 
   if (words.length === 0) return;
 
-  // Determine initial selected word range from character offsets
-  let selStart = 0;
-  let selEnd = words.length - 1;
+  // Selection state: null indices mean "no selection yet" (failed match).
+  let selStart = null;
+  let selEnd = null;
 
-  for (let i = 0; i < words.length; i++) {
-    if (words[i].end > data.highlightStart) {
-      selStart = i;
-      break;
+  if (matchStatus !== "failed") {
+    // Determine initial selected word range from character offsets
+    selStart = 0;
+    selEnd = words.length - 1;
+    for (let i = 0; i < words.length; i++) {
+      if (words[i].end > data.highlightStart) {
+        selStart = i;
+        break;
+      }
+    }
+    for (let i = words.length - 1; i >= 0; i--) {
+      if (words[i].start < data.highlightEnd) {
+        selEnd = i;
+        break;
+      }
     }
   }
-  for (let i = words.length - 1; i >= 0; i--) {
-    if (words[i].start < data.highlightEnd) {
-      selEnd = i;
-      break;
-    }
+
+  function hasSelection() {
+    return selStart !== null && selEnd !== null;
   }
 
   // Build word spans
@@ -64,20 +94,8 @@
   container.appendChild(startHandle);
   container.appendChild(endHandle);
 
-  // Apply initial highlight (CSS classes only, not positioning)
-  wordSpans.forEach(function (span, idx) {
-    if (idx >= selStart && idx <= selEnd) {
-      span.classList.add("highlighted");
-    } else {
-      span.classList.remove("highlighted");
-    }
-  });
-
-  // Update hidden input with selected text
-  var selectedWords = words.slice(selStart, selEnd + 1).map(function (w) {
-    return w.text;
-  });
-  hiddenInput.value = selectedWords.join(" ");
+  // Apply initial state (highlight classes, hidden input, save gating)
+  syncSelectionState();
 
   // Position handles AFTER browser completes layout
   requestAnimationFrame(positionHandles);
@@ -90,27 +108,48 @@
     return handle;
   }
 
-  function updateHighlight() {
+  function syncSelectionState() {
     wordSpans.forEach(function (span, idx) {
-      if (idx >= selStart && idx <= selEnd) {
+      if (hasSelection() && idx >= selStart && idx <= selEnd) {
         span.classList.add("highlighted");
       } else {
         span.classList.remove("highlighted");
       }
     });
 
-    // Update hidden input with selected text
-    const selectedWords = words.slice(selStart, selEnd + 1).map(function (w) {
-      return w.text;
-    });
-    hiddenInput.value = selectedWords.join(" ");
+    // Saved text = exact char-offset slice of full_text, cleaned up.
+    if (hasSelection()) {
+      hiddenInput.value = sliceHighlightText(
+        data.fullText,
+        words[selStart].start,
+        words[selEnd].end
+      );
+    } else {
+      hiddenInput.value = "";
+    }
 
-    // Position handles
+    if (saveButton) {
+      var disabled = !hiddenInput.value.trim();
+      saveButton.disabled = disabled;
+      // Keep aria-disabled in sync with the property so assistive tech (and
+      // Playwright's enabled check) don't see a stale server-rendered value.
+      saveButton.setAttribute("aria-disabled", disabled ? "true" : "false");
+    }
+  }
+
+  function updateHighlight() {
+    syncSelectionState();
     positionHandles();
   }
 
   function positionHandles() {
-    if (wordSpans.length === 0) return;
+    if (!hasSelection()) {
+      startHandle.style.display = "none";
+      endHandle.style.display = "none";
+      return;
+    }
+    startHandle.style.display = "";
+    endHandle.style.display = "";
 
     const startSpan = wordSpans[selStart];
     const endSpan = wordSpans[selEnd];
@@ -222,6 +261,7 @@
   }
 
   function applyDrag(wordIdx) {
+    if (!hasSelection()) return;
     if (activeHandle === "start") {
       if (wordIdx <= selEnd) {
         selStart = wordIdx;
@@ -241,12 +281,18 @@
     var el = e.target;
     if (el.dataset && el.dataset.wordIdx !== undefined) {
       var idx = parseInt(el.dataset.wordIdx, 10);
-      // If click is before midpoint of selection, adjust start; otherwise adjust end
-      var mid = (selStart + selEnd) / 2;
-      if (idx <= mid) {
+      if (!hasSelection()) {
+        // Failed match: the first tap seeds the selection at one word.
         selStart = idx;
-      } else {
         selEnd = idx;
+      } else {
+        // If click is before midpoint of selection, adjust start; otherwise adjust end
+        var mid = (selStart + selEnd) / 2;
+        if (idx <= mid) {
+          selStart = idx;
+        } else {
+          selEnd = idx;
+        }
       }
       updateHighlight();
     }
@@ -264,7 +310,7 @@
       return words;
     },
     /**
-     * Get current selection bounds (word indices)
+     * Get current selection bounds (word indices); nulls when nothing selected
      */
     getSelection: function () {
       return { selStart: selStart, selEnd: selEnd };
@@ -321,5 +367,9 @@
     getFullText: function () {
       return data.fullText;
     },
+    /**
+     * Pure slice+cleanup used to build the saved text (exposed for tests)
+     */
+    sliceHighlightText: sliceHighlightText,
   };
 })();

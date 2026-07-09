@@ -71,12 +71,13 @@
 <p class="text-gray-600 dark:text-gray-400 mb-6">{{ book.title }} by {{ book.author }}</p>
 
 {% if error_message %}
-<div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
+<div id="extract-error" class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
     {{ error_message }}
 </div>
 {% endif %}
+<div id="client-error" class="hidden bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6"></div>
 
-{% if extracted_text and full_text %}
+{% if full_text %}
 {# Phase 2: Review & Adjust extracted text #}
 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
     <div class="p-4">
@@ -102,6 +103,11 @@
                 </button>
             </div>
         </div>
+        {% if match_status == 'failed' %}
+        <div id="match-failed-notice" class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 px-4 py-3 rounded-lg mb-4 text-sm">
+            Found the page text but couldn't locate the highlighted passage &mdash; tap the first and last word to select it.
+        </div>
+        {% endif %}
         <p id="selection-hint" class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Drag the blue handles or tap words to adjust the highlighted selection.
         </p>
@@ -140,10 +146,39 @@
                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"></textarea>
             </div>
             <button type="submit"
-                    class="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition">
+                    id="save-highlight-btn"
+                    {% if match_status == 'failed' %}disabled aria-disabled="true"{% endif %}
+                    class="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600">
                 Save Highlight
             </button>
         </form>
+
+        {% if image_token %}
+        <!-- Re-extract with edited instructions, reusing the stashed photo -->
+        <form id="re-extract-form" action="{{ base_path }}/books/{{ book.id }}/re-extract" method="post" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+            <input type="hidden" name="image_token" value="{{ image_token }}">
+            <div>
+                <label for="re-extract-instructions" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Not right? Adjust the instructions and re-extract (no re-upload needed)</label>
+                <textarea id="re-extract-instructions"
+                          name="instructions"
+                          rows="2"
+                          required
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">{{ instructions if instructions else '' }}</textarea>
+            </div>
+            <button type="submit"
+                    id="re-extract-btn"
+                    class="w-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2">
+                <svg id="re-extract-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                </svg>
+                <svg id="re-extract-spinner" class="hidden animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="re-extract-btn-text">Re-extract</span>
+            </button>
+        </form>
+        {% endif %}
     </div>
 </div>
 {% else %}
@@ -255,20 +290,128 @@ function toggleSection(sectionId, chevronId) {
     chevron.classList.toggle('rotate-180');
 }
 
+// --- Extraction requests: client-side downscale + fetch with a hard timeout ---
+
+var EXTRACT_TIMEOUT_MS = 90000;
+var DOWNSCALE_MAX_EDGE = 2000;
+var DOWNSCALE_JPEG_QUALITY = 0.85;
+
+function showClientError(message) {
+    var box = document.getElementById('client-error');
+    if (box) {
+        box.textContent = message;
+        box.classList.remove('hidden');
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        alert(message);
+    }
+}
+
+function setButtonLoading(prefix, loading, loadingText, idleText) {
+    var btn = document.getElementById(prefix + '-btn');
+    var icon = document.getElementById(prefix + '-icon');
+    var spinner = document.getElementById(prefix + '-spinner');
+    var btnText = document.getElementById(prefix + '-btn-text');
+    if (!btn) return;
+    btn.disabled = loading;
+    btn.classList.toggle('opacity-75', loading);
+    btn.classList.toggle('cursor-not-allowed', loading);
+    if (icon) icon.classList.toggle('hidden', loading);
+    if (spinner) spinner.classList.toggle('hidden', !loading);
+    if (btnText) btnText.textContent = loading ? loadingText : idleText;
+}
+
+/**
+ * Downscale a photo before upload: max long edge 2000px, JPEG q0.85.
+ * Skips files that are already small enough; falls back to the raw file
+ * if canvas/bitmap APIs fail for any reason.
+ */
+function downscaleImage(file) {
+    if (!file || !file.type || file.type.indexOf('image/') !== 0) {
+        return Promise.resolve(file);
+    }
+    return createImageBitmap(file).then(function(bitmap) {
+        var longEdge = Math.max(bitmap.width, bitmap.height);
+        if (longEdge <= DOWNSCALE_MAX_EDGE) {
+            bitmap.close();
+            return file;
+        }
+        var scale = DOWNSCALE_MAX_EDGE / longEdge;
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+        return new Promise(function(resolve) {
+            canvas.toBlob(function(blob) {
+                if (!blob) { resolve(file); return; }
+                var name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+                resolve(new File([blob], name, { type: 'image/jpeg' }));
+            }, 'image/jpeg', DOWNSCALE_JPEG_QUALITY);
+        });
+    }).catch(function() {
+        return file; // graceful fallback: upload the raw file
+    });
+}
+
+/**
+ * POST a form body and replace the page with the response HTML.
+ * Aborts after EXTRACT_TIMEOUT_MS with a clear retry message.
+ */
+function postFormWithTimeout(url, formData, onFail) {
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, EXTRACT_TIMEOUT_MS);
+    return fetch(url, { method: 'POST', body: formData, signal: controller.signal })
+        .then(function(resp) {
+            if (resp.status >= 500) {
+                throw new Error('server');
+            }
+            return resp.text();
+        })
+        .then(function(html) {
+            document.open();
+            document.write(html);
+            document.close();
+        })
+        .catch(function(err) {
+            onFail(err && err.name === 'AbortError'
+                ? 'Extraction took longer than 90 seconds and was cancelled. Please try again.'
+                : 'Extraction failed to reach the server. Check your connection and try again.');
+        })
+        .finally(function() {
+            clearTimeout(timer);
+        });
+}
+
 var extractForm = document.getElementById('extract-form');
 if (extractForm) {
-    extractForm.addEventListener('submit', function() {
-        const btn = document.getElementById('extract-btn');
-        const icon = document.getElementById('extract-icon');
-        const spinner = document.getElementById('extract-spinner');
-        const btnText = document.getElementById('extract-btn-text');
+    extractForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        setButtonLoading('extract', true, 'Extracting...', 'Extract Text');
+        var fileInput = document.getElementById('image');
+        var file = fileInput && fileInput.files ? fileInput.files[0] : null;
+        downscaleImage(file).then(function(uploadFile) {
+            var formData = new FormData(extractForm);
+            if (uploadFile && uploadFile !== file) {
+                formData.set('image', uploadFile, uploadFile.name);
+            }
+            return postFormWithTimeout(extractForm.action, formData, function(message) {
+                showClientError(message);
+                setButtonLoading('extract', false, 'Extracting...', 'Extract Text');
+            });
+        });
+    });
+}
 
-        // Disable button and show loading state
-        btn.disabled = true;
-        btn.classList.add('opacity-75', 'cursor-not-allowed');
-        icon.classList.add('hidden');
-        spinner.classList.remove('hidden');
-        btnText.textContent = 'Extracting...';
+var reExtractForm = document.getElementById('re-extract-form');
+if (reExtractForm) {
+    reExtractForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        setButtonLoading('re-extract', true, 'Re-extracting...', 'Re-extract');
+        postFormWithTimeout(reExtractForm.action, new FormData(reExtractForm), function(message) {
+            showClientError(message);
+            setButtonLoading('re-extract', false, 'Re-extracting...', 'Re-extract');
+        });
     });
 }
 </script>
@@ -278,7 +421,8 @@ if (extractForm) {
 window.__highlightData = {
     fullText: {{ full_text | tojson }},
     highlightStart: {{ highlight_start }},
-    highlightEnd: {{ highlight_end }}
+    highlightEnd: {{ highlight_end }},
+    matchStatus: {{ (match_status or 'exact') | tojson }}
 };
 </script>
 <script src="{{ base_path }}/static/js/highlight-editor.js"></script>
@@ -438,6 +582,13 @@ window.__highlightData = {
             this.style.height = Math.max(120, this.scrollHeight) + 'px';
             // Also update hidden input in real-time
             hiddenInput.value = this.value;
+            // Typing a highlight manually satisfies the failed-match save gate
+            var saveBtn = document.getElementById('save-highlight-btn');
+            if (saveBtn) {
+                var disabled = !this.value.trim();
+                saveBtn.disabled = disabled;
+                saveBtn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            }
         });
     }
 })();

@@ -80,3 +80,71 @@ async def fake_stream_chunks(messages: list[dict[str, Any]]):
 def fake_completion_text(messages: list[dict[str, Any]]) -> str:
     """Deterministic non-streaming response (coaching expects JSON)."""
     return json.dumps(FAKE_COACHING_CARD)
+
+
+# ---------------------------------------------------------------------------
+# Fake highlight extractor (vision pipeline) for full-stack self-tests.
+#
+# The add-highlight E2E flow needs deterministic extraction results without
+# vision API calls. Behavior is keyed off the user's instructions text:
+#   - contains "FAKE_EMPTY"   -> empty extraction (the service's failure shape)
+#   - contains "FAKE_NOMATCH" -> not_found match (highlight isn't in full_text;
+#                                (0, 0) sentinel span, never a whole-page one)
+#   - otherwise               -> a clean exact-substring extraction whose span
+#                                crosses a hyphenated line break, so saving
+#                                exercises the offset-slice + rejoin rule.
+# ---------------------------------------------------------------------------
+
+FAKE_PAGE_TEXT = (
+    "The quick brown fox jumps over the lazy dog. It was a beau-\n"
+    "tiful morning in the quiet town, and the streets were still\n"
+    "empty. Birds sang softly from the rooftops."
+)
+FAKE_HIGHLIGHT_RAW = "It was a beau-\ntiful morning in the quiet town,"
+# What the editor should save after hyphen rejoin + line-break collapse:
+FAKE_HIGHLIGHT_SAVED = "It was a beautiful morning in the quiet town,"
+
+
+class FakeHighlightExtractorService:
+    """Drop-in fake for HighlightExtractorService under FAKE_LLM."""
+
+    async def extract_highlight(
+        self,
+        image_bytes: bytes,
+        filename: str,
+        instructions: str,
+        db: Any = None,
+        highlight_id: int | None = None,
+    ):
+        from app.services.highlight_extractor import ExtractedHighlight
+
+        if "FAKE_EMPTY" in instructions:
+            return ExtractedHighlight(
+                full_text="", highlight_text="", confidence="low", page_number=None
+            )
+
+        if "FAKE_NOMATCH" in instructions:
+            # Matcher couldn't locate the passage: not_found with the (0, 0)
+            # sentinel span (never a fabricated whole-page selection).
+            return ExtractedHighlight(
+                full_text=FAKE_PAGE_TEXT,
+                highlight_text="This passage does not appear on the page.",
+                confidence="high",  # honest UI must not trust this
+                page_number="42",
+                highlight_start=0,
+                highlight_end=0,
+                match_status="not_found",
+                match_quality=0.0,
+            )
+
+        start = FAKE_PAGE_TEXT.find(FAKE_HIGHLIGHT_RAW)
+        return ExtractedHighlight(
+            full_text=FAKE_PAGE_TEXT,
+            highlight_text=FAKE_HIGHLIGHT_RAW,
+            confidence="high",
+            page_number="42",
+            highlight_start=start,
+            highlight_end=start + len(FAKE_HIGHLIGHT_RAW),
+            match_status="exact",
+            match_quality=1.0,
+        )
