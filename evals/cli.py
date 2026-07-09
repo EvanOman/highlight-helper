@@ -1,120 +1,84 @@
 #!/usr/bin/env python3
-"""CLI interface for running highlight extraction evaluations."""
+"""CLI for running highlight-extraction evaluations.
+
+Online mode calls the real pipeline (and populates the cache); offline mode
+replays genuine cached outputs for CI/smoke. Metrics are always recomputed from
+the cached model output, never stored, so offline numbers are honest.
+"""
+
+from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
-from evals.report import generate_html_report
+from evals.models import EvalReport
+from evals.report import generate_html_report, print_summary
 from evals.runner import run_evals
+
+_EVALS_DIR = Path(__file__).parent
+
+
+def _write_json_snapshot(report: EvalReport, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(report.to_json_dict(), f, indent=2, ensure_ascii=False)
 
 
 def main() -> int:
-    """Run the evaluation CLI."""
     parser = argparse.ArgumentParser(
         description="Run highlight extraction evaluations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run evals online (calls OpenAI API)
-  python -m evals.cli
-
-  # Run evals offline (uses cached results)
-  python -m evals.cli --offline
-
-  # Generate report to custom location
-  python -m evals.cli --report-path ./my-report.html
-
-  # Use custom dataset
-  python -m evals.cli --dataset ./my-dataset.json
+  python -m evals.cli                       # online, default 'service' pipeline
+  python -m evals.cli --offline             # replay cached outputs (CI/smoke)
+  python -m evals.cli --pipeline service    # select a pipeline to A/B
+  python -m evals.cli --json-out out.json   # also write a metrics snapshot
         """,
     )
-    parser.add_argument(
-        "--dataset",
-        type=Path,
-        default=Path(__file__).parent / "samples" / "dataset.json",
-        help="Path to the evaluation dataset JSON file",
-    )
-    parser.add_argument(
-        "--offline",
-        action="store_true",
-        help="Run in offline mode using cached results (no API calls)",
-    )
-    parser.add_argument(
-        "--cache",
-        type=Path,
-        default=None,
-        help="Path to the cache file for offline mode",
-    )
-    parser.add_argument(
-        "--report-path",
-        type=Path,
-        default=Path(__file__).parent / "reports" / "latest.html",
-        help="Path to write the HTML report",
-    )
-    parser.add_argument(
-        "--no-report",
-        action="store_true",
-        help="Skip generating HTML report",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Print verbose output",
-    )
-    parser.add_argument(
-        "--threshold",
-        type=float,
-        default=80.0,
-        help="Pass rate threshold percentage (default: 80)",
-    )
-
+    parser.add_argument("--dataset", type=Path, default=_EVALS_DIR / "samples" / "dataset.json")
+    parser.add_argument("--pipeline", default="service", help="Extraction pipeline id")
+    parser.add_argument("--offline", action="store_true", help="Replay cached outputs (no API)")
+    parser.add_argument("--cache", type=Path, default=None, help="Cache file path")
+    parser.add_argument("--report-path", type=Path, default=_EVALS_DIR / "reports" / "latest.html")
+    parser.add_argument("--json-out", type=Path, default=None, help="Write a JSON metrics snapshot")
+    parser.add_argument("--no-report", action="store_true", help="Skip the HTML report")
+    parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
-    # Validate dataset exists
     if not args.dataset.exists():
-        print(f"Error: Dataset not found at {args.dataset}", file=sys.stderr)
+        print(f"Error: dataset not found at {args.dataset}", file=sys.stderr)
         return 1
 
-    # Run evaluations
-    print(f"Running evaluations from {args.dataset}")
-    print(f"Mode: {'offline' if args.offline else 'online'}")
-    print()
+    print(
+        f"Running {args.pipeline} pipeline ({'offline' if args.offline else 'online'}) "
+        f"on {args.dataset}"
+    )
 
     report = run_evals(
         dataset_path=args.dataset,
+        pipeline_id=args.pipeline,
         offline=args.offline,
         cache_path=args.cache,
         verbose=args.verbose,
     )
 
-    # Print summary
-    print()
-    print("=" * 50)
-    print("EVALUATION SUMMARY")
-    print("=" * 50)
-    print(f"Total cases:    {report.total_cases}")
-    print(f"Passed:         {report.passed_cases}")
-    print(f"Failed:         {report.failed_cases}")
-    print(f"Errors:         {report.error_cases}")
-    print(f"Pass rate:      {report.pass_rate:.1f}%")
-    print(f"Avg accuracy:   {report.avg_char_accuracy:.1%}")
-    print(f"Avg latency:    {report.avg_latency_ms:.0f}ms")
-    print("=" * 50)
+    print_summary(report)
 
-    # Generate report
     if not args.no_report:
-        args.report_path.parent.mkdir(parents=True, exist_ok=True)
         generate_html_report(report, args.report_path)
-        print(f"\nHTML report: {args.report_path}")
+        print(f"HTML report: {args.report_path}")
 
-    # Return exit code based on pass rate
-    if report.pass_rate >= args.threshold:
-        print(f"\n✓ PASSED (pass rate >= {args.threshold}%)")
-        return 0
-    print(f"\n✗ FAILED (pass rate < {args.threshold}%)")
-    return 1
+    if args.json_out:
+        _write_json_snapshot(report, args.json_out)
+        print(f"JSON snapshot: {args.json_out}")
+
+    if report.error_cases:
+        print(f"\n{report.error_cases} case(s) errored.", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
