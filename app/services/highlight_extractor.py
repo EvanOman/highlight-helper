@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
 from app.models.api_usage import APIUsage, calculate_cost
 from app.services.image_utils import convert_to_jpeg
-from app.services.text_matching import locate_highlight
+from app.services.text_matching import MatchStatus, locate_highlight
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,13 @@ class ExtractedHighlight(BaseModel):
         default=0, description="Character offset of highlight in full_text"
     )
     highlight_end: int = Field(default=0, description="Character end offset")
+    match_status: str = Field(
+        default=MatchStatus.NOT_FOUND.value,
+        description="How the highlight was located in full_text: exact, normalized, fuzzy, or not_found",
+    )
+    match_quality: float = Field(
+        default=0.0, description="Similarity (0.0-1.0) of the located span vs highlight_text"
+    )
     usage: TokenUsage | None = Field(default=None, description="Token usage for this extraction")
 
 
@@ -154,11 +161,14 @@ class HighlightExtractorService:
             prediction = await async_extract(image=image, user_instructions=instructions)
         result: ExtractedHighlight = prediction.result
 
-        # Compute highlight offsets within full_text
+        # Compute highlight offsets within full_text. On NOT_FOUND the offsets
+        # are the (0, 0) sentinel — never a whole-page span.
         if result.full_text and result.highlight_text:
-            h_start, h_end = locate_highlight(result.full_text, result.highlight_text)
-            result.highlight_start = h_start
-            result.highlight_end = h_end
+            match = locate_highlight(result.full_text, result.highlight_text)
+            result.highlight_start = match.start
+            result.highlight_end = match.end
+            result.match_status = match.status.value
+            result.match_quality = match.quality
 
         return result
 
