@@ -235,6 +235,9 @@ class TestHighlightExtractorService:
         assert result.full_text == ""
         assert result.confidence == "low"
         assert result.page_number is None
+        # Typed failure: the error field distinguishes a model failure from a blank page.
+        assert result.error is not None
+        assert "API Error" in result.error
 
     async def test_extract_highlight_image_parsing_error_fallback(self):
         """Test that dspy.Image parsing errors return fallback response.
@@ -310,6 +313,7 @@ class TestHighlightExtractorService:
             "highlight_end": 9,
             "match_status": "not_found",
             "match_quality": 0.0,
+            "error": None,
             "usage": None,
         }
 

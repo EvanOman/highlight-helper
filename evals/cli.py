@@ -45,6 +45,17 @@ Examples:
     parser.add_argument("--report-path", type=Path, default=_EVALS_DIR / "reports" / "latest.html")
     parser.add_argument("--json-out", type=Path, default=None, help="Write a JSON metrics snapshot")
     parser.add_argument("--no-report", action="store_true", help="Skip the HTML report")
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Only run cases whose category tag contains one of these (comma-separated), "
+        "e.g. 'edge:hyphenated,modality:underline'. Cheap iteration on failing slices.",
+    )
+    parser.add_argument(
+        "--case",
+        default=None,
+        help="Only run cases whose id contains one of these (comma-separated substrings).",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -63,6 +74,8 @@ Examples:
         offline=args.offline,
         cache_path=args.cache,
         verbose=args.verbose,
+        case_filter=args.case,
+        tag_filter=args.category,
     )
 
     print_summary(report)
