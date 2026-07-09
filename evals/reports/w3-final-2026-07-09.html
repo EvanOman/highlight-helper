@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Highlight Extraction Eval — service-v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+         background: #f8fafc; color: #1e293b; line-height: 1.5; padding: 2rem; }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .75rem; }
+  .meta { color: #64748b; font-size: .85rem; margin-bottom: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: .5rem;
+          overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); font-size: .8rem; margin-bottom: 1rem; }
+  th, td { padding: .5rem .6rem; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  th { background: #f1f5f9; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: #475569; }
+  td.label, th:first-child { text-align: left; font-weight: 600; }
+  td.good { color: #15803d; font-weight: 600; }
+  td.bad { color: #b91c1c; font-weight: 600; }
+  tr:hover { background: #f8fafc; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Highlight Extraction Eval</h1>
+  <p class="meta">
+    pipeline <b>service-v2</b> ·
+    model <b>openai/gpt-5.4</b> ·
+    mode <b>offline</b> ·
+    2026-07-09 13:35:11 ·
+    total cost <b>$0.5930</b> ·
+    errors <b>0</b>
+  </p>
+
+  <h2>Overall</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Category</th><th>n</th><th>Highlight F1</th><th>Span IoU</th><th>Span located</th><th>Verbatim</th><th>Full-text CER</th><th>Page # acc</th><th>Halluc.</th><th>Latency p50</th><th>$/case</th></tr></thead>
+      <tbody><tr><td class='label'>overall</td><td>48</td><td class='good'>97.3%</td><td class='good'>98.1%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.048</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4058ms</td><td class=''>$0.0124</td></tr></tbody>
+    </table>
+    </div>
+
+  <h2>By category</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Category</th><th>n</th><th>Highlight F1</th><th>Span IoU</th><th>Span located</th><th>Verbatim</th><th>Full-text CER</th><th>Page # acc</th><th>Halluc.</th><th>Latency p50</th><th>$/case</th></tr></thead>
+      <tbody><tr><td class='label'>density:dense</td><td>6</td><td class='good'>94.5%</td><td class='good'>93.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.030</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4204ms</td><td class=''>$0.0143</td></tr><tr><td class='label'>density:short</td><td>42</td><td class='good'>97.7%</td><td class='good'>98.8%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='bad'>0.050</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4058ms</td><td class=''>$0.0121</td></tr><tr><td class='label'>difficulty:clean</td><td>25</td><td class='good'>97.9%</td><td class='good'>99.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.046</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>3955ms</td><td class=''>$0.0125</td></tr><tr><td class='label'>difficulty:degraded</td><td>14</td><td class='good'>96.0%</td><td class='good'>95.7%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.049</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4201ms</td><td class=''>$0.0127</td></tr><tr><td class='label'>difficulty:warped</td><td>9</td><td class='good'>97.8%</td><td class='good'>99.6%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.049</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4057ms</td><td class=''>$0.0114</td></tr><tr><td class='label'>edge:ambiguous</td><td>2</td><td class='good'>95.5%</td><td class='good'>99.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.047</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>3971ms</td><td class=''>$0.0126</td></tr><tr><td class='label'>edge:hyphenated</td><td>3</td><td class='good'>93.3%</td><td class='good'>93.3%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.038</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>3955ms</td><td class=''>$0.0115</td></tr><tr><td class='label'>edge:multi-sentence</td><td>2</td><td class='good'>98.1%</td><td class='good'>99.7%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.040</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>4023ms</td><td class=''>$0.0116</td></tr><tr><td class='label'>edge:negative</td><td>5</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class='good'>0.049</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4060ms</td><td class=''>$0.0122</td></tr><tr><td class='label'>edge:repeated-phrase</td><td>2</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='bad'>0.056</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>4665ms</td><td class=''>$0.0141</td></tr><tr><td class='label'>modality:instruction</td><td>6</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.047</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>4147ms</td><td class=''>$0.0122</td></tr><tr><td class='label'>modality:marker</td><td>23</td><td class='good'>96.8%</td><td class='good'>97.4%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.047</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>3896ms</td><td class=''>$0.0120</td></tr><tr><td class='label'>modality:none</td><td>5</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class='good'>0.049</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4060ms</td><td class=''>$0.0122</td></tr><tr><td class='label'>modality:underline</td><td>14</td><td class='good'>96.9%</td><td class='good'>98.4%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.049</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>4505ms</td><td class=''>$0.0131</td></tr></tbody>
+    </table>
+    </div>
+
+  <h2>Per case</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Case</th><th>Tags</th><th>Status</th><th>F1</th><th>IoU</th>
+        <th>Match</th><th>CER</th><th>Latency</th><th>Expected</th><th>Actual</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class='label'>sailing-marker-clean</td>
+          <td>modality:marker, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.049</td>
+          <td>6289ms</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-marker-warped</td>
+          <td>modality:marker, difficulty:warped, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.049</td>
+          <td>5342ms</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-marker-degraded</td>
+          <td>modality:marker, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.049</td>
+          <td>4529ms</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-underline-clean</td>
+          <td>modality:underline, difficulty:clean, density:short</td>
+          <td>91% f1</td>
+          <td>90.9%</td>
+          <td>84.9%</td>
+          <td>normalized</td>
+          <td>0.049</td>
+          <td>3506ms</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+          <td title='learns to read the water for the darker ruffled patches that mark a coming gust'>learns to read the water for the darker ruffled patches that mark a coming gust</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-underline-degraded</td>
+          <td>modality:underline, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.049</td>
+          <td>4778ms</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+          <td title='A good sailor learns to read the water for the darker ruffled patches that mark a coming gust'>A good sailor learns to read the water for the darker ruffled patches that mark a coming g</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-marker-clean</td>
+          <td>modality:marker, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.048</td>
+          <td>3529ms</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-marker-warped</td>
+          <td>modality:marker, difficulty:warped, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.048</td>
+          <td>4057ms</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-marker-degraded</td>
+          <td>modality:marker, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.048</td>
+          <td>5021ms</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-underline-clean</td>
+          <td>modality:underline, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.048</td>
+          <td>6048ms</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-underline-degraded</td>
+          <td>modality:underline, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.048</td>
+          <td>3689ms</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+          <td title='it can resolve the rings of a distant planet into a clean bright ellipse'>it can resolve the rings of a distant planet into a clean bright ellipse</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-marker-clean</td>
+          <td>modality:marker, difficulty:clean, density:short</td>
+          <td>92% f1</td>
+          <td>91.7%</td>
+          <td>98.2%</td>
+          <td>normalized</td>
+          <td>0.057</td>
+          <td>3626ms</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+          <td title='Most of what a beginner does to a hive is a disturbance,'>Most of what a beginner does to a hive is a disturbance,</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-marker-warped</td>
+          <td>modality:marker, difficulty:warped, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.057</td>
+          <td>3515ms</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-marker-degraded</td>
+          <td>modality:marker, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.057</td>
+          <td>3452ms</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-underline-clean</td>
+          <td>modality:underline, difficulty:clean, density:short</td>
+          <td>92% f1</td>
+          <td>91.7%</td>
+          <td>98.2%</td>
+          <td>normalized</td>
+          <td>0.057</td>
+          <td>4796ms</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+          <td title='Most of what a beginner does to a hive is a disturbance,'>Most of what a beginner does to a hive is a disturbance,</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-underline-degraded</td>
+          <td>modality:underline, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.057</td>
+          <td>4403ms</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+          <td title='Most of what a beginner does to a hive is a disturbance'>Most of what a beginner does to a hive is a disturbance</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-marker-clean</td>
+          <td>modality:marker, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.061</td>
+          <td>4412ms</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-marker-warped</td>
+          <td>modality:marker, difficulty:warped, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.061</td>
+          <td>2686ms</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-marker-degraded</td>
+          <td>modality:marker, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.061</td>
+          <td>3000ms</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-underline-clean</td>
+          <td>modality:underline, difficulty:clean, density:short</td>
+          <td>92% f1</td>
+          <td>91.7%</td>
+          <td>98.5%</td>
+          <td>normalized</td>
+          <td>0.061</td>
+          <td>3699ms</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon'>The tide is the ocean leaning, ever so slightly, toward the moon</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-underline-degraded</td>
+          <td>modality:underline, difficulty:degraded, density:short</td>
+          <td>92% f1</td>
+          <td>91.7%</td>
+          <td>98.5%</td>
+          <td>normalized</td>
+          <td>0.061</td>
+          <td>3296ms</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon.'>The tide is the ocean leaning, ever so slightly, toward the moon.</td>
+          <td title='The tide is the ocean leaning, ever so slightly, toward the moon'>The tide is the ocean leaning, ever so slightly, toward the moon</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-marker-clean</td>
+          <td>modality:marker, difficulty:clean, density:short</td>
+          <td>92% f1</td>
+          <td>91.7%</td>
+          <td>98.5%</td>
+          <td>normalized</td>
+          <td>0.039</td>
+          <td>3250ms</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple,'>There comes a moment when the dough stops fighting and turns supple,</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-marker-warped</td>
+          <td>modality:marker, difficulty:warped, density:short</td>
+          <td>92% f1</td>
+          <td>91.7%</td>
+          <td>98.5%</td>
+          <td>normalized</td>
+          <td>0.039</td>
+          <td>5318ms</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple,'>There comes a moment when the dough stops fighting and turns supple,</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-marker-degraded</td>
+          <td>modality:marker, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.043</td>
+          <td>3896ms</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-underline-clean</td>
+          <td>modality:underline, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.039</td>
+          <td>5411ms</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-underline-degraded</td>
+          <td>modality:underline, difficulty:degraded, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.039</td>
+          <td>3276ms</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+          <td title='There comes a moment when the dough stops fighting and turns supple'>There comes a moment when the dough stops fighting and turns supple</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>gardening-instruction-clean-31</td>
+          <td>modality:instruction, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.038</td>
+          <td>3110ms</td>
+          <td title='Compost is the garden&#x27;s memory.'>Compost is the garden&#x27;s memory.</td>
+          <td title='Compost is the garden&#x27;s memory.'>Compost is the garden&#x27;s memory.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>gardening-instruction-warped-33</td>
+          <td>modality:instruction, difficulty:warped, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.038</td>
+          <td>3745ms</td>
+          <td title='Patience is the only tool that never wears out.'>Patience is the only tool that never wears out.</td>
+          <td title='Patience is the only tool that never wears out.'>Patience is the only tool that never wears out.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-instruction-clean-60</td>
+          <td>modality:instruction, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.052</td>
+          <td>4603ms</td>
+          <td title='The first rule of the hobby is simply to find the dark.'>The first rule of the hobby is simply to find the dark.</td>
+          <td title='The first rule of the hobby is simply to find the dark.'>The first rule of the hobby is simply to find the dark.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-instruction-clean-24</td>
+          <td>modality:instruction, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.049</td>
+          <td>4894ms</td>
+          <td title='Trimming is the quiet craft at the center of it all.'>Trimming is the quiet craft at the center of it all.</td>
+          <td title='Trimming is the quiet craft at the center of it all.'>Trimming is the quiet craft at the center of it all.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-instruction-warped-78</td>
+          <td>modality:instruction, difficulty:warped, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.039</td>
+          <td>4548ms</td>
+          <td title='The oven finishes what the hands began.'>The oven finishes what the hands began.</td>
+          <td title='The oven finishes what the hands began.'>The oven finishes what the hands began.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-instruction-clean-13</td>
+          <td>modality:instruction, difficulty:clean, density:short</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.067</td>
+          <td>2529ms</td>
+          <td title='Sailors learn the tide before they learn much else, because it forgives nothing.'>Sailors learn the tide before they learn much else, because it forgives nothing.</td>
+          <td title='Sailors learn the tide before they learn much else,
+because it forgives nothing.'>Sailors learn the tide before they learn much else,
+because it forgives nothing.</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>printing-marker-clean-141-x</td>
+          <td>modality:marker, difficulty:clean, density:dense</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.029</td>
+          <td>3529ms</td>
+          <td title='The arrival of movable type did not so much invent printing as make it patient and repeatable.'>The arrival of movable type did not so much invent printing as make it patient and repeata</td>
+          <td title='The arrival of movable type did not so much invent printing as make it patient and repeatable.'>The arrival of movable type did not so much invent printing as make it patient and repeata</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>printing-marker-degraded-142-x</td>
+          <td>modality:marker, difficulty:degraded, density:dense</td>
+          <td>76% f1</td>
+          <td>76.2%</td>
+          <td>65.8%</td>
+          <td>normalized</td>
+          <td>0.029</td>
+          <td>6702ms</td>
+          <td title='Cheaper books meant more readers; more readers meant a wider appetite for books'>Cheaper books meant more readers; more readers meant a wider appetite for books</td>
+          <td title='Cheaper books meant more readers; more readers meant'>Cheaper books meant more readers; more readers meant</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>printing-underline-clean-140-x</td>
+          <td>modality:underline, difficulty:clean, density:dense</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.029</td>
+          <td>6508ms</td>
+          <td title='A single volume might occupy a scribe for the better part of a year'>A single volume might occupy a scribe for the better part of a year</td>
+          <td title='A single volume might occupy a scribe for the better part of a year'>A single volume might occupy a scribe for the better part of a year</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>printing-marker-clean-141-multi-sentence</td>
+          <td>modality:marker, difficulty:clean, density:dense, edge:multi-sentence</td>
+          <td>96% f1</td>
+          <td>96.3%</td>
+          <td>99.3%</td>
+          <td>normalized</td>
+          <td>0.032</td>
+          <td>4453ms</td>
+          <td title='Individual letters, cast in metal and arranged into lines, could be inked, pressed onto a sheet, and then broken apart and set again for the next page.'>Individual letters, cast in metal and arranged into lines, could be inked, pressed onto a </td>
+          <td title='Individual letters, cast in metal and arranged into lines, could be inked, pressed onto a sheet, and then broken apart and set again for the next page'>Individual letters, cast in metal and arranged into lines, could be inked, pressed onto a </td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-multisentence-clean</td>
+          <td>modality:marker, difficulty:clean, density:short, edge:multi-sentence</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.048</td>
+          <td>3594ms</td>
+          <td title='Stars wheel overhead through the hours, and the whole pattern shifts a little westward each evening, so that the constellations of winter give way in time to the different company of summer.'>Stars wheel overhead through the hours, and the whole pattern shifts a little westward eac</td>
+          <td title='Stars wheel overhead through the hours, and the whole pattern shifts a little westward each evening, so that the constellations of winter give way in time to the different company of summer.'>Stars wheel overhead through the hours, and the whole pattern shifts a little westward eac</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-repeated-clean</td>
+          <td>modality:marker, difficulty:clean, density:short, edge:repeated-phrase</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.054</td>
+          <td>4577ms</td>
+          <td title='by being'>by being</td>
+          <td title='by being'>by being</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-repeated-degraded</td>
+          <td>modality:underline, difficulty:degraded, density:short, edge:repeated-phrase</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>exact</td>
+          <td>0.057</td>
+          <td>4753ms</td>
+          <td title='as one'>as one</td>
+          <td title='as one'>as one</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>bread-ambiguous-clean</td>
+          <td>modality:marker, difficulty:clean, density:short, edge:ambiguous</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.039</td>
+          <td>3337ms</td>
+          <td title='Flour, water, salt, and time will make a loaf'>Flour, water, salt, and time will make a loaf</td>
+          <td title='Flour, water, salt, and time will make a loaf'>Flour, water, salt, and time will make a loaf</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>sailing-ambiguous-warped</td>
+          <td>modality:underline, difficulty:warped, density:short, edge:ambiguous</td>
+          <td>91% f1</td>
+          <td>90.9%</td>
+          <td>98.1%</td>
+          <td>exact</td>
+          <td>0.054</td>
+          <td>4606ms</td>
+          <td title='Trimming is the quiet craft at the center of it all.'>Trimming is the quiet craft at the center of it all.</td>
+          <td title='Trimming is the quiet craft at the center of it all'>Trimming is the quiet craft at the center of it all</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>cartography-hyphen-clean</td>
+          <td>modality:marker, difficulty:clean, density:short, edge:hyphenated</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.040</td>
+          <td>3542ms</td>
+          <td title='and stubborn surface'>and stubborn surface</td>
+          <td title='and stubborn surface'>and stubborn surface</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>cartography-hyphen-degraded</td>
+          <td>modality:marker, difficulty:degraded, density:short, edge:hyphenated</td>
+          <td>80% f1</td>
+          <td>80.0%</td>
+          <td>80.0%</td>
+          <td>normalized</td>
+          <td>0.040</td>
+          <td>4137ms</td>
+          <td title='and stubborn surface'>and stubborn surface</td>
+          <td title='stubborn surface'>stubborn surface</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>printing-hyphen-clean</td>
+          <td>modality:underline, difficulty:clean, density:dense, edge:hyphenated</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.032</td>
+          <td>3955ms</td>
+          <td title='pressed printers to'>pressed printers to</td>
+          <td title='pressed printers to'>pressed printers to</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>gardening-negative-clean</td>
+          <td>modality:none, difficulty:clean, density:short, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.042</td>
+          <td>4060ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        
+        <tr>
+          <td class='label'>astronomy-negative-degraded</td>
+          <td>modality:none, difficulty:degraded, density:short, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.048</td>
+          <td>4264ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        
+        <tr>
+          <td class='label'>tides-negative-clean</td>
+          <td>modality:none, difficulty:clean, density:short, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.067</td>
+          <td>4265ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        
+        <tr>
+          <td class='label'>beekeeping-negative-warped</td>
+          <td>modality:none, difficulty:warped, density:short, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.057</td>
+          <td>2580ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        
+        <tr>
+          <td class='label'>printing-negative-clean</td>
+          <td>modality:none, difficulty:clean, density:dense, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.032</td>
+          <td>3408ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        </tbody>
+    </table>
+    </div>
+</div>
+</body>
+</html>

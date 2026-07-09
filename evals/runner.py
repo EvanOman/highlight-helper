@@ -134,8 +134,10 @@ class EvalRunner:
     async def run(self, verbose: bool = False) -> EvalReport:
         if not self.cases:
             self.load_dataset()
-        if self.offline:
-            self.load_cache()
+        # Always load the existing cache first. Offline mode replays it; online
+        # mode merges fresh outputs into it so running one pipeline (or a
+        # filtered subset) never wipes another pipeline's cached entries.
+        self.load_cache()
 
         base_path = self.dataset_path.parent
         results: list[EvalResult] = []
