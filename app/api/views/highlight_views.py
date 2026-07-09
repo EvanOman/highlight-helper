@@ -19,13 +19,133 @@ from app.models.highlight import AnnotationType
 from app.repositories.book import BookRepository, get_book_repo
 from app.repositories.highlight import HighlightRepository, get_highlight_repo
 from app.services.highlight_extractor import (
+    ExtractedHighlight,
     HighlightExtractorService,
     get_highlight_extractor_service,
 )
+from app.services.image_stash import ImageStash, get_image_stash
 from app.services.readwise import ReadwiseService, schedule_auto_sync
 from app.services.settings import get_settings_service
 
 from ._common import router, settings, templates
+
+EXTRACTION_FAILED_MESSAGE = (
+    "Couldn't read the page. The photo may be blurry, dark, or not a book page — "
+    "try again with a clearer photo, or enter the highlight manually below."
+)
+IMAGE_EXPIRED_MESSAGE = "That photo is no longer available on the server — please upload it again."
+
+
+def _derive_match_status(result: ExtractedHighlight) -> str:
+    """Classify how trustworthy the located highlight span is.
+
+    Returns one of: "exact", "fuzzy", "failed".
+
+    If the extractor grows a native match_status/match_quality field (W2/W3),
+    it takes precedence here — only the normalization mapping below needs to
+    know about new values.
+    """
+    native = getattr(result, "match_status", None) or getattr(result, "match_quality", None)
+    if isinstance(native, str) and native:
+        return {"not_found": "failed", "normalized": "exact"}.get(native, native)
+
+    full_text = result.full_text
+    highlight_text = result.highlight_text
+    if not full_text or not highlight_text:
+        return "failed"
+    if highlight_text in full_text:
+        return "exact"
+    if result.highlight_start == 0 and result.highlight_end == len(full_text):
+        # The matcher's whole-page fallback: offsets span the entire page but
+        # the highlight text isn't actually there. Not a real result.
+        return "failed"
+    return "fuzzy"
+
+
+def _display_confidence(llm_confidence: str, match_status: str) -> str:
+    """Combine LLM self-rated confidence with span-match quality.
+
+    A failed match shows no badge at all (the failed-match notice replaces it);
+    any non-exact match caps the badge at "medium" (yellow).
+    """
+    if match_status == "failed":
+        return ""
+    if match_status != "exact" and llm_confidence == "high":
+        return "medium"
+    return llm_confidence
+
+
+def _phase1_context(book, instructions: str, error_message: str | None) -> dict:
+    """Template context for the upload form (Phase 1), with an optional error."""
+    return {
+        "book": book,
+        "extracted_text": "",
+        "full_text": "",
+        "highlight_text": "",
+        "highlight_start": 0,
+        "highlight_end": 0,
+        "confidence": "",
+        "page_number": "",
+        "match_status": "",
+        "image_token": "",
+        "instructions": instructions,
+        "error_message": error_message,
+    }
+
+
+async def _run_extraction(
+    request: Request,
+    book,
+    instructions: str,
+    image_bytes: bytes,
+    filename: str,
+    image_token: str,
+    db,
+    extractor: HighlightExtractorService,
+):
+    """Run extraction and render the honest result (Phase 2 or explicit failure)."""
+    try:
+        result = await extractor.extract_highlight(
+            image_bytes=image_bytes,
+            filename=filename,
+            instructions=instructions,
+            db=db,
+        )
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "add_highlight.html",
+            _phase1_context(book, instructions, f"Error extracting text: {e!s}"),
+        )
+
+    if not result.full_text.strip():
+        # The service returns an empty result on any failure — surface it
+        # instead of silently re-rendering the upload form.
+        return templates.TemplateResponse(
+            request,
+            "add_highlight.html",
+            _phase1_context(book, instructions, EXTRACTION_FAILED_MESSAGE),
+        )
+
+    match_status = _derive_match_status(result)
+    return templates.TemplateResponse(
+        request,
+        "add_highlight.html",
+        {
+            "book": book,
+            "extracted_text": result.highlight_text,
+            "full_text": result.full_text,
+            "highlight_text": result.highlight_text if match_status != "failed" else "",
+            "highlight_start": result.highlight_start,
+            "highlight_end": result.highlight_end,
+            "confidence": _display_confidence(result.confidence, match_status),
+            "page_number": result.page_number or "",
+            "match_status": match_status,
+            "image_token": image_token,
+            "instructions": instructions,
+            "error_message": None,
+        },
+    )
 
 
 @router.get("/books/{book_id}/add-highlight", response_class=HTMLResponse)
@@ -40,16 +160,7 @@ async def add_highlight_page(
     return templates.TemplateResponse(
         request,
         "add_highlight.html",
-        {
-            "book": book,
-            "extracted_text": "",
-            "full_text": "",
-            "highlight_text": "",
-            "highlight_start": 0,
-            "highlight_end": 0,
-            "confidence": "",
-            "page_number": "",
-        },
+        _phase1_context(book, "", None),
     )
 
 
@@ -78,59 +189,72 @@ async def extract_highlight_form(
     db: AsyncSession = Depends(get_db),
     book_repo: BookRepository = Depends(get_book_repo),
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
+    stash: ImageStash = Depends(get_image_stash),
 ):
     """Extract highlight from uploaded image."""
     book = await book_repo.get_or_raise(book_id)
 
-    # Validate file type
-    error_message = None
-    extracted_text = ""
-    full_text = ""
-    highlight_text = ""
-    highlight_start = 0
-    highlight_end = 0
-    confidence = ""
-    page_number = ""
-
     if not image.content_type or not image.content_type.startswith("image/"):
-        error_message = "Please upload an image file"
-    else:
-        image_bytes = await image.read()
-        if len(image_bytes) > 20 * 1024 * 1024:
-            error_message = "Image file too large (max 20MB)"
-        else:
-            try:
-                result = await extractor.extract_highlight(
-                    image_bytes=image_bytes,
-                    filename=image.filename or "image.jpg",
-                    instructions=instructions,
-                    db=db,
-                )
-                extracted_text = result.highlight_text
-                full_text = result.full_text
-                highlight_text = result.highlight_text
-                highlight_start = result.highlight_start
-                highlight_end = result.highlight_end
-                confidence = result.confidence
-                page_number = result.page_number or ""
-            except Exception as e:
-                error_message = f"Error extracting text: {e!s}"
+        return templates.TemplateResponse(
+            request,
+            "add_highlight.html",
+            _phase1_context(book, instructions, "Please upload an image file"),
+        )
 
-    return templates.TemplateResponse(
+    image_bytes = await image.read()
+    if len(image_bytes) > 20 * 1024 * 1024:
+        return templates.TemplateResponse(
+            request,
+            "add_highlight.html",
+            _phase1_context(book, instructions, "Image file too large (max 20MB)"),
+        )
+
+    # Stash the photo so "Re-extract" can re-run without a re-upload.
+    image_token = stash.put(image_bytes)
+
+    return await _run_extraction(
         request,
-        "add_highlight.html",
-        {
-            "book": book,
-            "extracted_text": extracted_text,
-            "full_text": full_text,
-            "highlight_text": highlight_text,
-            "highlight_start": highlight_start,
-            "highlight_end": highlight_end,
-            "confidence": confidence,
-            "page_number": page_number,
-            "instructions": instructions,
-            "error_message": error_message,
-        },
+        book,
+        instructions,
+        image_bytes,
+        image.filename or "image.jpg",
+        image_token,
+        db,
+        extractor,
+    )
+
+
+@router.post("/books/{book_id}/re-extract", response_class=HTMLResponse)
+async def re_extract_highlight_form(
+    request: Request,
+    book_id: int,
+    instructions: str = Form(...),
+    image_token: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    book_repo: BookRepository = Depends(get_book_repo),
+    extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
+    stash: ImageStash = Depends(get_image_stash),
+):
+    """Re-run extraction against the stashed photo with (possibly edited) instructions."""
+    book = await book_repo.get_or_raise(book_id)
+
+    image_bytes = stash.get(image_token)
+    if image_bytes is None:
+        return templates.TemplateResponse(
+            request,
+            "add_highlight.html",
+            _phase1_context(book, instructions, IMAGE_EXPIRED_MESSAGE),
+        )
+
+    return await _run_extraction(
+        request,
+        book,
+        instructions,
+        image_bytes,
+        "re-extract.jpg",
+        image_token,
+        db,
+        extractor,
     )
 
 

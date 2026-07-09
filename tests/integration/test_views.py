@@ -232,6 +232,129 @@ class TestAddHighlightView:
         assert "Confidence: high" in response.text
         assert "Review" in response.text
         assert "Adjust Selection" in response.text
+        # An exact match: no failed-match notice, save enabled, editor preselects
+        assert "match-failed-notice" not in response.text
+        assert '"exact"' in response.text
+        assert 'aria-disabled="true"' not in response.text
+        # Re-extract path is offered with a stash token
+        assert "re-extract-form" in response.text
+        assert 'name="image_token"' in response.text
+
+    async def test_extract_empty_result_shows_explicit_error(
+        self, client: AsyncClient, sample_book, mock_highlight_extractor_service
+    ):
+        """Empty extraction must render an explicit error, not a silent form."""
+        from app.services.highlight_extractor import ExtractedHighlight
+
+        mock_highlight_extractor_service.extract_highlight.return_value = ExtractedHighlight(
+            full_text="", highlight_text="", confidence="low", page_number=None
+        )
+
+        response = await client.post(
+            f"/books/{sample_book.id}/extract",
+            data={"instructions": "grab the marked bit"},
+            files={"image": ("test.jpg", io.BytesIO(b"fake image data"), "image/jpeg")},
+        )
+        assert response.status_code == 200
+        assert "extract-error" in response.text
+        assert "read the page" in response.text
+        # User's instructions are preserved for the retry
+        assert "grab the marked bit" in response.text
+        # No editor is rendered
+        assert 'id="highlight-editor"' not in response.text
+        # Manual entry accordion is open as the fallback path
+        assert '<div id="manual-section" class="">' in response.text
+
+    async def test_extract_whole_page_fallback_renders_failed_match(
+        self, client: AsyncClient, sample_book, mock_highlight_extractor_service
+    ):
+        """Whole-page matcher fallback must not masquerade as a real result."""
+        from app.services.highlight_extractor import ExtractedHighlight
+
+        full_text = "Some page text that was read correctly from the photo."
+        mock_highlight_extractor_service.extract_highlight.return_value = ExtractedHighlight(
+            full_text=full_text,
+            highlight_text="a passage that is not in the page text",
+            confidence="high",
+            page_number="7",
+            highlight_start=0,
+            highlight_end=len(full_text),
+        )
+
+        response = await client.post(
+            f"/books/{sample_book.id}/extract",
+            data={"instructions": "the highlighted text"},
+            files={"image": ("test.jpg", io.BytesIO(b"fake image data"), "image/jpeg")},
+        )
+        assert response.status_code == 200
+        # Editor renders with the failed-match notice and no pre-selection
+        assert 'id="highlight-editor"' in response.text
+        assert "match-failed-notice" in response.text
+        assert '"failed"' in response.text
+        # LLM's self-rated "high" must not produce a green badge
+        assert "Confidence:" not in response.text
+        # Save field starts empty and Save is disabled until manual selection
+        assert 'name="text" value=""' in response.text
+        assert 'aria-disabled="true"' in response.text
+
+    async def test_extract_fuzzy_match_caps_confidence(
+        self, client: AsyncClient, sample_book, mock_highlight_extractor_service
+    ):
+        """A fuzzy (non-exact) span match caps the confidence badge at medium."""
+        from app.services.highlight_extractor import ExtractedHighlight
+
+        mock_highlight_extractor_service.extract_highlight.return_value = ExtractedHighlight(
+            full_text="The quick brown fox jumps over the lazy dog.",
+            highlight_text="quick brwon fox",  # OCR noise: not a verbatim substring
+            confidence="high",
+            page_number=None,
+            highlight_start=4,
+            highlight_end=19,
+        )
+
+        response = await client.post(
+            f"/books/{sample_book.id}/extract",
+            data={"instructions": "the highlighted text"},
+            files={"image": ("test.jpg", io.BytesIO(b"fake image data"), "image/jpeg")},
+        )
+        assert response.status_code == 200
+        assert "Confidence: medium" in response.text
+        assert "Confidence: high" not in response.text
+
+    async def test_re_extract_with_valid_token(
+        self, client: AsyncClient, sample_book, mock_highlight_extractor_service, test_image_stash
+    ):
+        """Re-extract reruns extraction against the stashed photo."""
+        token = test_image_stash.put(b"stashed image bytes")
+
+        response = await client.post(
+            f"/books/{sample_book.id}/re-extract",
+            data={"instructions": "try again with more care", "image_token": token},
+        )
+        assert response.status_code == 200
+        assert 'id="highlight-editor"' in response.text
+        assert "This is an extracted highlight." in response.text
+        # The same token is re-embedded so re-extract can be repeated
+        assert token in response.text
+        # The stashed bytes were fed back into the extractor
+        call_kwargs = mock_highlight_extractor_service.extract_highlight.call_args.kwargs
+        assert call_kwargs["image_bytes"] == b"stashed image bytes"
+        assert call_kwargs["instructions"] == "try again with more care"
+
+    async def test_re_extract_with_expired_token_falls_back_to_upload(
+        self, client: AsyncClient, sample_book, test_image_stash
+    ):
+        """An expired/unknown stash token degrades gracefully to re-upload."""
+        response = await client.post(
+            f"/books/{sample_book.id}/re-extract",
+            data={"instructions": "the highlighted text", "image_token": "unknowntokenvalue"},
+        )
+        assert response.status_code == 200
+        assert "no longer available" in response.text
+        # Back to the upload form, with instructions preserved
+        assert "extract-form" in response.text
+        assert "the highlighted text" in response.text
+        assert 'id="highlight-editor"' not in response.text
 
     async def test_create_highlight_form(self, client: AsyncClient, sample_book):
         """Test creating a highlight via form."""
