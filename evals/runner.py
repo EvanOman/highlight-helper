@@ -47,6 +47,8 @@ class EvalRunner:
         pipeline: Pipeline,
         offline: bool = False,
         cache_path: Path | str | None = None,
+        case_filter: str | None = None,
+        tag_filter: str | None = None,
     ) -> None:
         self.dataset_path = Path(dataset_path)
         self.pipeline = pipeline
@@ -54,13 +56,22 @@ class EvalRunner:
         self.cache_path = (
             Path(cache_path) if cache_path else self.dataset_path.parent / "cache.json"
         )
+        # Comma-separated substring filters used to run a cheap subset during
+        # iteration (e.g. only the failing categories). None = whole dataset.
+        self.case_filter = [s.strip() for s in case_filter.split(",")] if case_filter else None
+        self.tag_filter = [s.strip() for s in tag_filter.split(",")] if tag_filter else None
         self.cases: list[EvalCase] = []
         self._cache: dict[str, dict] = {}
 
     def load_dataset(self) -> None:
         with open(self.dataset_path, encoding="utf-8") as f:
             data = json.load(f)
-        self.cases = [EvalCase.from_dict(c) for c in data.get("cases", [])]
+        cases = [EvalCase.from_dict(c) for c in data.get("cases", [])]
+        if self.case_filter:
+            cases = [c for c in cases if any(f in c.id for f in self.case_filter)]
+        if self.tag_filter:
+            cases = [c for c in cases if any(f in tag for f in self.tag_filter for tag in c.tags)]
+        self.cases = cases
 
     def load_cache(self) -> None:
         if self.cache_path.exists():
@@ -123,8 +134,10 @@ class EvalRunner:
     async def run(self, verbose: bool = False) -> EvalReport:
         if not self.cases:
             self.load_dataset()
-        if self.offline:
-            self.load_cache()
+        # Always load the existing cache first. Offline mode replays it; online
+        # mode merges fresh outputs into it so running one pipeline (or a
+        # filtered subset) never wipes another pipeline's cached entries.
+        self.load_cache()
 
         base_path = self.dataset_path.parent
         results: list[EvalResult] = []
@@ -189,8 +202,17 @@ def run_evals(
     offline: bool = False,
     cache_path: str | Path | None = None,
     verbose: bool = False,
+    case_filter: str | None = None,
+    tag_filter: str | None = None,
 ) -> EvalReport:
-    """Convenience wrapper: build the pipeline and run the whole dataset."""
+    """Convenience wrapper: build the pipeline and run the (optionally filtered) dataset."""
     pipeline = build_pipeline(pipeline_id)
-    runner = EvalRunner(dataset_path, pipeline, offline=offline, cache_path=cache_path)
+    runner = EvalRunner(
+        dataset_path,
+        pipeline,
+        offline=offline,
+        cache_path=cache_path,
+        case_filter=case_filter,
+        tag_filter=tag_filter,
+    )
     return asyncio.run(runner.run(verbose=verbose))

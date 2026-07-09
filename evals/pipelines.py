@@ -26,16 +26,22 @@ class Pipeline(Protocol):
 
 
 class ServicePipeline:
-    """Default pipeline: the production :class:`HighlightExtractorService`."""
+    """Default pipeline: the production :class:`HighlightExtractorService`.
+
+    ``enable_cache`` is exposed so eval variants can turn DSPy's disk cache off
+    and measure real latency/cost; production keeps it on (harmless — each photo
+    is unique and discarded).
+    """
 
     id = "service"
+    enable_cache = True
 
     def __init__(self) -> None:
         # Imported lazily so offline runs never need the app's LLM config.
         from app.core.config import get_settings
         from app.services.highlight_extractor import HighlightExtractorService
 
-        self._service = HighlightExtractorService()
+        self._service = HighlightExtractorService(enable_cache=self.enable_cache)
         self.model = get_settings().vision_model
 
     async def extract(
@@ -59,10 +65,25 @@ class ServicePipeline:
         )
 
 
+class ServiceV2Pipeline(ServicePipeline):
+    """W3 measurement pipeline: the same (now-improved) production service, but
+    with the DSPy cache OFF so every online run reports genuine latency and cost.
+
+    It carries a distinct ``id`` purely so its cached outputs live in their own
+    key namespace and never overwrite or replay the frozen ``service`` baseline.
+    Behaviourally it is identical to :class:`ServicePipeline`; the production
+    default therefore already ships the improved pipeline.
+    """
+
+    id = "service-v2"
+    enable_cache = False
+
+
 # Registry of pipeline factories selectable via --pipeline. Add new pipelines
 # here (or register at runtime) to A/B them against the baseline.
 PIPELINE_FACTORIES: dict[str, type] = {
     "service": ServicePipeline,
+    "service-v2": ServiceV2Pipeline,
 }
 
 

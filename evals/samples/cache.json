@@ -16,6 +16,23 @@
     },
     "pipeline_id": "service"
   },
+  "05f17dd989d3a08c6ba39a6aa8330585882989db859b66f0f0bfe128d8f9e198": {
+    "case_id": "bread-marker-degraded",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 3895.5404490116052,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.010769500000000001,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.\n\n77",
+      "highlight_end": 540,
+      "highlight_start": 473,
+      "highlight_text": "There comes a moment when the dough stops fighting and turns supple",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "77"
+    },
+    "pipeline_id": "service-v2"
+  },
   "07da23273f111311708383f02d8660ec837b1752bd90bcb94093415976ae19d9": {
     "case_id": "beekeeping-underline-clean",
     "instruction": "Extract the highlighted phrase.",
@@ -50,6 +67,40 @@
     },
     "pipeline_id": "service"
   },
+  "0c2b61ebc3192110c7757a50608548f9864c83e2623c4e9e44be93caae4d2c7c": {
+    "case_id": "gardening-instruction-warped-33",
+    "instruction": "Find the sentence about which tool never wears out.",
+    "latency_ms": 3745.161930011818,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01052625,
+      "full_text": "Notes from a Working Garden\n\nEvery garden keeps its own calendar, and the\nwise grower learns to listen to it rather than to\nthe printed one on the seed packet. Soil that stays\ncold long into spring will rot an early seed, while\nthe same bed a fortnight later may coax it into a\nsturdy, unhurried start.\nCompost is the garden's memory. Each spent leaf\nand trimming returns to the heap, breaks down\nthrough a slow warmth, and comes back the follo-\nwing year as dark crumbling earth. Nothing in a\ngood garden is truly thrown away; it is only lent\nto the pile for a season.\nPatience is the only tool that never wears out. A\nseedling cannot be hurried, and a fruit tree will\nfruit on its own schedule regardless of how often\nit is inspected. The grower who checks less and\ntends more usually gathers the fuller basket in\nthe end.",
+      "highlight_end": 617,
+      "highlight_start": 570,
+      "highlight_text": "Patience is the only tool that never wears out.",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "33"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "0d806f640b17aa4f49afb9b3d3d4d648cb190b60d5b6cd4245fee51d50413109": {
+    "case_id": "tides-underline-degraded",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 3296.210645989049,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0098315,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.",
+      "highlight_end": 90,
+      "highlight_start": 26,
+      "highlight_text": "The tide is the ocean leaning, ever so slightly, toward the moon",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "12"
+    },
+    "pipeline_id": "service-v2"
+  },
   "0dc197c844a54a66e10d55985bd1f007a7e427af413ac8315edd7d6085bd23c7": {
     "case_id": "astronomy-underline-degraded",
     "instruction": "Extract the highlighted text.",
@@ -66,6 +117,74 @@
       "page_number": "58"
     },
     "pipeline_id": "service"
+  },
+  "0eb8144d5b21a7c7a733a97dd93cce4334ce8bdc42342457d2d0c47b6179f9b9": {
+    "case_id": "bread-underline-degraded",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 3275.9768269897904,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.010391500000000001,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.",
+      "highlight_end": 540,
+      "highlight_start": 473,
+      "highlight_text": "There comes a moment when the dough stops fighting and turns supple",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "77"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "1048bd5c11fe49ad90a90dcfb79f57a72c694b36d8d7f3c0439ee1569d609e2a": {
+    "case_id": "astronomy-marker-warped",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 4056.7895419953857,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0106435,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 444,
+      "highlight_start": 370,
+      "highlight_text": "it can resolve the rings of a distant planet into a clean bright ellipse",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "58"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "13d919ea033c94f005b0cb56721eeebb924f1472ca88a35005aa7e048bd3a5ca": {
+    "case_id": "beekeeping-underline-clean",
+    "instruction": "Extract the highlighted phrase.",
+    "latency_ms": 4795.622511999682,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.014031500000000002,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper's real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 419,
+      "highlight_start": 363,
+      "highlight_text": "Most of what a beginner does to a hive is a disturbance,",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "104"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "16e291a3538927a256f4f8310f72a56e59dad09cc8ad4548519fa91f2fc1d872": {
+    "case_id": "beekeeping-marker-clean",
+    "instruction": "Extract the highlighted phrase.",
+    "latency_ms": 3626.4431640156545,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.009607500000000001,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper's real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 419,
+      "highlight_start": 363,
+      "highlight_text": "Most of what a beginner does to a hive is a disturbance,",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "104"
+    },
+    "pipeline_id": "service-v2"
   },
   "193ac3b1c1703955d5d6c477eff80abf0b8dedadbdbf6fb1b72029ef07b1ecba": {
     "case_id": "astronomy-marker-clean",
@@ -101,6 +220,57 @@
     },
     "pipeline_id": "service"
   },
+  "1f7cb975e03dc9b23969058f3d901c839501967111ab1186d28344124e01ed4d": {
+    "case_id": "tides-marker-clean",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 4411.5351760119665,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0137795,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.",
+      "highlight_end": 91,
+      "highlight_start": 26,
+      "highlight_text": "The tide is the ocean leaning, ever so slightly, toward the moon.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "12"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "1f970cb46f2a51c9bd42a0747990113793d5c2bb9180d8133c0f64d58e5f4978": {
+    "case_id": "tides-marker-warped",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 2685.680491005769,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.009215500000000001,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.",
+      "highlight_end": 91,
+      "highlight_start": 26,
+      "highlight_text": "The tide is the ocean leaning, ever so slightly, toward the moon.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "12"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "295cf537b4b17448aeda476a646f55ed80a1536c33072fbc84e2c492190c5ceb": {
+    "case_id": "sailing-marker-warped",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 5341.619337996235,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0148855,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.",
+      "highlight_end": 303,
+      "highlight_start": 210,
+      "highlight_text": "A good sailor learns to read the water for the darker ruffled patches that mark a coming gust",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "23"
+    },
+    "pipeline_id": "service-v2"
+  },
   "2b826e39b7732cef30d009c2ce38f9ece6a52df30a04964e3ac0c45bfe2a6c83": {
     "case_id": "tides-underline-clean",
     "instruction": "Extract the highlighted sentence.",
@@ -117,6 +287,23 @@
       "page_number": "12"
     },
     "pipeline_id": "service"
+  },
+  "2d28d31b9bb2c678cbe58b9cf2c465b44550186acda29728833ec2b691948f16": {
+    "case_id": "printing-negative-clean",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 3407.692387991119,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0114555,
+      "full_text": "The Long Road of the Printed Page\n\nFor most of human history a book was a scarce and costly\nthing, copied by hand one letter at a time. A single volume\nmight occupy a scribe for the better part of a year, and the\nsmallest slip of the pen was carried forward into every copy\nthat followed. Knowledge moved slowly because its vessel was\nso laborious to make.\nThe arrival of movable type did not so much invent printing as\nmake it patient and repeatable. Individual letters, cast in\nmetal and arranged into lines, could be inked, pressed onto a\nsheet, and then broken apart and set again for the next page.\nThe labor that had once produced one book could now\nproduce hundreds, each identical to the last.\nWhat followed was less a single invention than a long cascade\nof consequences. Cheaper books meant more readers; more\nreaders meant a wider appetite for books, which pressed prin-\nters to work faster and to standardize their letters, their spelli-\nng, and eventually their whole trade. A quiet mechanical impr-\novement in a workshop slowly rearranged who was allowed to\nknow things.\nIt is tempting to imagine the change as sudden, but it was not.\nFor generations the printed book imitated the handwritten\none, borrowing its cramped abbreviations and its ornamented\ncapitals, as though embarrassed to admit it was a machine's\nwork. Only gradually did the printed page learn to look like\nitself, plain and legible and unashamed.\n\n144",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": "144"
+    },
+    "pipeline_id": "service-v2"
   },
   "349f14602ee2ef9a724475d49e1e18b34a3048055685b104f6276045add0460e": {
     "case_id": "gardening-instruction-warped-33",
@@ -169,6 +356,23 @@
     },
     "pipeline_id": "service"
   },
+  "3f2599438b31b3e949930a71c4116ea5eae2b8d9ee926f68a24b2e68c2ad9179": {
+    "case_id": "sailing-marker-degraded",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 4528.871315007564,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.013989499999999998,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.",
+      "highlight_end": 303,
+      "highlight_start": 210,
+      "highlight_text": "A good sailor learns to read the water for the darker ruffled patches that mark a coming gust",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "23"
+    },
+    "pipeline_id": "service-v2"
+  },
   "418c2a2a92c96086185dd61b22bebf337b3085a975c82ac74c890ed1689dd255": {
     "case_id": "beekeeping-marker-clean",
     "instruction": "Extract the highlighted phrase.",
@@ -202,6 +406,57 @@
       "page_number": "144"
     },
     "pipeline_id": "service"
+  },
+  "4d13a74fb562b545be8d1f319545ea072b0289574962869402aedbc8415517f1": {
+    "case_id": "bread-instruction-warped-78",
+    "instruction": "Extract the sentence about what the oven does.",
+    "latency_ms": 4548.352482990595,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0145705,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.",
+      "highlight_end": 657,
+      "highlight_start": 618,
+      "highlight_text": "The oven finishes what the hands began.",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "78"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "5221c719c2addd48201412c128550abb9e73752e535f8943b462b51f3cf119d7": {
+    "case_id": "astronomy-marker-clean",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 3529.2874799924903,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0106295,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 444,
+      "highlight_start": 370,
+      "highlight_text": "it can resolve the rings of a distant planet into a clean bright ellipse",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "58"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "527aeb98ccc9f05b0274b1126e37a802e2ac030bb56d2ee164b45e14753833f4": {
+    "case_id": "astronomy-underline-clean",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 6047.753782011569,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0158095,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 444,
+      "highlight_start": 370,
+      "highlight_text": "it can resolve the rings of a distant planet into a clean bright ellipse",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "58"
+    },
+    "pipeline_id": "service-v2"
   },
   "52c2188a3d2dd7274e9c349f292aa99a3bfddb56c421c21ed91d87c3caf8c26c": {
     "case_id": "printing-marker-degraded-142-x",
@@ -288,6 +543,40 @@
     },
     "pipeline_id": "service"
   },
+  "63857c34446577b15ffa8e562995464741defbe8e29f9951d95fdc85059715b4": {
+    "case_id": "printing-marker-clean-141-multi-sentence",
+    "instruction": "Extract the highlighted multi-sentence passage.",
+    "latency_ms": 4453.189305000706,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01242675,
+      "full_text": "The Long Road of the Printed Page\n\nFor most of human history a book was a scarce and costly\nthing, copied by hand one letter at a time. A single volume\nmight occupy a scribe for the better part of a year, and the\nsmallest slip of the pen was carried forward into every copy\nthat followed. Knowledge moved slowly because its vessel was\nso laborious to make.\nThe arrival of movable type did not so much invent printing as\nmake it patient and repeatable. Individual letters, cast in\nmetal and arranged into lines, could be inked, pressed onto a\nsheet, and then broken apart and set again for the next page.\nThe labor that had once produced one book could now\nproduce hundreds, each identical to the last.\nWhat followed was less a single invention than a long cascade\nof consequences. Cheaper books meant more readers; more\nreaders meant a wider appetite for books, which pressed prin-\nters to work faster and to standardize their letters, their spelli-\nng, and eventually their whole trade. A quiet mechanical impr-\novement in a workshop slowly rearranged who was allowed to\nknow things.\nIt is tempting to imagine the change as sudden, but it was not.\nFor generations the printed book imitated the handwritten\none, borrowing its cramped abbreviations and its ornamented\ncapitals, as though embarrassed to admit it was a machine's\nwork. Only gradually did the printed page learn to look like\nitself, plain and legible and unashamed.\n\n141",
+      "highlight_end": 602,
+      "highlight_start": 452,
+      "highlight_text": "Individual letters, cast in metal and arranged into lines, could be inked, pressed onto a sheet, and then broken apart and set again for the next page",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "141"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "661bdb4250e014c796dc794879046bb28ed35899d9b6ac7a4e201fee17355f38": {
+    "case_id": "tides-marker-degraded",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 2999.8034489981364,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0094395,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.",
+      "highlight_end": 91,
+      "highlight_start": 26,
+      "highlight_text": "The tide is the ocean leaning, ever so slightly, toward the moon.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "12"
+    },
+    "pipeline_id": "service-v2"
+  },
   "6780fba15f5c99e094552ddd6c1e097fe7a47018ba62a81a79136bb5f6c0418d": {
     "case_id": "cartography-hyphen-clean",
     "instruction": "Extract the highlighted words (one is split across a line break).",
@@ -322,6 +611,23 @@
     },
     "pipeline_id": "service"
   },
+  "6921c7082bad5d836ec2583658e199df8d5eef4ba54169197270279f32fcc889": {
+    "case_id": "printing-marker-clean-141-x",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 3529.477525007678,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0118615,
+      "full_text": "The Long Road of the Printed Page\n\nFor most of human history a book was a scarce and costly\nthing, copied by hand one letter at a time. A single volume\nmight occupy a scribe for the better part of a year, and the\nsmallest slip of the pen was carried forward into every copy\nthat followed. Knowledge moved slowly because its vessel was\nso laborious to make.\nThe arrival of movable type did not so much invent printing as\nmake it patient and repeatable. Individual letters, cast in\nmetal and arranged into lines, could be inked, pressed onto a\nsheet, and then broken apart and set again for the next page.\nThe labor that had once produced one book could now\nproduce hundreds, each identical to the last.\nWhat followed was less a single invention than a long cascade\nof consequences. Cheaper books meant more readers; more\nreaders meant a wider appetite for books, which pressed prin-\nters to work faster and to standardize their letters, their spelli-\nng, and eventually their whole trade. A quiet mechanical impr-\novement in a workshop slowly rearranged who was allowed to\nknow things.\nIt is tempting to imagine the change as sudden, but it was not.\nFor generations the printed book imitated the handwritten\none, borrowing its cramped abbreviations and its ornamented\ncapitals, as though embarrassed to admit it was a machine's\nwork. Only gradually did the printed page learn to look like\nitself, plain and legible and unashamed.",
+      "highlight_end": 451,
+      "highlight_start": 357,
+      "highlight_text": "The arrival of movable type did not so much invent printing as make it patient and repeatable.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "141"
+    },
+    "pipeline_id": "service-v2"
+  },
   "6cbbe5c559232a5a5a588291492eb45231c239bd3d2d7c87d53307787ad6b4bd": {
     "case_id": "sailing-underline-degraded",
     "instruction": "Extract the highlighted sentence.",
@@ -338,6 +644,23 @@
       "page_number": "23"
     },
     "pipeline_id": "service"
+  },
+  "6ed1858943bba981e9aa3d558498d4cb78f2ef833041e8b5a45d909575905f87": {
+    "case_id": "printing-underline-clean-140-x",
+    "instruction": "Extract the underlined text.",
+    "latency_ms": 6508.465213002637,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01933925,
+      "full_text": "The Long Road of the Printed Page\n\nFor most of human history a book was a scarce and costly\nthing, copied by hand one letter at a time. A single volume\nmight occupy a scribe for the better part of a year, and the\nsmallest slip of the pen was carried forward into every copy\nthat followed. Knowledge moved slowly because its vessel was\nso laborious to make.\nThe arrival of movable type did not so much invent printing as\nmake it patient and repeatable. Individual letters, cast in\nmetal and arranged into lines, could be inked, pressed onto a\nsheet, and then broken apart and set again for the next page.\nThe labor that had once produced one book could now\nproduce hundreds, each identical to the last.\nWhat followed was less a single invention than a long cascade\nof consequences. Cheaper books meant more readers; more\nreaders meant a wider appetite for books, which pressed prin-\nters to work faster and to standardize their letters, their spelli-\nng, and eventually their whole trade. A quiet mechanical impr-\novement in a workshop slowly rearranged who was allowed to\nknow things.\nIt is tempting to imagine the change as sudden, but it was not.\nFor generations the printed book imitated the handwritten\none, borrowing its cramped abbreviations and its ornamented\ncapitals, as though embarrassed to admit it was a machine's\nwork. Only gradually did the printed page learn to look like\nitself, plain and legible and unashamed.",
+      "highlight_end": 203,
+      "highlight_start": 136,
+      "highlight_text": "A single volume might occupy a scribe for the better part of a year",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "140"
+    },
+    "pipeline_id": "service-v2"
   },
   "6f51d55a1dbafe02d6fa9299abb564408e234d156039f8b7282bdbb934529377": {
     "case_id": "cartography-hyphen-degraded",
@@ -373,6 +696,74 @@
     },
     "pipeline_id": "service"
   },
+  "7282735d30130f4cc19d684dd88af122eeb28dc1f8ff8c3915c829e92ef0f0e7": {
+    "case_id": "gardening-instruction-clean-31",
+    "instruction": "Extract the sentence that describes what compost is.",
+    "latency_ms": 3110.4447210091166,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0101325,
+      "full_text": "Notes from a Working Garden\n\nEvery garden keeps its own calendar, and the\nwise grower learns to listen to it rather than to\nthe printed one on the seed packet. Soil that stays\ncold long into spring will rot an early seed, while\nthe same bed a fortnight later may coax it into a\nsturdy, unhurried start.\nCompost is the garden's memory. Each spent leaf\nand trimming returns to the heap, breaks down\nthrough a slow warmth, and comes back the follo-\nwing year as dark crumbling earth. Nothing in a\ngood garden is truly thrown away; it is only lent\nto the pile for a season.\nPatience is the only tool that never wears out. A\nseedling cannot be hurried, and a fruit tree will\nfruit on its own schedule regardless of how often\nit is inspected. The grower who checks less and\ntends more usually gathers the fuller basket in\nthe end.",
+      "highlight_end": 334,
+      "highlight_start": 303,
+      "highlight_text": "Compost is the garden's memory.",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "31"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "75342122d13eb4a2e21d775a8ba6759bbc55c82397f4363cf1db4107c73f962a": {
+    "case_id": "astronomy-marker-degraded",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 5021.223370014923,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0156975,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 444,
+      "highlight_start": 370,
+      "highlight_text": "it can resolve the rings of a distant planet into a clean bright ellipse",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "58"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "7696a18561ebc57da89dbc0707241d6c8081bff4527d276c26d252ccf80a1840": {
+    "case_id": "beekeeping-repeated-degraded",
+    "instruction": "Extract the highlighted words from the first paragraph (the phrase appears twice).",
+    "latency_ms": 4753.333456988912,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01407525,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper's real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 156,
+      "highlight_start": 150,
+      "highlight_text": "as one",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "103"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "7a18be5e4d35c1b7b87f542b7d894299d98fcda51bd154c6cc8fdb921bd1ace6": {
+    "case_id": "tides-underline-clean",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 3699.319054983789,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.009607500000000001,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.",
+      "highlight_end": 90,
+      "highlight_start": 26,
+      "highlight_text": "The tide is the ocean leaning, ever so slightly, toward the moon",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "12"
+    },
+    "pipeline_id": "service-v2"
+  },
   "7af71ccef5e8a2c93af744f9cd813da8423c6ae60a35223233bad447dc0e4e7c": {
     "case_id": "sailing-marker-degraded",
     "instruction": "Extract the highlighted sentence.",
@@ -406,6 +797,23 @@
       "page_number": "23"
     },
     "pipeline_id": "service"
+  },
+  "7eaa8130447b6480777cc3a96b4bb5dc9bae16ea3507a7ca0374798dc921fe8f": {
+    "case_id": "bread-underline-clean",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 5411.376889998792,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0157955,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.",
+      "highlight_end": 540,
+      "highlight_start": 473,
+      "highlight_text": "There comes a moment when the dough stops fighting and turns supple",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "77"
+    },
+    "pipeline_id": "service-v2"
   },
   "7ffa3511126e10a527aab6d69df13f2db074051407bd629c351e4514668ba8fb": {
     "case_id": "sailing-instruction-clean-24",
@@ -458,6 +866,40 @@
     },
     "pipeline_id": "service"
   },
+  "99d88fc1cd44a4c603d93273eb69652b0d032018c105abcbe94c16c4954c0335": {
+    "case_id": "sailing-marker-clean",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 6288.66414600634,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0146195,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.",
+      "highlight_end": 303,
+      "highlight_start": 210,
+      "highlight_text": "A good sailor learns to read the water for the darker ruffled patches that mark a coming gust",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "23"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "9b92ee2cbe07be03ca0e3599d4546bcb96e7a59263da5650ee1e8197035c240f": {
+    "case_id": "astronomy-multisentence-clean",
+    "instruction": "Extract the highlighted passage.",
+    "latency_ms": 3593.7946549966,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0108675,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 281,
+      "highlight_start": 89,
+      "highlight_text": "Stars wheel overhead through the hours, and the whole pattern shifts a little westward each evening, so that the constellations of winter give way in time to the different company of summer.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "57"
+    },
+    "pipeline_id": "service-v2"
+  },
   "9cbfb75d81ef5afdb66ab956f04608e6d6d140797451cabf1dd41f8741b9fc04": {
     "case_id": "tides-instruction-clean-13",
     "instruction": "Find the sentence explaining why sailors learn the tide first.",
@@ -492,6 +934,23 @@
     },
     "pipeline_id": "service"
   },
+  "9ea498cd3d335cbf0735a83f4e904711ea25fe9fd176c90a4bfb07f24d6dccea": {
+    "case_id": "beekeeping-negative-warped",
+    "instruction": "Extract the highlighted phrase.",
+    "latency_ms": 2580.4587259772234,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0088655,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper's real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": "105"
+    },
+    "pipeline_id": "service-v2"
+  },
   "9ec032ae5c8849936c49343eecf3cfcb70ee1939a604ccd67a80904780660cce": {
     "case_id": "bread-marker-clean",
     "instruction": "Extract the highlighted text.",
@@ -508,6 +967,23 @@
       "page_number": "77"
     },
     "pipeline_id": "service"
+  },
+  "9fc398f7e6a9592ebdf8dd895a65429c8f67e0e20dded2e4986cb8e04ae518fe": {
+    "case_id": "sailing-ambiguous-warped",
+    "instruction": "Just the key bit.",
+    "latency_ms": 4605.845465004677,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.014381499999999998,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\n\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.\n\n24",
+      "highlight_end": 434,
+      "highlight_start": 383,
+      "highlight_text": "Trimming is the quiet craft at the center of it all",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "24"
+    },
+    "pipeline_id": "service-v2"
   },
   "a347da0b393dd8b4e7ff3aa62e318467a77ea43fa68a2699a8ac1bbed9c2548b": {
     "case_id": "tides-marker-clean",
@@ -526,6 +1002,40 @@
     },
     "pipeline_id": "service"
   },
+  "a3ea1269fdbb4ea372cee3eba438965daab1e1ab050f4141bc3597d4f2e93038": {
+    "case_id": "astronomy-instruction-clean-60",
+    "instruction": "Extract the sentence stating the first rule of the hobby.",
+    "latency_ms": 4603.258208982879,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.014784000000000002,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.\n\n60",
+      "highlight_end": 846,
+      "highlight_start": 791,
+      "highlight_text": "The first rule of the hobby is simply to find the dark.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "60"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "a4b3b4db954a426dcdc865de962d89b1494d2248dc08f3fd2b38edc71d510a30": {
+    "case_id": "sailing-underline-degraded",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 4778.031952009769,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0142135,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.",
+      "highlight_end": 303,
+      "highlight_start": 210,
+      "highlight_text": "A good sailor learns to read the water for the darker ruffled patches that mark a coming gust",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "23"
+    },
+    "pipeline_id": "service-v2"
+  },
   "a583c1112f2027e744a9fa535e85d40d88eca69dd3f568d7cfcb11aa261e9c0c": {
     "case_id": "astronomy-marker-warped",
     "instruction": "Extract the highlighted text.",
@@ -542,6 +1052,23 @@
       "page_number": "58"
     },
     "pipeline_id": "service"
+  },
+  "a59426b1e70bc899d216bc8f926475d0d7d819b9aa4193a9482bd94dadd07e4f": {
+    "case_id": "bread-ambiguous-clean",
+    "instruction": "Get the important part.",
+    "latency_ms": 3336.54365001712,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0108535,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.",
+      "highlight_end": 169,
+      "highlight_start": 124,
+      "highlight_text": "Flour, water, salt, and time will make a loaf",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "76"
+    },
+    "pipeline_id": "service-v2"
   },
   "a62b2a517975c4cafc4ffb090b52a3e2b7bfe262f132c9452cd35749539d23fa": {
     "case_id": "gardening-negative-clean",
@@ -577,6 +1104,40 @@
     },
     "pipeline_id": "service"
   },
+  "a8d57c8e5b58fe97ab585ea77787a07881980018287824feec6afc50a0816a5f": {
+    "case_id": "beekeeping-marker-warped",
+    "instruction": "Extract the highlighted phrase.",
+    "latency_ms": 3514.7763510176446,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0093555,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper's real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 418,
+      "highlight_start": 363,
+      "highlight_text": "Most of what a beginner does to a hive is a disturbance",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "104"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "aa86937b9d004ed8f518172f291394384b88412977e104592fc9b48f990551c0": {
+    "case_id": "sailing-repeated-clean",
+    "instruction": "Extract the first highlighted phrase (these two words recur later on the page).",
+    "latency_ms": 4577.20459002303,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.014034999999999999,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.\n\n22",
+      "highlight_end": 65,
+      "highlight_start": 57,
+      "highlight_text": "by being",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "22"
+    },
+    "pipeline_id": "service-v2"
+  },
   "acebdff8e012a265ee99c8e899178e0293de3806ff2e717f415b08ff4c03de6b": {
     "case_id": "bread-marker-warped",
     "instruction": "Extract the highlighted text.",
@@ -610,6 +1171,23 @@
       "page_number": "77"
     },
     "pipeline_id": "service"
+  },
+  "b08ee993f2dcb0153ab0a5b30dfd2442b2523b5c9bd9a644955b9ace5ae3c0ba": {
+    "case_id": "astronomy-negative-degraded",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 4264.2716740083415,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.013919500000000001,
+      "full_text": "Looking Up: An Amateur\u2019s Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": "59"
+    },
+    "pipeline_id": "service-v2"
   },
   "b0e4cd58f643cb10a79dcede509384510714355883b4c651b55129a51bb28363": {
     "case_id": "sailing-marker-clean",
@@ -662,6 +1240,23 @@
     },
     "pipeline_id": "service"
   },
+  "b4d05daf0f46144fbeca105c50588d757f138c2ae74d9d8a80e61d6be85c749d": {
+    "case_id": "tides-negative-clean",
+    "instruction": "Extract the underlined passage.",
+    "latency_ms": 4265.0809479819145,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01267525,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.\n\n11",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": "11"
+    },
+    "pipeline_id": "service-v2"
+  },
   "b5fa20fdbdca20e63cd3cfdc1f4a038b06b489f3e02827324def163f9bad69d7": {
     "case_id": "beekeeping-repeated-degraded",
     "instruction": "Extract the highlighted words from the first paragraph (the phrase appears twice).",
@@ -696,6 +1291,74 @@
     },
     "pipeline_id": "service"
   },
+  "bf7c489dc2b6e4743e525429edd79fcd2a4c5f29a0540f6951c2228b077639e6": {
+    "case_id": "printing-marker-degraded-142-x",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 6701.912921009352,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0189315,
+      "full_text": "The Long Road of the Printed Page\n\nFor most of human history a book was a scarce and costly\nthing, copied by hand one letter at a time. A single volume\nmight occupy a scribe for the better part of a year, and the\nsmallest slip of the pen was carried forward into every copy\nthat followed. Knowledge moved slowly because its vessel was\nso laborious to make.\nThe arrival of movable type did not so much invent printing as\nmake it patient and repeatable. Individual letters, cast in\nmetal and arranged into lines, could be inked, pressed onto a\nsheet, and then broken apart and set again for the next page.\nThe labor that had once produced one book could now\nproduce hundreds, each identical to the last.\nWhat followed was less a single invention than a long cascade\nof consequences. Cheaper books meant more readers; more\nreaders meant a wider appetite for books, which pressed prin-\nters to work faster and to standardize their letters, their spelli-\nng, and eventually their whole trade. A quiet mechanical impr-\novement in a workshop slowly rearranged who was allowed to\nknow things.\nIt is tempting to imagine the change as sudden, but it was not.\nFor generations the printed book imitated the handwritten\none, borrowing its cramped abbreviations and its ornamented\ncapitals, as though embarrassed to admit it was a machine's\nwork. Only gradually did the printed page learn to look like\nitself, plain and legible and unashamed.",
+      "highlight_end": 833,
+      "highlight_start": 781,
+      "highlight_text": "Cheaper books meant more readers; more readers meant",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "142"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "c47d6267366d49030e450e48c8e4b34c8bb27389598e237fc2c74a7cd677782c": {
+    "case_id": "cartography-hyphen-clean",
+    "instruction": "Extract the highlighted words (one is split across a line break).",
+    "latency_ms": 3541.6855459916405,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.011133500000000001,
+      "full_text": "Measuring the Ground Beneath Us\n\nBefore a coastline could be drawn it had to be\nmeasured, and measuring the curved and stubbo-\nrn surface of the world was the great unglamoro-\nus labor of cartography. Surveyors dragged their\nchains across fields and marshland, sighting from\none hilltop to the next, building a scaffolding of\ntriangulation that quietly underpinned every han-\ndsome published map.\nThe trick that made it possible was disarmingly\nsimple. If you know the length of one baseline and\nthe angles to a distant landmark from each of its\nends, the geometry of the triangle hands you the\ntwo remaining distances without your ever\nwalking them. From a single carefully measured\nline an entire country could be chained together,\nhilltop by hilltop, into a consistent and trustwort-\nhy framework.\nWhat the finished map concealed was all this\neffort. A traveller unrolling a chart saw only clean\ncoastlines and confident meridians, never the\nyears of cold mornings and careful arithmetic that\nstood behind every reassuring line.",
+      "highlight_end": 137,
+      "highlight_start": 115,
+      "highlight_text": "and stubborn surface",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "88"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "c6a630176071068efd804bf6c802fd2c4a1289966d0d92d7259702a6d9f0e5af": {
+    "case_id": "sailing-underline-clean",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 3505.679087014869,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.009607500000000001,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.",
+      "highlight_end": 303,
+      "highlight_start": 224,
+      "highlight_text": "learns to read the water for the darker ruffled patches that mark a coming gust",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "23"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "c7021ce71d497e9abaae9866f6bfb15000e8c4a3a60c62b0bf02e226264e308f": {
+    "case_id": "astronomy-underline-degraded",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 3688.6629269865807,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.010727500000000001,
+      "full_text": "Looking Up: An Amateur's Guide\n\nThe night sky is not a fixed ceiling but a slow\nmachine. Stars wheel overhead through the\nhours, and the whole pattern shifts a little westw-\nard each evening, so that the constellations of\nwinter give way in time to the different company\nof summer.\nA small telescope changes everything and nothin-\ng. It cannot bring a galaxy close, yet it can resolve\nthe rings of a distant planet into a clean bright ell-\nipse, or split a single point of light into the pair of\nstars it always secretly was. The reward is not\nsize but revelation.\nDark skies are the true instrument. No lens can\nundo the glow of a city, and the observer who\ndrives an hour into the countryside will see more\nwith plain eyes than another sees through expens-\nive glass beneath a streetlamp. The first rule of\nthe hobby is simply to find the dark.",
+      "highlight_end": 444,
+      "highlight_start": 370,
+      "highlight_text": "it can resolve the rings of a distant planet into a clean bright ellipse",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "58"
+    },
+    "pipeline_id": "service-v2"
+  },
   "c901a72ec833f4ec8733fc8d725cefb82b3a3af444121dcdba369667462f72e7": {
     "case_id": "sailing-marker-warped",
     "instruction": "Extract the highlighted sentence.",
@@ -729,6 +1392,57 @@
       "page_number": "31"
     },
     "pipeline_id": "service"
+  },
+  "ca8428a74b5a052c46bc9dd90f9ba7f48de51decefef5d41ab01ab0780800249": {
+    "case_id": "beekeeping-underline-degraded",
+    "instruction": "Extract the highlighted phrase.",
+    "latency_ms": 4403.283118997933,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0138495,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper\u2019s real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 418,
+      "highlight_start": 363,
+      "highlight_text": "Most of what a beginner does to a hive is a disturbance",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "104"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "d3b71bc35e17914f15aae00ea19d59c2f1c1af97623bce8bdf7773c9bb5908e2": {
+    "case_id": "bread-marker-warped",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 5318.334602983668,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0105875,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.",
+      "highlight_end": 541,
+      "highlight_start": 473,
+      "highlight_text": "There comes a moment when the dough stops fighting and turns supple,",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "77"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "db42a5b7250fa9fb024e52f33cdad6792281902fb63fddc2a2d6cd1f2632a43e": {
+    "case_id": "printing-hyphen-clean",
+    "instruction": "Extract the highlighted words (a word is hyphenated at the line break).",
+    "latency_ms": 3955.2583009935915,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01182475,
+      "full_text": "The Long Road of the Printed Page\n\nFor most of human history a book was a scarce and costly\nthing, copied by hand one letter at a time. A single volume\nmight occupy a scribe for the better part of a year, and the\nsmallest slip of the pen was carried forward into every copy\nthat followed. Knowledge moved slowly because its vessel was\nso laborious to make.\nThe arrival of movable type did not so much invent printing as\nmake it patient and repeatable. Individual letters, cast in\nmetal and arranged into lines, could be inked, pressed onto a\nsheet, and then broken apart and set again for the next page.\nThe labor that had once produced one book could now\nproduce hundreds, each identical to the last.\nWhat followed was less a single invention than a long cascade\nof consequences. Cheaper books meant more readers; more\nreaders meant a wider appetite for books, which pressed prin-\nters to work faster and to standardize their letters, their spelli-\nng, and eventually their whole trade. A quiet mechanical impr-\novement in a workshop slowly rearranged who was allowed to\nknow things.\nIt is tempting to imagine the change as sudden, but it was not.\nFor generations the printed book imitated the handwritten\none, borrowing its cramped abbreviations and its ornamented\ncapitals, as though embarrassed to admit it was a machine's\nwork. Only gradually did the printed page learn to look like\nitself, plain and legible and unashamed.\n\n143",
+      "highlight_end": 889,
+      "highlight_start": 868,
+      "highlight_text": "pressed printers to",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "143"
+    },
+    "pipeline_id": "service-v2"
   },
   "dc5cd855577816ce3c9e9819a2aec2d2f2216c17ae1fb85b40e8025ec2feb16d": {
     "case_id": "beekeeping-underline-degraded",
@@ -781,6 +1495,57 @@
     },
     "pipeline_id": "service"
   },
+  "e3564a4676fb582a7763eb144c7a56b544d1fa79cd3b428335f0c36b2fa39d93": {
+    "case_id": "cartography-hyphen-degraded",
+    "instruction": "Extract the highlighted words (one is split across a line break).",
+    "latency_ms": 4137.363126996206,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0115255,
+      "full_text": "Measuring the Ground Beneath Us\n\nBefore a coastline could be drawn it had to be\nmeasured, and measuring the curved and stubbo-\nrn surface of the world was the great unglamoro-\nus labor of cartography. Surveyors dragged their\nchains across fields and marshland, sighting from\none hilltop to the next, building a scaffolding of\ntriangulation that quietly underpinned every han-\ndsome published map.\nThe trick that made it possible was disarmingly\nsimple. If you know the length of one baseline and\nthe angles to a distant landmark from each of its\nends, the geometry of the triangle hands you the\ntwo remaining distances without your ever\nwalking them. From a single carefully measured\nline an entire country could be chained together,\nhilltop by hilltop, into a consistent and trustwort-\nhy framework.\nWhat the finished map concealed was all this\neffort. A traveller unrolling a chart saw only clean\ncoastlines and confident meridians, never the\nyears of cold mornings and careful arithmetic that\nstood behind every reassuring line.",
+      "highlight_end": 137,
+      "highlight_start": 119,
+      "highlight_text": "stubborn surface",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "88"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "e794703b1bb3785986153512a0d47e34d89e03cab76ce56b55bb3d4f9e0db4d8": {
+    "case_id": "gardening-negative-clean",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 4060.20940101007,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0142135,
+      "full_text": "Notes from a Working Garden\n\nEvery garden keeps its own calendar, and the\nwise grower learns to listen to it rather than to\nthe printed one on the seed packet. Soil that stays\ncold long into spring will rot an early seed, while\nthe same bed a fortnight later may coax it into a\nsturdy, unhurried start.\nCompost is the garden's memory. Each spent leaf\nand trimming returns to the heap, breaks down\nthrough a slow warmth, and comes back the follo-\nwing year as dark crumbling earth. Nothing in a\ngood garden is truly thrown away; it is only lent\nto the pile for a season.\nPatience is the only tool that never wears out. A\nseedling cannot be hurried, and a fruit tree will\nfruit on its own schedule regardless of how often\nit is inspected. The grower who checks less and\ntends more usually gathers the fuller basket in\nthe end.\n\n32",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": "32"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "e7e9d4c361fdcea5f4ea41fc9b05182911e4b4b474971935c8bd01211d2bd083": {
+    "case_id": "bread-marker-clean",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 3250.1104770053644,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.010531500000000001,
+      "full_text": "On the Making of Ordinary Bread\n\nBread asks for very little and rewards attention\nout of all proportion to its ingredients. Flour,\nwater, salt, and time will make a loaf; the differen-\nce between a poor one and a fine one lies almost\nentirely in how the time is spent rather than in\nwhat is added.\nKneading is a conversation with the dough. At\nfirst it tears and resists and clings to the hands,\nbut under steady working it grows smooth and\nelastic and begins to hold air. There comes a\nmoment when the dough stops fighting and turns\nsupple, and the baker who has felt that moment\nonce will always recognize it again.\nThe oven finishes what the hands began. In its\nheat the trapped air expands, the crust sets and\nbrowns, and the soft interior sets into a structure\nlight enough to eat. What went in as a slack pale\nlump comes out transformed, and the whole\nkitchen is told about it by the smell.",
+      "highlight_end": 541,
+      "highlight_start": 473,
+      "highlight_text": "There comes a moment when the dough stops fighting and turns supple,",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "77"
+    },
+    "pipeline_id": "service-v2"
+  },
   "ef48a8888b06824284dc6e6c38a61325664c07487ae82cf6ddf8f6c653c65609": {
     "case_id": "printing-marker-clean-141-x",
     "instruction": "Extract the highlighted sentence.",
@@ -814,5 +1579,56 @@
       "page_number": "11"
     },
     "pipeline_id": "service"
+  },
+  "f286a81115a98611d68182ac94b29896c7f6b2a00b0a13b3f1f0275fa439edaa": {
+    "case_id": "sailing-instruction-clean-24",
+    "instruction": "Give me the sentence that defines trimming as the quiet craft.",
+    "latency_ms": 4894.301489985082,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.014015749999999999,
+      "full_text": "A Short Account of Small Boats\n\nA sailboat does not move by being pushed so\nmuch as by being coaxed. The wind slides across\nthe curve of the sail and, almost reluctantly, lends\nthe hull a portion of its speed. A good sailor\nlearns to read the water for the darker ruffled\npatches that mark a coming gust, and to ease the\nsheet a moment before the boat would otherwise\nheel too far.\nTrimming is the quiet craft at the center of it all.\nToo tight, and the sail stalls like a stubborn door;\ntoo loose, and it flutters uselessly along its\nleading edge. Between those two failures lies a\nnarrow band of tension where the cloth holds its\nshape and the boat simply goes.",
+      "highlight_end": 434,
+      "highlight_start": 382,
+      "highlight_text": "Trimming is the quiet craft at the center of it all.",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "24"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "f69cab28c70be8412e5000da8350c47525e23e83e56dc2bf9f1a67cde238037b": {
+    "case_id": "tides-instruction-clean-13",
+    "instruction": "Find the sentence explaining why sailors learn the tide first.",
+    "latency_ms": 2529.4961709878407,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.009142,
+      "full_text": "The Breathing of the Sea\n\nThe tide is the ocean leaning, ever so slightly,\ntoward the moon. Twice a day the water gathers\nitself and climbs the beach, and twice a day it wit-\nhdraws, uncovering a strip of the world that\nbelongs fully to neither land nor sea but is lent by\nturns to each.\nSailors learn the tide before they learn much else,\nbecause it forgives nothing. A harbor that welco-\nmes a boat at noon may strand it on bare mud by\nevening, and a current that helps the patient trav-\neller will punish the one who fights it head on.\n\n13",
+      "highlight_end": 368,
+      "highlight_start": 288,
+      "highlight_text": "Sailors learn the tide before they learn much else,\nbecause it forgives nothing.",
+      "match_quality": 1.0,
+      "match_status": "exact",
+      "page_number": "13"
+    },
+    "pipeline_id": "service-v2"
+  },
+  "f9bc6cf4a59de3db9267c06b7c16924d72df5d293ff4d1a7270c158d9e8b7c58": {
+    "case_id": "beekeeping-marker-degraded",
+    "instruction": "Extract the highlighted phrase.",
+    "latency_ms": 3452.0156850048807,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0098315,
+      "full_text": "Keeping Bees Through the Year\n\nA colony of bees is best understood not as many\ninsects but as a single slow creature spread\nacross a box. It breathes as one, warms itself as\none, and in the depth of winter it draws inward\ninto a shivering cluster that keeps its center\nwarm while the world outside turns hard.\nThe keeper's real work is done with the hands\nstill. Most of what a beginner does to a hive is a\ndisturbance, and the colony pays for every needle-\nss opening with lost heat and lost temper. To\nwatch the entrance for a quarter hour teaches\nmore than to pry the lid off twice a week.",
+      "highlight_end": 418,
+      "highlight_start": 363,
+      "highlight_text": "Most of what a beginner does to a hive is a disturbance",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "104"
+    },
+    "pipeline_id": "service-v2"
   }
 }

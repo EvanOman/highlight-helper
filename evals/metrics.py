@@ -124,10 +124,27 @@ def cer(expected: str, actual: str) -> float:
 
 
 def is_verbatim(highlight: str, full_text: str) -> bool:
-    """Whether ``highlight`` appears as a normalized substring of ``full_text``."""
+    """Whether ``highlight`` is verbatim page text *after repair*.
+
+    The charter defines verbatim as "``highlight_text`` is a verbatim substring
+    of ``full_text`` after repair" — i.e. after the cosmetic normalization the
+    product actually applies when it locates and saves a highlight (case, curly
+    quotes, unicode dashes, whitespace, AND hyphenated line-break rejoin). A
+    plain substring check misses the hyphen-rejoin step: a highlight that reads
+    "beautiful" is genuinely verbatim page text even when the page prints it
+    "beau-\\ntiful", because the product rejoins it at save time.
+
+    So verbatimness is measured with the product's own locator: an ``exact`` or
+    ``normalized`` match counts as verbatim (the returned text is the page text,
+    up to that cosmetic normalization); a merely ``fuzzy`` (approximate) or
+    ``not_found`` match does not.
+    """
     if not highlight:
         return False
-    return normalize_text(highlight) in normalize_text(full_text)
+    from app.services.text_matching import MatchStatus, locate_highlight
+
+    status = locate_highlight(full_text, highlight).status
+    return status in (MatchStatus.EXACT, MatchStatus.NORMALIZED)
 
 
 def page_number_matches(expected: str | None, actual: str | None) -> bool:

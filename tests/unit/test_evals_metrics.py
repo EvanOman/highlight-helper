@@ -114,6 +114,17 @@ class TestMisc:
     def test_is_verbatim_empty(self):
         assert is_verbatim("", "anything") is False
 
+    def test_is_verbatim_rejoins_hyphenated_line_break(self):
+        # "after repair" verbatim: the reading form is verbatim page text even
+        # when the page splits the word across a line with a hyphen.
+        full = "into a clean bright ell-\nipse, or split a single point of light"
+        assert is_verbatim("a clean bright ellipse", full) is True
+
+    def test_is_verbatim_rejects_paraphrase(self):
+        # A genuine paraphrase (only a fuzzy match) is NOT verbatim.
+        full = "the quick brown fox jumps over the lazy dog"
+        assert is_verbatim("a fast auburn fox leaps above the sleepy hound", full) is False
+
     def test_page_number_matches(self):
         assert page_number_matches("42", "Page 42") is True
         assert page_number_matches("42", "43") is False

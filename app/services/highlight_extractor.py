@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.telemetry import add_span_attributes, create_span, set_span_status
 from app.models.api_usage import APIUsage, calculate_cost
-from app.services.image_utils import convert_to_jpeg
-from app.services.text_matching import MatchStatus, locate_highlight
+from app.services.image_utils import prepare_image_for_vision
+from app.services.text_matching import MatchResult, MatchStatus, locate_highlight
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,14 @@ class ExtractedHighlight(BaseModel):
     match_quality: float = Field(
         default=0.0, description="Similarity (0.0-1.0) of the located span vs highlight_text"
     )
+    error: str | None = Field(
+        default=None,
+        description=(
+            "Populated only when extraction itself failed (model/transport error). "
+            "None on success, including a genuinely blank page. Lets callers tell "
+            "'the model failed' apart from 'nothing was highlighted'."
+        ),
+    )
     usage: TokenUsage | None = Field(default=None, description="Token usage for this extraction")
 
 
@@ -53,23 +61,44 @@ class HighlightExtractionSignature(dspy.Signature):
 
     You are a precise text extraction assistant. Given an image of a book page:
 
-    1. Extract ALL readable text from the page into `full_text`. Clean up
-       any cut-off fragments at the top/bottom but preserve the text faithfully.
+    1. Transcribe ALL readable text on the page into `full_text`. Read the whole
+       page top to bottom, including dense or tightly-set paragraphs; do not stop
+       early. Transcribe the page FAITHFULLY: keep line breaks and, when a word
+       is split across a line break with a hyphen (e.g. "beau-" at the end of one
+       line and "tiful" at the start of the next), keep that hyphen and break in
+       `full_text` exactly as printed. Only trim fragments cut off at the very
+       top or bottom edge of the image.
 
     2. Based on the user's instructions, identify the specific highlighted,
        underlined, circled, or requested portion and return it as `highlight_text`.
-       This should be a verbatim substring of `full_text`.
 
     The user may ask for:
     - HIGHLIGHTED TEXT: "highlighted", "underlined", "circled", or "marked" text
     - INSTRUCTION-BASED: "the sentence about love", "first paragraph", etc.
 
-    Rules:
-    - Preserve the exact wording from the book - do not paraphrase or modify
-    - `highlight_text` must appear verbatim within `full_text`
-    - If you can see a page number, include it
-    - Rate confidence as "high" (exact match), "medium" (best guess), or "low"
-    - Return empty strings with "low" confidence if nothing matches
+    Rules for `highlight_text`:
+    - Preserve the book's exact wording — never paraphrase, reorder, or reword.
+    - MATCH THE MARK'S BOUNDARIES. Return exactly the words the marking covers —
+      no more, no less. Do not round the selection out to the start or end of the
+      sentence, and do not append a trailing comma, period, semicolon, or other
+      punctuation that sits outside the marked words. Equally, do not drop a
+      marked word at the start or end just because it is small.
+    - REJOIN HYPHENATED WORDS. If the marked passage includes a word split across
+      a line break by a hyphen, write that word closed up as it reads in
+      `highlight_text` ("beau-tiful" across a line break becomes "beautiful"),
+      and drop the intervening line break. `full_text` still shows the split form
+      (rule 1); `highlight_text` shows the natural reading form.
+    - PICK THE MARKED OCCURRENCE. If the same phrase appears several times on the
+      page, return only the single occurrence that is actually marked — judge by
+      the surrounding words, not by returning the first match or a longer span.
+    - UNDERLINES sit beneath the words: read the text directly above the line and
+      return those words verbatim.
+
+    Other rules:
+    - If you can see a page number, include it.
+    - Rate confidence as "high" (exact match), "medium" (best guess), or "low".
+    - If nothing on the page matches the request, return empty strings with
+      "low" confidence — never invent text that is not on the page.
     """
 
     image: dspy.Image = dspy.InputField()
@@ -88,7 +117,7 @@ class HighlightExtractorModule(dspy.Module):
         return self.extract(image=image, user_instructions=user_instructions)
 
 
-def _build_fallback_lm() -> dspy.LM | None:
+def _build_fallback_lm(max_tokens: int, cache: bool) -> dspy.LM | None:
     """Build a fallback LM using Groq, if configured."""
     settings = get_settings()
     if not settings.groq_api_key:
@@ -96,29 +125,67 @@ def _build_fallback_lm() -> dspy.LM | None:
     return dspy.LM(
         settings.vision_fallback_model,
         api_key=settings.groq_api_key,
-        max_tokens=2000,
+        max_tokens=max_tokens,
+        cache=cache,
     )
+
+
+def _repair_locate(full_text: str, highlight_text: str) -> MatchResult | None:
+    """One cheap, deterministic repair pass for an unlocatable highlight.
+
+    Runs only after :func:`locate_highlight` returns ``NOT_FOUND``. The model
+    occasionally brackets the real passage with a stray token — an OCR variant
+    word, or a fragment just outside the mark — that drags the whole span below
+    the fuzzy threshold. We trim up to two words from each end and re-locate,
+    returning the best-quality locatable core. Returns ``None`` when nothing
+    locatable is found, so the caller keeps the honest ``NOT_FOUND`` rather than
+    inventing a span. No LLM call, so it adds no cost or latency to the common
+    (already-located) path.
+    """
+    words = highlight_text.split()
+    if len(words) < 4:
+        return None
+    best: MatchResult | None = None
+    for lead in range(3):  # drop 0, 1 or 2 leading words
+        for trail in range(3):  # drop 0, 1 or 2 trailing words
+            if lead == 0 and trail == 0:
+                continue  # the full string already failed
+            core = words[lead : len(words) - trail]
+            if len(core) < 2:
+                continue
+            match = locate_highlight(full_text, " ".join(core))
+            if match.status is not MatchStatus.NOT_FOUND and (
+                best is None or match.quality > best.quality
+            ):
+                best = match
+    return best
 
 
 class HighlightExtractorService:
     """Service for extracting highlights from images using DSPy."""
 
-    def __init__(self, lm: dspy.LM | None = None) -> None:
+    def __init__(self, lm: dspy.LM | None = None, *, enable_cache: bool = True) -> None:
         """Initialize the service.
 
         Args:
             lm: Optional DSPy language model. If not provided, creates one from settings.
+            enable_cache: Whether the DSPy LM caches responses on disk. Production
+                keeps this on (harmless: each photo is unique and discarded).
+                The eval harness turns it OFF so repeated runs report real
+                latency and cost instead of replaying a cached response.
         """
         settings = get_settings()
         self._model_name = settings.vision_model
+        max_tokens = settings.vision_max_tokens
         if lm is None:
             lm = dspy.LM(
                 self._model_name,
                 api_key=settings.openai_api_key,
-                max_tokens=2000,
+                max_tokens=max_tokens,
+                cache=enable_cache,
             )
         self._lm = lm
-        self._fallback_lm = _build_fallback_lm()
+        self._fallback_lm = _build_fallback_lm(max_tokens, enable_cache)
         self._extractor = HighlightExtractorModule()
 
     def _extract_usage_from_lm(self, lm: dspy.LM, model_name: str) -> TokenUsage | None:
@@ -165,6 +232,12 @@ class HighlightExtractorService:
         # are the (0, 0) sentinel — never a whole-page span.
         if result.full_text and result.highlight_text:
             match = locate_highlight(result.full_text, result.highlight_text)
+            # Verbatim self-check + one cheap repair: if the highlight can't be
+            # located, try trimming stray edge tokens before giving up.
+            if match.status is MatchStatus.NOT_FOUND:
+                repaired = _repair_locate(result.full_text, result.highlight_text)
+                if repaired is not None:
+                    match = repaired
             result.highlight_start = match.start
             result.highlight_end = match.end
             result.match_status = match.status.value
@@ -205,7 +278,7 @@ class HighlightExtractorService:
             try:
                 # Convert to JPEG to handle unusual formats (MPO, HEIC, etc.)
                 with create_span("image_conversion", {"input_size": len(image_bytes)}) as conv_span:
-                    jpeg_bytes = convert_to_jpeg(image_bytes)
+                    jpeg_bytes = prepare_image_for_vision(image_bytes)
                     conv_span.set_attribute("output_size", len(jpeg_bytes))
                     conv_span.set_attribute(
                         "size_reduction_pct",
@@ -305,12 +378,14 @@ class HighlightExtractorService:
                 logger.error(f"Extraction failed: {e}")
                 span.record_exception(e)
                 set_span_status(False, str(e))
-                # Fallback for errors
+                # Typed failure: an empty result whose `error` field distinguishes
+                # a model/transport failure from a genuinely blank page (error=None).
                 return ExtractedHighlight(
                     full_text="",
                     highlight_text="",
                     confidence="low",
                     page_number=None,
+                    error=str(e),
                 )
 
 
