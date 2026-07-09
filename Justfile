@@ -43,6 +43,18 @@ selftest:
 smoke url="http://127.0.0.1:18742/highlights":
     uv run python scripts/smoke.py {{url}}
 
+# Regenerate the synthetic-realistic eval dataset (images + dataset.json)
+eval-generate:
+    uv run python -m evals.generate_dataset
+
+# Run extraction evals ONLINE (real API, populates the cache) against a pipeline
+eval pipeline="service":
+    uv run python -m evals.cli --pipeline {{pipeline}} --json-out evals/reports/latest.json -v
+
+# Replay extraction evals OFFLINE from the cache (no API cost; for CI/smoke)
+eval-offline pipeline="service":
+    uv run python -m evals.cli --pipeline {{pipeline}} --offline
+
 # Run unit and integration tests
 test:
     uv run pytest tests/unit tests/integration

@@ -1,265 +1,196 @@
-"""Evaluation runner for highlight extraction."""
+"""Honest evaluation runner for highlight extraction.
+
+The cache is keyed on ``sha256(image) + model + pipeline_id + instruction`` and
+only ever stores genuine pipeline outputs (never expected answers). Offline mode
+replays that cache; a miss is an honest miss, reported loudly, not fabricated.
+Extraction is pluggable via a :class:`~evals.pipelines.Pipeline`, so pipelines
+can be A/B'd without editing this runner.
+"""
+
+from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import sys
 import time
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from evals.models import EvalCase, EvalReport, EvalResult
+from evals.models import EvalCase, EvalReport, EvalResult, ExtractionOutput, MetricSummary
+from evals.pipelines import Pipeline, build_pipeline
+from evals.scoring import score_case
 
 
-def levenshtein_distance(s1: str, s2: str) -> int:
-    """Calculate the Levenshtein distance between two strings."""
-    if len(s1) < len(s2):
-        return levenshtein_distance(s2, s1)
-
-    if len(s2) == 0:
-        return len(s1)
-
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
-        current_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            insertions = previous_row[j + 1] + 1
-            deletions = current_row[j] + 1
-            substitutions = previous_row[j] + (c1 != c2)
-            current_row.append(min(insertions, deletions, substitutions))
-        previous_row = current_row
-
-    return previous_row[-1]
-
-
-def char_accuracy(expected: str, actual: str) -> float:
-    """Calculate character-level accuracy between expected and actual text."""
-    if not expected and not actual:
-        return 1.0
-    if not expected or not actual:
-        return 0.0
-
-    # Normalize whitespace
-    expected_norm = " ".join(expected.split())
-    actual_norm = " ".join(actual.split())
-
-    distance = levenshtein_distance(expected_norm.lower(), actual_norm.lower())
-    max_len = max(len(expected_norm), len(actual_norm))
-
-    return 1.0 - (distance / max_len) if max_len > 0 else 1.0
+def _cache_key(image_bytes: bytes, model: str, pipeline_id: str, instruction: str) -> str:
+    """Content-addressed cache key. Changing the image, model, pipeline, or
+    instruction changes the key, so stale outputs can never be replayed."""
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+    h = hashlib.sha256()
+    h.update(image_hash.encode())
+    h.update(b"\x00")
+    h.update(model.encode())
+    h.update(b"\x00")
+    h.update(pipeline_id.encode())
+    h.update(b"\x00")
+    h.update(instruction.encode())
+    return h.hexdigest()
 
 
 class EvalRunner:
-    """Runner for evaluation cases."""
+    """Runs eval cases through a pipeline (or replays them from cache)."""
 
     def __init__(
         self,
         dataset_path: Path | str,
+        pipeline: Pipeline,
         offline: bool = False,
         cache_path: Path | str | None = None,
-    ):
-        """
-        Initialize the eval runner.
-
-        Args:
-            dataset_path: Path to the dataset JSON file
-            offline: If True, use cached results instead of calling the API
-            cache_path: Path to cache file for offline mode
-        """
+    ) -> None:
         self.dataset_path = Path(dataset_path)
+        self.pipeline = pipeline
         self.offline = offline
-        if cache_path:
-            self.cache_path = Path(cache_path)
-        else:
-            self.cache_path = self.dataset_path.parent / "cache.json"
+        self.cache_path = (
+            Path(cache_path) if cache_path else self.dataset_path.parent / "cache.json"
+        )
         self.cases: list[EvalCase] = []
         self._cache: dict[str, dict] = {}
 
     def load_dataset(self) -> None:
-        """Load evaluation cases from the dataset file."""
         with open(self.dataset_path, encoding="utf-8") as f:
             data = json.load(f)
-
-        self.cases = [
-            EvalCase(
-                id=case["id"],
-                image_path=case["image_path"],
-                instruction=case["instruction"],
-                expected_text=case["expected_text"],
-                expected_page_number=case.get("expected_page_number"),
-                category=case.get("category", "general"),
-                description=case.get("description", ""),
-            )
-            for case in data.get("cases", [])
-        ]
+        self.cases = [EvalCase.from_dict(c) for c in data.get("cases", [])]
 
     def load_cache(self) -> None:
-        """Load cached results for offline mode."""
         if self.cache_path.exists():
             with open(self.cache_path, encoding="utf-8") as f:
                 self._cache = json.load(f)
 
     def save_cache(self) -> None:
-        """Save results to cache for future offline runs."""
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.cache_path, "w", encoding="utf-8") as f:
-            json.dump(self._cache, f, indent=2)
+            json.dump(self._cache, f, indent=2, sort_keys=True)
 
-    async def _run_extraction(
+    async def _extract(
         self, case: EvalCase, base_path: Path
-    ) -> tuple[str, str | None, str, float]:
-        """
-        Run extraction on a single case.
-
-        Returns:
-            Tuple of (extracted_text, page_number, confidence, latency_ms)
-        """
-        cache_key = f"{case.id}:{case.instruction}"
+    ) -> tuple[ExtractionOutput, float, str | None]:
+        """Return (output, latency_ms, error). Uses the cache in offline mode
+        and populates it in online mode."""
+        try:
+            image_bytes = case.load_image_bytes(base_path)
+        except OSError as e:
+            return ExtractionOutput(), 0.0, f"image load failed: {e}"
+        key = _cache_key(image_bytes, self.pipeline.model, self.pipeline.id, case.instruction)
 
         if self.offline:
-            if cache_key in self._cache:
-                cached = self._cache[cache_key]
-                return (
-                    cached["text"],
-                    cached.get("page_number"),
-                    cached.get("confidence", "medium"),
-                    cached.get("latency_ms", 0.0),
+            entry = self._cache.get(key)
+            if entry is None:
+                print(
+                    f"  ! offline cache MISS for '{case.id}' "
+                    f"(key {key[:12]}…) — no genuine output to replay",
+                    file=sys.stderr,
                 )
-            # Warn about missing cache key in offline mode
-            print(
-                f"Warning: No cached result for '{case.id}' in offline mode",
-                file=sys.stderr,
+                return ExtractionOutput(), 0.0, "offline cache miss"
+            return (
+                ExtractionOutput.from_dict(entry["output"]),
+                entry.get("latency_ms", 0.0),
+                None,
             )
-            return "", None, "low", 0.0
 
-        # Online mode - call the actual extractor
-        from app.services.highlight_extractor import HighlightExtractorService
+        start = time.perf_counter()
+        try:
+            output = await self.pipeline.extract(image_bytes, case.image_path, case.instruction)
+        except Exception as e:  # surface any pipeline failure as a case error, not a crash
+            latency_ms = (time.perf_counter() - start) * 1000
+            return ExtractionOutput(), latency_ms, str(e)
+        latency_ms = (time.perf_counter() - start) * 1000
 
-        extractor = HighlightExtractorService()
-        image_bytes = case.load_image_bytes(base_path)
-
-        start_time = time.perf_counter()
-        result = await extractor.extract_highlight(
-            image_bytes=image_bytes,
-            filename=case.image_path,
-            instructions=case.instruction,
-        )
-        latency_ms = (time.perf_counter() - start_time) * 1000
-
-        # Cache the result
-        self._cache[cache_key] = {
-            "text": result.highlight_text,
-            "page_number": result.page_number,
-            "confidence": result.confidence,
+        self._cache[key] = {
+            "case_id": case.id,
+            "pipeline_id": self.pipeline.id,
+            "model": self.pipeline.model,
+            "instruction": case.instruction,
             "latency_ms": latency_ms,
+            "output": output.to_dict(),
         }
-
-        return result.highlight_text, result.page_number, result.confidence, latency_ms
+        return output, latency_ms, None
 
     async def run_case(self, case: EvalCase, base_path: Path) -> EvalResult:
-        """Run a single evaluation case."""
-        try:
-            actual_text, actual_page, confidence, latency = await self._run_extraction(
-                case, base_path
-            )
-
-            accuracy = char_accuracy(case.expected_text, actual_text)
-            exact = case.expected_text.strip().lower() == actual_text.strip().lower()
-
-            return EvalResult(
-                case_id=case.id,
-                expected_text=case.expected_text,
-                actual_text=actual_text,
-                expected_page_number=case.expected_page_number,
-                actual_page_number=actual_page,
-                confidence=confidence,
-                exact_match=exact,
-                char_accuracy=accuracy,
-                latency_ms=latency,
-            )
-        except Exception as e:
-            return EvalResult(
-                case_id=case.id,
-                expected_text=case.expected_text,
-                actual_text="",
-                expected_page_number=case.expected_page_number,
-                actual_page_number=None,
-                confidence="low",
-                exact_match=False,
-                char_accuracy=0.0,
-                latency_ms=0.0,
-                error=str(e),
-            )
+        output, latency_ms, error = await self._extract(case, base_path)
+        return score_case(case, output, latency_ms, error=error)
 
     async def run(self, verbose: bool = False) -> EvalReport:
-        """
-        Run all evaluation cases and generate a report.
-
-        Args:
-            verbose: If True, print progress
-
-        Returns:
-            EvalReport with results
-        """
         if not self.cases:
             self.load_dataset()
-
         if self.offline:
             self.load_cache()
 
         base_path = self.dataset_path.parent
         results: list[EvalResult] = []
-
         for i, case in enumerate(self.cases):
             if verbose:
-                print(f"Running case {i + 1}/{len(self.cases)}: {case.id}")
-
+                print(f"[{i + 1}/{len(self.cases)}] {case.id} ({', '.join(case.tags)})")
             result = await self.run_case(case, base_path)
             results.append(result)
-
             if verbose:
-                status = "✓" if result.passed else "✗"
-                print(f"  {status} accuracy={result.char_accuracy:.2%}")
+                self._print_case(result)
 
-        # Save cache for future offline runs
         if not self.offline:
             self.save_cache()
 
-        # Calculate summary stats
-        passed = sum(1 for r in results if r.passed)
-        failed = sum(1 for r in results if not r.passed and not r.error)
-        errors = sum(1 for r in results if r.error)
-        avg_accuracy = sum(r.char_accuracy for r in results) / len(results) if results else 0
-        avg_latency = sum(r.latency_ms for r in results) / len(results) if results else 0
+        return self._build_report(results)
+
+    @staticmethod
+    def _print_case(result: EvalResult) -> None:
+        if result.error:
+            print(f"    ERROR: {result.error}")
+            return
+        if result.is_negative:
+            flag = "HALLUCINATED" if result.hallucinated else "clean"
+            print(f"    negative: {flag}  cer={result.full_text_cer:.3f}")
+            return
+        print(
+            f"    f1={result.highlight_f1:.3f} iou={result.span_iou:.3f} "
+            f"located={result.span_located} verbatim={result.verbatim} "
+            f"cer={result.full_text_cer:.3f} status={result.match_status}"
+        )
+
+    def _build_report(self, results: list[EvalResult]) -> EvalReport:
+        by_tag_results: dict[str, list[EvalResult]] = defaultdict(list)
+        for r in results:
+            for tag in r.tags:
+                by_tag_results[tag].append(r)
+
+        by_tag = {
+            tag: MetricSummary.from_results(tag, tag_results)
+            for tag, tag_results in sorted(by_tag_results.items())
+        }
+        overall = MetricSummary.from_results("overall", results)
+        total_cost = sum(r.cost_usd for r in results)
+        error_cases = sum(1 for r in results if r.error)
 
         return EvalReport(
             timestamp=datetime.now(),
-            total_cases=len(results),
-            passed_cases=passed,
-            failed_cases=failed,
-            error_cases=errors,
-            avg_char_accuracy=avg_accuracy,
-            avg_latency_ms=avg_latency,
-            results=results,
             mode="offline" if self.offline else "online",
+            pipeline_id=self.pipeline.id,
+            model=self.pipeline.model,
+            overall=overall,
+            by_tag=by_tag,
+            results=results,
+            total_cost_usd=total_cost,
+            error_cases=error_cases,
         )
 
 
 def run_evals(
     dataset_path: str | Path,
+    pipeline_id: str = "service",
     offline: bool = False,
     cache_path: str | Path | None = None,
     verbose: bool = False,
 ) -> EvalReport:
-    """
-    Convenience function to run evaluations.
-
-    Args:
-        dataset_path: Path to the dataset JSON file
-        offline: If True, use cached results
-        cache_path: Path to cache file
-        verbose: If True, print progress
-
-    Returns:
-        EvalReport with results
-    """
-    runner = EvalRunner(dataset_path, offline=offline, cache_path=cache_path)
+    """Convenience wrapper: build the pipeline and run the whole dataset."""
+    pipeline = build_pipeline(pipeline_id)
+    runner = EvalRunner(dataset_path, pipeline, offline=offline, cache_path=cache_path)
     return asyncio.run(runner.run(verbose=verbose))
