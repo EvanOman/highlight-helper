@@ -55,6 +55,20 @@ eval pipeline="service":
 eval-offline pipeline="service":
     uv run python -m evals.cli --pipeline {{pipeline}} --offline
 
+# Run the REAL-photo holdout ONLINE (its own dataset, cache, and report — never
+# mixed into the synthetic aggregates). Out-of-sample check on labeled PD scans.
+eval-real pipeline="service":
+    uv run python -m evals.cli --pipeline {{pipeline}} \
+        --dataset evals/samples/real/labels.json \
+        --report-path evals/reports/real.html \
+        --json-out evals/reports/real.json -v
+
+# Replay the real-photo holdout OFFLINE from its cache (no API cost)
+eval-real-offline pipeline="service":
+    uv run python -m evals.cli --pipeline {{pipeline}} --offline \
+        --dataset evals/samples/real/labels.json \
+        --report-path evals/reports/real.html
+
 # Run unit and integration tests
 test:
     uv run pytest tests/unit tests/integration
