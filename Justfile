@@ -177,6 +177,24 @@ migration name:
     uv run alembic revision --autogenerate -m "{{name}}"
 
 # =============================================================================
+# Upload Retention (eval corpus)
+# =============================================================================
+
+# Show retained-upload corpus growth (image count, sidecar count, total size)
+uploads-stats dir="data/uploads":
+    @if [ ! -d "{{dir}}" ]; then \
+        echo "No retained uploads yet ({{dir}} does not exist)."; \
+    else \
+        images=$(find "{{dir}}" -maxdepth 1 -type f ! -name '*.json' | wc -l); \
+        sidecars=$(find "{{dir}}" -maxdepth 1 -type f -name '*.json' | wc -l); \
+        size=$(du -sh "{{dir}}" 2>/dev/null | cut -f1); \
+        echo "Retained uploads in {{dir}}:"; \
+        echo "  images (deduped): $images"; \
+        echo "  sidecars:         $sidecars"; \
+        echo "  total size:       $size"; \
+    fi
+
+# =============================================================================
 # Database Backup Commands
 # =============================================================================
 

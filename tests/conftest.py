@@ -30,6 +30,10 @@ from app.services.readwise import (
     get_readwise_service,
 )
 from app.services.settings import READWISE_API_TOKEN
+from app.services.upload_archive import (
+    UploadArchiveService,
+    get_upload_archive_service,
+)
 
 # Use an in-memory SQLite database for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -104,6 +108,12 @@ def mock_highlight_extractor_service():
 
 
 @pytest.fixture
+def disabled_upload_archive_service():
+    """Upload archive disabled by default so tests never write to data/uploads."""
+    return UploadArchiveService(enabled=False, base_dir="/nonexistent")
+
+
+@pytest.fixture
 def mock_isbn_extractor_service():
     """Create a mock ISBN extractor service."""
     service = MagicMock(spec=ISBNExtractorService)
@@ -157,6 +167,7 @@ async def client(
     mock_highlight_extractor_service,
     mock_isbn_extractor_service,
     mock_readwise_service,
+    disabled_upload_archive_service,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client."""
     # Configure DB-backed app settings for "configured" Readwise flows
@@ -171,6 +182,7 @@ async def client(
     )
     app.dependency_overrides[get_isbn_extractor_service] = lambda: mock_isbn_extractor_service
     app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service
+    app.dependency_overrides[get_upload_archive_service] = lambda: disabled_upload_archive_service
 
     async def _send_highlights_batch(*args, **kwargs):
         highlights = kwargs.get("highlights")
@@ -215,6 +227,7 @@ async def client_readwise_unconfigured(
     mock_highlight_extractor_service,
     mock_isbn_extractor_service,
     mock_readwise_service_unconfigured,
+    disabled_upload_archive_service,
 ) -> AsyncGenerator[AsyncClient, None]:
     """Create an async test client with Readwise not configured."""
     # Configure DB-backed app settings as unconfigured
@@ -229,6 +242,7 @@ async def client_readwise_unconfigured(
     )
     app.dependency_overrides[get_isbn_extractor_service] = lambda: mock_isbn_extractor_service
     app.dependency_overrides[get_readwise_service] = lambda: mock_readwise_service_unconfigured
+    app.dependency_overrides[get_upload_archive_service] = lambda: disabled_upload_archive_service
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

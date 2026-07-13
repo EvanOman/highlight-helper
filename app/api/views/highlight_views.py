@@ -24,6 +24,10 @@ from app.services.highlight_extractor import (
 )
 from app.services.readwise import ReadwiseService, schedule_auto_sync
 from app.services.settings import get_settings_service
+from app.services.upload_archive import (
+    UploadArchiveService,
+    get_upload_archive_service,
+)
 
 from ._common import router, settings, templates
 
@@ -78,6 +82,7 @@ async def extract_highlight_form(
     db: AsyncSession = Depends(get_db),
     book_repo: BookRepository = Depends(get_book_repo),
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
+    archive: UploadArchiveService = Depends(get_upload_archive_service),
 ):
     """Extract highlight from uploaded image."""
     book = await book_repo.get_or_raise(book_id)
@@ -99,6 +104,7 @@ async def extract_highlight_form(
         if len(image_bytes) > 20 * 1024 * 1024:
             error_message = "Image file too large (max 20MB)"
         else:
+            result = None
             try:
                 result = await extractor.extract_highlight(
                     image_bytes=image_bytes,
@@ -115,6 +121,17 @@ async def extract_highlight_form(
                 page_number = result.page_number or ""
             except Exception as e:
                 error_message = f"Error extracting text: {e!s}"
+
+            # Retain the upload as an eval-corpus candidate (best-effort, never
+            # raises) — on success AND failure, so failures are also mined.
+            archive.archive_extraction(
+                image_bytes=image_bytes,
+                filename=image.filename,
+                book_id=book_id,
+                instructions=instructions,
+                result=result,
+                error=error_message,
+            )
 
     return templates.TemplateResponse(
         request,
