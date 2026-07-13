@@ -47,6 +47,10 @@ smoke url="http://127.0.0.1:18742/highlights":
 eval-generate:
     uv run python -m evals.generate_dataset
 
+# Regenerate the additive phone-photo augmented cases (never touches the 48 originals)
+eval-augment:
+    uv run python -m evals.augment_dataset
+
 # Run extraction evals ONLINE (real API, populates the cache) against a pipeline
 eval pipeline="service":
     uv run python -m evals.cli --pipeline {{pipeline}} --json-out evals/reports/latest.json -v

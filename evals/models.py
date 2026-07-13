@@ -32,10 +32,18 @@ class EvalCase:
     edge_case: str | None = None  # hyphenated | repeated-phrase | multi-sentence | ambiguous
     is_negative: bool = False
     description: str = ""
+    # Augmentation provenance (additive phone-photo variants; see
+    # evals.augment_dataset). Absent on the 48 original cases.
+    parent_id: str | None = None
+    augmentation: str | None = None  # easy | medium | hard
 
     @property
     def tags(self) -> list[str]:
-        """Category tags this case rolls up under."""
+        """Category tags this case rolls up under.
+
+        Augmented cases keep every parent label (modality/difficulty/density/edge)
+        *and* gain an ``augmentation:{level}`` tag, so rollups slice both ways.
+        """
         tags = [
             f"modality:{self.modality}",
             f"difficulty:{self.difficulty}",
@@ -45,6 +53,8 @@ class EvalCase:
             tags.append(f"edge:{self.edge_case}")
         if self.is_negative:
             tags.append("edge:negative")
+        if self.augmentation:
+            tags.append(f"augmentation:{self.augmentation}")
         return tags
 
     @property
@@ -74,6 +84,8 @@ class EvalCase:
             edge_case=data.get("edge_case"),
             is_negative=data.get("is_negative", False),
             description=data.get("description", ""),
+            parent_id=data.get("parent_id"),
+            augmentation=data.get("augmentation"),
         )
 
     def to_dict(self) -> dict:

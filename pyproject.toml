@@ -17,6 +17,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "pillow>=10.4.0",
+    "numpy>=1.26.0",
     # OpenTelemetry
     "opentelemetry-api>=1.27.0",
     "opentelemetry-sdk>=1.27.0",
