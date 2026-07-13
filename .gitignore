@@ -68,8 +68,9 @@ Thumbs.db
 # Temporary files
 tmp/
 
-# Local docs (planning, ideation, notes)
-docs/
+# Local docs (planning, ideation, notes) — but decision logs are versioned
+docs/*
+!docs/decisions/
 
 # Claude Code
 .claude/
