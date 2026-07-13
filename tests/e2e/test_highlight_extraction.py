@@ -66,6 +66,8 @@ def fake_llm_server():
             **os.environ,
             "DATABASE_URL": f"sqlite+aiosqlite:///{db_path}",
             "FAKE_LLM": "1",
+            # Keep retained-upload corpus writes out of the real data/uploads.
+            "UPLOADED_IMAGES_DIR": str(Path(tmpdir) / "uploads"),
         }
 
         stderr_path = Path(tmpdir) / "server_stderr.log"

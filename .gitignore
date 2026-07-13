@@ -58,8 +58,11 @@ backups/
 # SSL Certificates (local development)
 certs/
 
-# Uploads (temporary)
+# Uploads (temporary re-extract stash)
 uploads/
+
+# Retained upload corpus (persistent eval candidates — data, not code)
+data/uploads/
 
 # OS
 .DS_Store
@@ -68,7 +71,10 @@ Thumbs.db
 # Temporary files
 tmp/
 
-# Local docs (planning, ideation, notes) — but decision logs are versioned
+# Local docs (planning, ideation, notes) — but decision logs are versioned:
+# operational history tied to the code (see docs/decisions/*). Use docs/* (not
+# docs/) so the decisions subdir can be re-included; git cannot re-include a
+# path whose parent directory is itself excluded.
 docs/*
 !docs/decisions/
 

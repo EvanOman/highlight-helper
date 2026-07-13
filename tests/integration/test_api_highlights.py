@@ -164,6 +164,46 @@ class TestHighlightsAPI:
         assert data["highlight_start"] == 20
         assert data["highlight_end"] == 50
 
+    async def test_extract_stores_image_and_sidecar(
+        self, client: AsyncClient, sample_book, tmp_path
+    ):
+        """The extract route retains the upload image + sidecar via the archive."""
+        import json
+
+        from app.main import app
+        from app.services.upload_archive import (
+            UploadArchiveService,
+            get_upload_archive_service,
+        )
+
+        archive = UploadArchiveService(enabled=True, base_dir=tmp_path)
+        app.dependency_overrides[get_upload_archive_service] = lambda: archive
+
+        try:
+            image_bytes = b"raw page photo bytes"
+            response = await client.post(
+                f"/api/highlights/book/{sample_book.id}/extract",
+                data={"instructions": "Extract the highlighted text"},
+                files={"image": ("page.jpg", io.BytesIO(image_bytes), "image/jpeg")},
+            )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_upload_archive_service, None)
+
+        images = list(tmp_path.glob("*.jpg"))
+        sidecars = list(tmp_path.glob("*.json"))
+        assert len(images) == 1
+        assert images[0].read_bytes() == image_bytes  # raw bytes as received
+        assert len(sidecars) == 1
+
+        sidecar = json.loads(sidecars[0].read_text())
+        assert sidecar["book_id"] == sample_book.id
+        assert sidecar["original_filename"] == "page.jpg"
+        assert sidecar["instructions"] == "Extract the highlighted text"
+        assert sidecar["needs_verification"] is True
+        # The mock extractor's result is captured in the sidecar.
+        assert sidecar["extraction"]["highlight_text"] == "This is an extracted highlight."
+
     async def test_extract_highlight_invalid_file_type(self, client: AsyncClient, sample_book):
         """Test extracting highlight with non-image file."""
         fake_file = io.BytesIO(b"not an image")

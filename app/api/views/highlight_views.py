@@ -27,6 +27,10 @@ from app.services.image_stash import ImageStash, get_image_stash
 from app.services.readwise import ReadwiseService, schedule_auto_sync
 from app.services.settings import get_settings_service
 from app.services.text_matching import MatchStatus
+from app.services.upload_archive import (
+    UploadArchiveService,
+    get_upload_archive_service,
+)
 
 from ._common import router, settings, templates
 
@@ -92,6 +96,7 @@ async def _run_extraction(
     image_token: str,
     db,
     extractor: HighlightExtractorService,
+    archive: UploadArchiveService,
 ):
     """Run extraction and render the honest result (Phase 2 or explicit failure)."""
     try:
@@ -102,11 +107,29 @@ async def _run_extraction(
             db=db,
         )
     except Exception as e:
+        archive.archive_extraction(
+            image_bytes=image_bytes,
+            filename=filename,
+            book_id=book.id,
+            instructions=instructions,
+            error=str(e),
+        )
         return templates.TemplateResponse(
             request,
             "add_highlight.html",
             _phase1_context(book, instructions, f"Error extracting text: {e!s}"),
         )
+
+    # Retain the upload as an eval-corpus candidate (best-effort, never raises)
+    # — successes and failures both get mined.
+    archive.archive_extraction(
+        image_bytes=image_bytes,
+        filename=filename,
+        book_id=book.id,
+        instructions=instructions,
+        result=result,
+        error=result.error,
+    )
 
     if not result.full_text.strip():
         # The service returns an empty result on any failure — surface it
@@ -180,6 +203,7 @@ async def extract_highlight_form(
     book_repo: BookRepository = Depends(get_book_repo),
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
     stash: ImageStash = Depends(get_image_stash),
+    archive: UploadArchiveService = Depends(get_upload_archive_service),
 ):
     """Extract highlight from uploaded image."""
     book = await book_repo.get_or_raise(book_id)
@@ -211,6 +235,7 @@ async def extract_highlight_form(
         image_token,
         db,
         extractor,
+        archive,
     )
 
 
@@ -224,6 +249,7 @@ async def re_extract_highlight_form(
     book_repo: BookRepository = Depends(get_book_repo),
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
     stash: ImageStash = Depends(get_image_stash),
+    archive: UploadArchiveService = Depends(get_upload_archive_service),
 ):
     """Re-run extraction against the stashed photo with (possibly edited) instructions."""
     book = await book_repo.get_or_raise(book_id)
@@ -245,6 +271,7 @@ async def re_extract_highlight_form(
         image_token,
         db,
         extractor,
+        archive,
     )
 
 

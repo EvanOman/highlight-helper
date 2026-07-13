@@ -361,6 +361,41 @@ class TestAddHighlightView:
         assert "the highlighted text" in response.text
         assert 'id="highlight-editor"' not in response.text
 
+    async def test_extract_form_stores_image_and_sidecar(
+        self, client: AsyncClient, sample_book, tmp_path
+    ):
+        """The HTML extract form route retains the upload image + sidecar."""
+        import json
+
+        from app.main import app
+        from app.services.upload_archive import (
+            UploadArchiveService,
+            get_upload_archive_service,
+        )
+
+        archive = UploadArchiveService(enabled=True, base_dir=tmp_path)
+        app.dependency_overrides[get_upload_archive_service] = lambda: archive
+        try:
+            image_bytes = b"raw form page photo"
+            response = await client.post(
+                f"/books/{sample_book.id}/extract",
+                data={"instructions": "Extract highlighted text"},
+                files={"image": ("page.jpg", io.BytesIO(image_bytes), "image/jpeg")},
+            )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.pop(get_upload_archive_service, None)
+
+        images = list(tmp_path.glob("*.jpg"))
+        sidecars = list(tmp_path.glob("*.json"))
+        assert len(images) == 1
+        assert images[0].read_bytes() == image_bytes
+        assert len(sidecars) == 1
+        sidecar = json.loads(sidecars[0].read_text())
+        assert sidecar["book_id"] == sample_book.id
+        assert sidecar["instructions"] == "Extract highlighted text"
+        assert sidecar["extraction"]["highlight_text"] == "This is an extracted highlight."
+
     async def test_create_highlight_form(self, client: AsyncClient, sample_book):
         """Test creating a highlight via form."""
         response = await client.post(

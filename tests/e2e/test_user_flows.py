@@ -53,6 +53,8 @@ def server():
         env = {
             **os.environ,
             "DATABASE_URL": f"sqlite+aiosqlite:///{db_path}",
+            # Keep retained-upload corpus writes out of the real data/uploads.
+            "UPLOADED_IMAGES_DIR": str(Path(tmpdir) / "uploads"),
         }
 
         # Write stderr to a temp file so we can include it in diagnostics

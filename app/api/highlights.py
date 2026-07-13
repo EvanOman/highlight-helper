@@ -28,6 +28,10 @@ from app.services.highlight_extractor import (
     get_highlight_extractor_service,
 )
 from app.services.readwise import schedule_auto_sync
+from app.services.upload_archive import (
+    UploadArchiveService,
+    get_upload_archive_service,
+)
 
 router = APIRouter(prefix="/api/highlights", tags=["highlights"])
 
@@ -173,6 +177,7 @@ async def extract_highlight_from_image(
     db: AsyncSession = Depends(get_db),
     book_repo: BookRepository = Depends(get_book_repo),
     extractor: HighlightExtractorService = Depends(get_highlight_extractor_service),
+    archive: UploadArchiveService = Depends(get_upload_archive_service),
 ) -> ExtractHighlightResponse:
     """
     Extract highlighted text from an uploaded image.
@@ -204,6 +209,15 @@ async def extract_highlight_from_image(
         filename=image.filename or "image.jpg",
         instructions=instructions,
         db=db,
+    )
+
+    # Retain the upload as an eval-corpus candidate (best-effort, never raises).
+    archive.archive_extraction(
+        image_bytes=image_bytes,
+        filename=image.filename,
+        book_id=book_id,
+        instructions=instructions,
+        result=result,
     )
 
     return ExtractHighlightResponse(

@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
 
+    # Upload retention (eval corpus building)
+    # Persist every uploaded page photo + a JSON sidecar so each becomes a
+    # near-ready eval case. Default ON: this is a single-user internal
+    # deployment behind Tailscale and corpus-building is the whole point. The
+    # flag exists so a future multi-user/production rollout can disable it.
+    store_uploaded_images: bool = True
+    uploaded_images_dir: str = "data/uploads"
+
     # Replace all LLM calls with deterministic fakes (full-stack self-tests only)
     fake_llm: bool = False
 
