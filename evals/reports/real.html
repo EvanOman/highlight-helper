@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Highlight Extraction Eval — service</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+         background: #f8fafc; color: #1e293b; line-height: 1.5; padding: 2rem; }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .75rem; }
+  .meta { color: #64748b; font-size: .85rem; margin-bottom: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: .5rem;
+          overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); font-size: .8rem; margin-bottom: 1rem; }
+  th, td { padding: .5rem .6rem; text-align: right; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  th { background: #f1f5f9; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: #475569; }
+  td.label, th:first-child { text-align: left; font-weight: 600; }
+  td.good { color: #15803d; font-weight: 600; }
+  td.bad { color: #b91c1c; font-weight: 600; }
+  tr:hover { background: #f8fafc; }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Highlight Extraction Eval</h1>
+  <p class="meta">
+    pipeline <b>service</b> ·
+    model <b>openai/gpt-5.4</b> ·
+    mode <b>offline</b> ·
+    2026-07-12 23:59:17 ·
+    total cost <b>$0.1324</b> ·
+    errors <b>0</b>
+  </p>
+
+  <h2>Overall</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Category</th><th>n</th><th>Highlight F1</th><th>Span IoU</th><th>Span located</th><th>Verbatim</th><th>Full-text CER</th><th>Page # acc</th><th>Halluc.</th><th>Latency p50</th><th>$/case</th></tr></thead>
+      <tbody><tr><td class='label'>overall</td><td>9</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.028</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4207ms</td><td class=''>$0.0147</td></tr></tbody>
+    </table>
+    </div>
+
+  <h2>By category</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Category</th><th>n</th><th>Highlight F1</th><th>Span IoU</th><th>Span located</th><th>Verbatim</th><th>Full-text CER</th><th>Page # acc</th><th>Halluc.</th><th>Latency p50</th><th>$/case</th></tr></thead>
+      <tbody><tr><td class='label'>density:dense</td><td>7</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.022</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4908ms</td><td class=''>$0.0169</td></tr><tr><td class='label'>density:short</td><td>2</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class='good'>0.048</td><td class=''>—</td><td class='good'>0.000</td><td class=''>2348ms</td><td class=''>$0.0071</td></tr><tr><td class='label'>difficulty:clean</td><td>9</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.028</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>4207ms</td><td class=''>$0.0147</td></tr><tr><td class='label'>edge:hyphenated</td><td>1</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.014</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>5964ms</td><td class=''>$0.0164</td></tr><tr><td class='label'>edge:multi-sentence</td><td>1</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.027</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>4207ms</td><td class=''>$0.0140</td></tr><tr><td class='label'>edge:negative</td><td>3</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class='good'>0.038</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>2690ms</td><td class=''>$0.0092</td></tr><tr><td class='label'>modality:instruction</td><td>6</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>100.0%</td><td class='good'>0.023</td><td class='good'>100.0%</td><td class=''>—</td><td class=''>5211ms</td><td class=''>$0.0175</td></tr><tr><td class='label'>modality:none</td><td>3</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class=''>—</td><td class='good'>0.038</td><td class='good'>100.0%</td><td class='good'>0.000</td><td class=''>2690ms</td><td class=''>$0.0092</td></tr></tbody>
+    </table>
+    </div>
+
+  <h2>Per case</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>Case</th><th>Tags</th><th>Status</th><th>F1</th><th>IoU</th>
+        <th>Match</th><th>CER</th><th>Latency</th><th>Expected</th><th>Actual</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class='label'>real-0001</td>
+          <td>modality:instruction, difficulty:clean, density:dense, edge:hyphenated</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.014</td>
+          <td>5964ms</td>
+          <td title='When cabbage has been grown for several generations from stem sprouts and not from head sprouts, the effect has sometimes been to lengthen the stem at the expense of the head, until the seed stock becomes run out entirely and is in effect no longer true modern cabbage seed, since it has partly reverted to the original type.'>When cabbage has been grown for several generations from stem sprouts and not from head sp</td>
+          <td title='When cabbage has been grown for several generations from stem sprouts and not from head sprouts, the effect has sometimes been to lengthen the stem at the expense of the head, until the seed stock becomes run out entirely and is in effect no longer true modern cabbage seed, since it has partly reverted to the original type.'>When cabbage has been grown for several generations from stem sprouts and not from head sp</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0002</td>
+          <td>modality:instruction, difficulty:clean, density:dense</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.011</td>
+          <td>4908ms</td>
+          <td title='The hole by which the larva enters the seed grows completely over, so that the seed appears unimpaired externally.'>The hole by which the larva enters the seed grows completely over, so that the seed appear</td>
+          <td title='The hole by which the larva enters the seed grows completely over, so that the seed appears unimpaired externally.'>The hole by which the larva enters the seed grows completely over, so that the seed appear</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0003</td>
+          <td>modality:instruction, difficulty:clean, density:dense</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.039</td>
+          <td>4059ms</td>
+          <td title='Upon terraces and steep banks, the sod may be held in place by driving wooden pegs through it.'>Upon terraces and steep banks, the sod may be held in place by driving wooden pegs through</td>
+          <td title='Upon terraces and steep banks, the sod may be held in place by driving wooden pegs through it.'>Upon terraces and steep banks, the sod may be held in place by driving wooden pegs through</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0004</td>
+          <td>modality:none, difficulty:clean, density:dense, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.018</td>
+          <td>4028ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0005</td>
+          <td>modality:none, difficulty:clean, density:short, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.097</td>
+          <td>2005ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0006</td>
+          <td>modality:instruction, difficulty:clean, density:dense</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.027</td>
+          <td>5514ms</td>
+          <td title='In figure 14 is shown the barrel spray pump, which has been found most convenient at the Minnesota Experiment Station for general work about the grounds, such as spraying trees of different kinds where the knapsack sprayer is insufficient.'>In figure 14 is shown the barrel spray pump, which has been found most convenient at the M</td>
+          <td title='In figure 14 is shown the barrel spray pump, which has been found most convenient at the Minnesota Experiment Station for general work about the grounds, such as spraying trees of different kinds where the knapsack sprayer is insufficient.'>In figure 14 is shown the barrel spray pump, which has been found most convenient at the M</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0007</td>
+          <td>modality:instruction, difficulty:clean, density:dense, edge:multi-sentence</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.027</td>
+          <td>4207ms</td>
+          <td title='It is always well to set or sow more plants than are wanted, for there is danger of loss from cut-worms and other causes. The general tendency is to let the plants stand too close together at maturity.'>It is always well to set or sow more plants than are wanted, for there is danger of loss f</td>
+          <td title='It is always well to set or sow more plants than are wanted, for there is danger of loss from cut-worms and other causes. The general tendency is to let the plants stand too close together at maturity.'>It is always well to set or sow more plants than are wanted, for there is danger of loss f</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0008</td>
+          <td>modality:instruction, difficulty:clean, density:dense</td>
+          <td>100% f1</td>
+          <td>100.0%</td>
+          <td>100.0%</td>
+          <td>normalized</td>
+          <td>0.018</td>
+          <td>8765ms</td>
+          <td title='The leaves of lettuce and some other plants are liable to burn if watered when the sun shines brightly on them in warm weather.'>The leaves of lettuce and some other plants are liable to burn if watered when the sun shi</td>
+          <td title='The leaves of lettuce and some other plants are liable to burn if watered when the sun shines brightly on them in warm weather.'>The leaves of lettuce and some other plants are liable to burn if watered when the sun shi</td>
+        </tr>
+        
+        <tr>
+          <td class='label'>real-0009</td>
+          <td>modality:none, difficulty:clean, density:short, edge:negative</td>
+          <td><span class='good'>clean</span></td>
+          <td>—</td>
+          <td>—</td>
+          <td>not_found</td>
+          <td>0.000</td>
+          <td>2690ms</td>
+          <td title=''></td>
+          <td title=''></td>
+        </tr>
+        </tbody>
+    </table>
+    </div>
+</div>
+</body>
+</html>

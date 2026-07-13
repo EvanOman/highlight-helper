@@ -1,0 +1,155 @@
+{
+  "53f196b9223881d10440205a8754e666d5c595ac215076f64e9e097feddd8bc0": {
+    "case_id": "real-0005",
+    "instruction": "Extract the highlighted passage.",
+    "latency_ms": 2005.3713609813713,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.006062,
+      "full_text": "Mr. Collins proposes.\nChap. XIX",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": null
+    },
+    "pipeline_id": "service"
+  },
+  "5dd6f9d3c32a2c2297a38db00131b8612b8be1a7486fc60e159d3138f6f3c7e0": {
+    "case_id": "real-0006",
+    "instruction": "Extract the sentence describing the barrel spray pump shown in figure 14.",
+    "latency_ms": 5513.984202989377,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0180285,
+      "full_text": "VEGETABLE GARDENING.                                   37\n\nspecial apparatus is needed, and there are many kinds offered\nby manufacturers. In figure 14 is shown the barrel spray\npump, which has been found most convenient at the Minnesota\nExperiment Station for general work about the grounds, such\nas spraying trees of different kinds where the knapsack\nsprayer is insufficient. The barrel is fastened to a wooden\n\nFigure 14.\u2014Barrel spray pump, showing cone shaped strainer to the left.\nframe and may be placed in a wagon or on a stone boat when\nit is to be used.\n\nThe essential parts are a good hardwood barrel, such as\na linseed oil barrel, mounted on and securely fastened to a\nlight framework of oak. On the barrel and at one end is\nmounted a powerful force pump, with attachments, capable of\nthrowing two or three fine, strong sprays at one time. The\nliquid in the barrel is kept agitated by a small stream of\nwater passing through a one-fourth inch pipe, having a one-six-\nteenth inch wide opening near the feed pipe of the pump, in the",
+      "highlight_end": 378,
+      "highlight_start": 139,
+      "highlight_text": "In figure 14 is shown the barrel spray pump, which has been found most convenient at the Minnesota Experiment Station for general work about the grounds, such as spraying trees of different kinds where the knapsack sprayer is insufficient.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "37"
+    },
+    "pipeline_id": "service"
+  },
+  "6a41f64a94d7233eb676ef647e7a1ddac06400abde0bae543f87d518a9c0cd2d": {
+    "case_id": "real-0009",
+    "instruction": "Extract the highlighted text.",
+    "latency_ms": 2690.0093219592236,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.00809025,
+      "full_text": "IV. Subtropical bedding against a building. Caladiums, cannas, abutilons, permanent rhododendrons, and other large stuff, with tuberous begonias and balsams between.",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": null
+    },
+    "pipeline_id": "service"
+  },
+  "9fd0f5f14e9f14514d2b52924371a294bc6b8db32301224021db9b9c01d33b59": {
+    "case_id": "real-0007",
+    "instruction": "Extract the advice about setting or sowing more plants than are wanted, including the sentence about the general tendency at maturity.",
+    "latency_ms": 4207.166997017339,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.0139895,
+      "full_text": "THE ORNAMENTAL PLANTS\u2014ANNUALS 257\n\nmass effect or to secure strong specimen plants with large\nindividual bloom. If specimen plants are to be raised, the\ndistances should be liberal.\nThe distances here given for some of the commoner annuals\nmay be considered to represent average or usual spaces that\nsingle plants may occupy under ordinary conditions in flower-\nbeds, although it would probably be impossible to find any two\ngardeners or seedsmen who would agree on the details. These\nare suggestions rather than recommendations. It is always\nwell to set or sow more plants than are wanted, for there is\ndanger of loss from cut-worms and other causes. The general\ntendency is to let the plants stand too close together at maturity.\nIn case of doubt, place plants described in books and cata-\nlogues as very dwarf at six inches, those as medium-sized at\ntwelve inches, very large growers at two feet, and thin them out\nif they seem to demand it as they grow.\nThe plants in these lists are thrown into\nfour groups (rather than all placed together\nwith the numbers after them) in order to\nclassify the subject in the beginner\u2019s mind.\n\n6 to 9 inches apart\n\nAgeratum, very dwarf kinds.\nAlyssum.\nAsperula setosa.\nCacalia.\nCandytuft.\nClarkia, dwarf.\nCollinsia.\nGysophila muralis.\nKaulfussia.\nLarkspur, dwarf kinds.\nLinaria.\nLinum grandiflorum.\nLobelia Erinus. Mignonette, dwarf kinds.\n\n246. Wild phlox (P.\nmaculata), one of the\nparents of the peren-\nnial garden phloxes.",
+      "highlight_end": 731,
+      "highlight_start": 530,
+      "highlight_text": "It is always well to set or sow more plants than are wanted, for there is danger of loss from cut-worms and other causes. The general tendency is to let the plants stand too close together at maturity.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "257"
+    },
+    "pipeline_id": "service"
+  },
+  "a00f568e82eb041cb4a898ef1a22d2cdea995c56c5d9c582960d4823b56c1273": {
+    "case_id": "real-0008",
+    "instruction": "Extract the sentence warning that lettuce leaves are liable to burn if watered in bright sun.",
+    "latency_ms": 8765.17283899011,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.026839750000000002,
+      "full_text": "HOTBEDS AND GREENHOUSES.                                       77\n\nadvantage in such cases to shade as well as water them, if the\nsun is shining. If a long continued spell of cloudy weather is\nfollowed by a period of bright hot sunshine, it is not uncom-\nmon to see plants wilting that have plenty of water in the soil\nsurrounding them. In such a case it may be desirable to\nshade them somewhat in the middle of the day until they get\nused to the sunlight. In cold weather it is a poor plan to\nwater most of our plants at night, since the water will cool off\nthe air and the plants may be checked in growth, but in hot\nweather the reverse is true and plants seem to get more bene-\nfit from a good soaking in the evening, when they can have all\nnight to take the water in, than if it is applied in the morning\nand followed by a hot sun. In watering hotbeds in very cold\nweather use a fine rose sprinkler, and if practicable tepid\nwater. At other seasons good lake or cistern water is per-\nfectly safe, and is generally used by commercial growers at all\ntimes of the year. Avoid getting the soil water-soaked.\n\nThe leaves of lettuce and some other plants are liable to\nburn if watered when the sun shines brightly on them in warm\nweather.\n\nThe soil should vary somewhat in texture for different\nplants but all garden vegetables will flourish in much the\nsame kind of soils. For use in glass structures a light,\nfriable, rich, sandy loam is best. This is easily obtained\nwhen one has been using hotbeds, by mixing some of the old\nrotted manure which has been used for heating them the pre-\nceding year, with any good sandy loam. If sandy loam can-\nnot be had, clay loam may be used and sand added to the mix-\nture. The manure from old hotbeds is especially good for\nthis purpose and should form about one-third of the bulk of\nthe soil.\n\nBoxes. In the case of many plants having small seeds, it\nis a good plan to start them in boxes instead of growing them\nin beds, on account of the better care that may thus be given\nthem. When plants are to be marketed, it is often best to grow\nthem in the boxes in which they are sold. Frequently, too,\nwhere plants are started in the greenhouse and then moved to\nthe open ground, it is most convenient to have them in boxes,\nFor this purpose boxes should be about four inches deep and\nthe size of a soap or cracker box, which may be cut down for",
+      "highlight_end": 1236,
+      "highlight_start": 1109,
+      "highlight_text": "The leaves of lettuce and some other plants are liable to burn if watered when the sun shines brightly on them in warm weather.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "77"
+    },
+    "pipeline_id": "service"
+  },
+  "c66df9177604740d5c78099ebe23fa157da95214c9302a788fbfe2bb5414ae9b": {
+    "case_id": "real-0004",
+    "instruction": "Extract the highlighted sentence.",
+    "latency_ms": 4028.2497229636647,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.01350825,
+      "full_text": "THE HANDLING OF THE PLANTS                                                        161\n\nIn the storing of all products, especially those which have\nsoft and green matter, as cabbages, it is well to provide against\nthe heating of the produce. If the things are buried out of\ndoors, it is important to put on a very light cover at first so\nthat the heat may escape. Cover them gradually as the cold\nweather comes on. This is important with all vegetables that\nare placed in pits, as potatoes, beets, and the like. If covered\ndeeply at once, they are likely to heat and rot. All pits made\nout of doors should be on well-drained and preferably sandy\nland.\n\nWhen vegetables are wanted at intervals during the winter\nfrom pits, it is well to make compartment pits, each compart-\nment holding a wagon load or whatever quantity will be likely\nto be wanted at each time. These pits are sunk in well-drained\nland, and between each of the two pits is left a wall of earth\nabout a foot thick. One pit can then be emptied in cold weather\nwithout interfering with the others.\n\nAn outside cellar is better than a house cellar in which there\nis a heater, but it is not so handy. If it is near the house, it\nneed not be inconvenient, however. A house is usually healthier\nif the cellar is not used for storage. House cellars used for\nstorage should have a ventilating shaft.\n\nSome of the principles involved in an ice-cooled storage house\nare explained in the diagram, Fig. 189. If the reader desires\nto make a careful study of storage and storage structures,\nhe should consult cyclopedias and special articles.\n\nThe forcing of plants.\n\nThere are three general means (aside from greenhouses) of\nforcing plants ahead of their season in the early spring \u2014 by\nmeans of forcing-hills and hand-boxes, by coldframes, and by\nhotbeds.\n\nThe forcing-hill is an arrangement by means of which a single\nplant or a single \u201chill\u201d of plants may be forced where it per-",
+      "highlight_end": 0,
+      "highlight_start": 0,
+      "highlight_text": "",
+      "match_quality": 0.0,
+      "match_status": "not_found",
+      "page_number": "161"
+    },
+    "pipeline_id": "service"
+  },
+  "d3871cdc9c4b9ea8a49e6f81372723ea6e4d4ca000c1d9288fe3f5ce2b510fce": {
+    "case_id": "real-0001",
+    "instruction": "Extract the sentence describing what happens to cabbage grown for several generations from stem sprouts instead of head sprouts.",
+    "latency_ms": 5963.960830995347,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.016373,
+      "full_text": "SEEDS AND SEED SOWING.                             57\n\nIt is found to be quite a general law obtaining among\nplants, that the qualities of the parent are much more potent and\nthus more liable to be transmitted than some especially desirable\nqualities of a few individual fruits, which may occur on a plant\notherwise defective. For instance, Livingstone, who has done\nmuch to improve the tomato, selected seed for fifteen years\nfrom the best tomatoes that approached most nearly in size\nand other qualities the best modern tomatoes without noting\nmuch improvement. He says, \u201cI was then no nearer the goal\nthan when I started. Such stock seed would reproduce every\ntrace of their ancestry, viz.: thin fleshed, rough, undesirable\nfruits.\u201d It finally occurred to him to select from the special\nmerits of the plants as a whole, instead of from the best fruits\nwithout regard to the plants on which they grew. Improve-\nment then came easily and rapidly, and in a few years he obtained\nthe Paragon, Acme and Perfection varieties, which were vastly\nsuperior to and have entirely supplanted the old varieties of\ntomatoes. Again, in selecting seed corn it is more important\nto save seed from plants having ears approaching the desired\nsize of cob, kernel, etc., rather than to select the largest ker-\nnels alone or to select from ears after they have been pulled.\nWhere it is desired to hasten the ripening period of a variety,\nonly the seed from the earliest maturing specimens from a plant\nhaving the largest number of early specimens should be planted.\nIn order to fix late maturing qualities, seed should be saved from\nlate maturing fruits on plants possessing these features to the\ngreatest extent.\nThe continued selection of any seed from inferior specimens\nresults in the fixing of the poorer qualities even more surely\nthan the selection of seed from the better plants results\nin improvement. By injudicious selection the cabbage has\nsometimes been changed from a biennial to an annual\nproducing no head at all but going to seed the first year.\nWhen cabbage has been grown for several generations from\nstem sprouts and not from head sprouts, the effect has some-\ntimes been to lengthen the stem at the expense of the head,\nuntil the seed stock becomes run out entirely and is in effect\nno longer true modern cabbage seed, since it has partly revert-\ned to the original type. An instance of this occurred in a\nneighborhood in Nova Scotia where, for the sake of economy",
+      "highlight_end": 2372,
+      "highlight_start": 2043,
+      "highlight_text": "When cabbage has been grown for several generations from stem sprouts and not from head sprouts, the effect has sometimes been to lengthen the stem at the expense of the head, until the seed stock becomes run out entirely and is in effect no longer true modern cabbage seed, since it has partly reverted to the original type.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "57"
+    },
+    "pipeline_id": "service"
+  },
+  "d5db501f454190d405af9737912773285061557f272bcc270c9508dd74efd3a8": {
+    "case_id": "real-0002",
+    "instruction": "Extract the sentence explaining how the hole made by the weevil larva entering the seed grows over.",
+    "latency_ms": 4907.618511992041,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.016177,
+      "full_text": "INJURIOUS INSECTS.                                              97\n\ntheir way, which should be turned back as soon as filled with\nbugs and new furrows made. Fences of boards six inches\nhigh with the upper edge kept covered with tar will keep them\nout, but holes in the ground should be made at intervals along\nthe line of the boards,which when full of bugs should be filled\nin with earth, and new holes made. A dusty headland\nor road is very difficult for them to get through. If they\nfinally reach the corn, they will readily succumb to kerosene\nemulsion. Much is being done to rid grain fields of this pest\nby infecting the bugs with disease. This works most rapidly\nin moist weather, but other remedies should not be put aside\nfor this one.\n\nBean and Pea Weevil (Bruchus sp.) The insects known as\nweevils are quite common in some sections. They work in the\nseed of beans and peas. The adult insects are small beetles\nwhich lay their eggs in the flowers, where they soon hatch, and\nthe young larv\u00e6 eat their way into the immature seeds. The\nhole by which the larva enters the seed grows completely over,\nso that the seed appears unimpaired externally. In the seed\nthe larva does not touch the germ, though it may eat up a\nlarge part of the starch. The larva undergoes its changes in\nthe seed, and when these have been completed the beetles emerge\nthrough quite large holes in the shell of the seed. While seed\nthat is infested may germinate, it forms only weak plants that\nare very sure to fail to mature a full crop. Similar insects\nalso attack corn. There is another species that breeds in\nstored grain, peas and beans, etc., but it is not common as yet.\n\nREMEDIES. These insects are generally somewhat local in\nrange. Whenever any locality is infested the date of planting\nshould be delayed two weeks, by which the beetles fail to find\nthe crop ready when they are ready to lay their eggs. This\ntrouble generally comes from sowing infested seeds. These\nmay be separated from the good seed by throwing them into\nwater, when the good will sink, but those infested will float.\nAnother method is to treat the seed with carbon bisulphide, as\nrecommended under that head. If the seed is kept over two\nyears the beetles will have come out. The species that breeds\nin the grain is most easily destroyed and kept out of the seed by\nusing bisulphide of carbon, as recommended.\n\nSquash Vine Borer (Aegeria cucurbit\u00e6.)\u2014The squash vine",
+      "highlight_end": 1153,
+      "highlight_start": 1039,
+      "highlight_text": "The hole by which the larva enters the seed grows completely over, so that the seed appears unimpaired externally.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "97"
+    },
+    "pipeline_id": "service"
+  },
+  "efae08e36ca5d0475eb0cf651749464521414033d9d511384313480bea54e6bd": {
+    "case_id": "real-0003",
+    "instruction": "Extract the sentence explaining how sod may be held in place on terraces and steep banks.",
+    "latency_ms": 4059.4592709676363,
+    "model": "openai/gpt-5.4",
+    "output": {
+      "cost_usd": 0.013361250000000002,
+      "full_text": "EXECUTION OF SOME OF THE LANDSCAPE FEATURES 85\n\nhimself, while another cuts it loose with a spade, as shown\nin Fig. 77. When the sod is laid, it is unrolled on the land\nand then firmly beaten down. Land that is to be sodded\nshould be soft on top, so that the sod can be well pounded\ninto it. If the sod is not well pounded down, it will settle\nunevenly and present a bad surface, and will also dry out and\nperhaps not live through a dry spell. It is almost impossible\nto pound down sod too firm. If the land is freshly plowed,\nit is important that the borders that are sodded be an inch or\ntwo lower than the adjacent land, because the land will set-\ntle in the course of a few weeks. In a dry time, the sod may be\ncovered from a half inch to an inch with fine, mellow soil as a\nmulch. The grass should grow through this soil without diffi-\nculty. Upon terraces and steep banks, the sod may be held\nin place by driving wooden pegs through it.\n\nA combination of\nsodding and seeding.\nAn \u201ceconomical sodding\u201d is described in \u201cAmerican Garden\u201d\n(Fig. 78): \u201cTo obtain sufficient sod of suitable quality for cov-\nering terrace-slopes or small blocks that for any reason cannot\nwell be seeded is often a difficult matter. In the accompany-\ning illustration we show how a surface of sod may be used to\ngood advantage over a larger area than its real measurement\nrepresents. This is done by laying the sods, cut in strips from\n\n78. Economical sodding, the spaces being seeded.",
+      "highlight_end": 942,
+      "highlight_start": 848,
+      "highlight_text": "Upon terraces and steep banks, the sod may be held in place by driving wooden pegs through it.",
+      "match_quality": 1.0,
+      "match_status": "normalized",
+      "page_number": "85"
+    },
+    "pipeline_id": "service"
+  }
+}
