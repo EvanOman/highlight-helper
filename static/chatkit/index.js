@@ -3108,7 +3108,7 @@ componentSheet$4.replaceSync(`
     transition: box-shadow 0.2s ease;
   }
   .bubble.user {
-    background: linear-gradient(135deg, var(--ck-accent, #22c55e) 0%, #059669 100%);
+    background: linear-gradient(135deg, var(--ck-accent, #22c55e) 0%, var(--ck-accent-2, #059669) 100%);
     color: #fff;
     margin-left: auto;
     border-bottom-right-radius: 4px;

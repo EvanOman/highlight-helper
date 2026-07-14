@@ -11,7 +11,6 @@
 
     <div class="mb-6 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
         <div>
-            <p class="text-sm font-semibold uppercase tracking-[0.18em] text-muted">Add Highlight</p>
             <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold leading-tight text-ink sm:text-4xl">
                 Add Highlight
             </h1>
@@ -47,7 +46,7 @@
                     </span>
                     {% endif %}
                     {% if match_status and match_status != 'failed' %}
-                    <span class="capture-match-pill">
+                    <span class="capture-match-pill {% if match_status == 'exact' %}capture-match-pill-exact{% else %}capture-match-pill-approx{% endif %}">
                         {% if match_status == 'exact' %}Exact match{% elif match_status == 'normalized' %}Normalized match{% else %}Fuzzy match{% endif %}
                     </span>
                     {% endif %}
