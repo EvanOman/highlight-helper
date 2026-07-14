@@ -66,3 +66,40 @@
         {% endif %}
     </div>
 {%- endmacro %}
+
+{% macro back_link(href, label, extra_classes="") -%}
+    <a href="{{ href }}" class="inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-accent {{ extra_classes }}">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+        </svg>
+        <span>{{ label }}</span>
+    </a>
+{%- endmacro %}
+
+{% macro notice(tone="caution", extra_classes="") -%}
+    {% set tones = {
+        "info": "border-accent/25 bg-accent/10 text-ink",
+        "success": "border-green-700/20 bg-green-700/10 text-green-800 dark:text-green-300",
+        "caution": "border-amber-700/25 bg-amber-700/10 text-amber-900 dark:text-amber-200",
+        "danger": "border-red-700/25 bg-red-700/10 text-red-800 dark:text-red-300"
+    } %}
+    <div class="rounded-lg border px-4 py-3 text-sm leading-6 {{ tones.get(tone, tones["caution"]) }} {{ extra_classes }}">
+        {{ caller() }}
+    </div>
+{%- endmacro %}
+
+{% macro sticky_submit(label, id="", disabled=False, extra_classes="", cancel_href=None, cancel_label="Cancel") -%}
+    <div class="capture-sticky-submit {{ extra_classes }}">
+        {% if cancel_href %}
+        <a href="{{ cancel_href }}" class="inline-flex min-h-12 items-center justify-center rounded-md border border-line bg-surface px-4 text-sm font-semibold text-ink transition hover:bg-marker/20">
+            {{ cancel_label }}
+        </a>
+        {% endif %}
+        <button type="submit"
+                {% if id %}id="{{ id }}"{% endif %}
+                {% if disabled %}disabled aria-disabled="true"{% endif %}
+                class="inline-flex min-h-12 flex-1 items-center justify-center rounded-md bg-accent px-5 py-3 text-sm font-semibold text-white shadow-card transition hover:bg-ink disabled:pointer-events-none disabled:opacity-50">
+            {{ label }}
+        </button>
+    </div>
+{%- endmacro %}
