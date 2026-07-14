@@ -151,7 +151,8 @@ class TestHomePageFlow:
         page.goto(server)
         page.wait_for_load_state("networkidle")
 
-        assert page.title() == "My Books - Highlight Helper"
+        # redesign: home is now the Books-first library.
+        assert page.title() == "Books - Highlight Helper"
         assert page.locator("text=No books yet").is_visible()
         page.close()
 
@@ -184,8 +185,9 @@ class TestBookManagementFlow:
         page.wait_for_load_state("networkidle")
 
         assert page.title() == "Add Book - Highlight Helper"
-        assert page.locator("text=Search for a Book").is_visible()
-        assert page.locator("text=Add Manually").is_visible()
+        # redesign: add-book sections are collapsible controls.
+        assert page.locator("button:has-text('Search for a Book')").is_visible()
+        assert page.locator("button:has-text('Add Manually')").is_visible()
         page.close()
 
     def test_manual_book_creation(self, server, browser_context):
@@ -209,7 +211,8 @@ class TestBookManagementFlow:
 
         # Should redirect to book detail page
         assert "/books/" in page.url
-        assert page.locator("text=Test Manual Book").is_visible()
+        # redesign: the book cover repeats the title; assert the detail heading.
+        assert page.get_by_role("heading", name="Test Manual Book").is_visible()
         assert page.locator("text=Test Author").is_visible()
         page.close()
 
@@ -220,7 +223,8 @@ class TestBookManagementFlow:
         page.wait_for_load_state("networkidle")
 
         # The book from previous test should be visible
-        assert page.locator("text=Test Manual Book").is_visible()
+        # redesign: the generated cover repeats the title inside each book card.
+        assert page.locator("[data-book-card] h3:has-text('Test Manual Book')").is_visible()
         page.close()
 
 
@@ -242,8 +246,9 @@ class TestHighlightManagementFlow:
         page.wait_for_load_state("networkidle")
 
         assert "add-highlight" in page.url
-        assert page.locator("text=Extract from Image").is_visible()
-        assert page.locator("text=Enter Manually").is_visible()
+        # redesign: the extract heading and submit button both preserve this copy.
+        assert page.get_by_role("heading", name="Extract from Image").is_visible()
+        assert page.get_by_role("heading", name="Enter Manually").is_visible()
         # No highlight editor should be shown initially
         assert not page.locator("#highlight-editor").is_visible()
         page.close()
@@ -284,7 +289,8 @@ class TestHighlightManagementFlow:
         page.wait_for_load_state("networkidle")
 
         assert page.locator("text=This is a test highlight").is_visible()
-        assert page.locator("text=Test Manual Book").is_visible()
+        # redesign: the river includes book filter chips plus row attribution.
+        assert page.get_by_role("link", name="Test Manual Book").is_visible()
         page.close()
 
 
@@ -566,10 +572,12 @@ class TestDeleteOperations:
         # Override window.confirm to always return true (avoids flaky dialog handling)
         page.evaluate("window.confirm = () => true")
 
-        # Click delete and wait for navigation
-        page.click("text=Delete Book")
+        # redesign: destructive book actions live behind the detail overflow menu.
+        page.locator("details.library-overflow-menu summary").click()
+        page.locator("details.library-overflow-menu button:has-text('Delete Book')").click()
         page.wait_for_load_state("networkidle")
 
         # Book should be gone from home page
-        assert not page.locator("text=Book To Delete").is_visible()
+        assert page.url.endswith("/") or page.url.endswith(":8765")
+        assert not page.locator("[data-book-card] h3:has-text('Book To Delete')").is_visible()
         page.close()
