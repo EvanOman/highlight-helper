@@ -1,162 +1,143 @@
 # Highlight Helper
 
-A mobile-friendly web app for collecting and organizing book highlights using AI-powered text extraction.
-
 [![CI](https://github.com/EvanOman/highlight-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/EvanOman/highlight-helper/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/EvanOman/highlight-helper/branch/main/graph/badge.svg)](https://codecov.io/gh/EvanOman/highlight-helper)
 
-## Overview
+Photograph a marked-up book page; get the exact highlighted passage back, verbatim, ready to save and sync to Readwise.
 
-Highlight Helper captures and organizes passages from physical books. Take a photo of a highlighted page, and the app uses OpenAI's Vision API to extract the text, returning both the full page content and the highlighted portion. An interactive editor lets you review and adjust the selection before saving.
+Highlight Helper is a mobile-first web app for capturing highlights from physical books. Take a photo of a page you've marked with a highlighter or pen, and a vision model transcribes the page, finds the marked passage, and drops you into an editor where the selection is already made — adjusting it is usually a confirmation, not a repair job.
 
-## Limitations & Security Model
+![The interactive editor: extracted page text with the highlighted passage pre-selected, drag handles, honest confidence badge, auto-detected page number, and one-click re-extraction](static/screenshots/highlight-editor.png)
 
-- This project is designed for **single-user** operation.
-- The intended deployment/access pattern is over a **private Tailscale network** to your own machine.
-- It currently does **not** implement production-grade multi-user security controls (for example: authentication/authorization hardening, CSRF protection, per-user isolation, and abuse/rate controls).
-- Treat this app as personal/dev-machine software unless additional hardening is added.
+## The core loop
 
-### Key Features
+1. **Snap a photo** of the page (photos are downscaled client-side before upload, so it's fast on a phone).
+2. **The vision pipeline** (OpenAI via DSPy) transcribes the full page, identifies the highlighted/underlined/marked portion — or follows a natural-language instruction like *"the sentence about trade-offs"* — and locates its exact character span in the page text.
+3. **Review in the editor**: the passage is pre-selected over the full page text. Drag the handles or tap words to adjust. Page numbers are auto-detected.
+4. **Save** — the stored text is the exact character slice of the page (hyphenated line-breaks rejoined), never a paraphrase or a reflow.
+5. **Readwise sync** pushes it into the rest of your reading workflow automatically.
 
-- **AI-Powered Text Extraction** — Upload a photo of a book page, and the Vision API extracts all readable text along with the highlighted portion
-- **Interactive Highlight Editor** — Review the full extracted text with the highlight marked, then drag handles to adjust the selection as needed
-- **Book Library Management** — Search and add books via Google Books API with cover art and metadata
-- **Mobile-First Design** — Responsive, touch-friendly interface designed for phones and tablets
-- **Highlight Organization** — View all highlights in one place, organized by book
-- **Chat with Your Highlights** — Ask questions across your entire library; the AI searches and quotes your actual highlights
-- **Readwise Sync** — Sync highlights to Readwise for integration with your reading workflow
-- **Local Database** — Data stored in SQLite; highlights stay on your server
+### Honest by design
 
-## Screenshots
+The pipeline never fakes a result:
 
-### Book Library
+- If the photo can't be read, you get an explicit error — with your instructions preserved and a manual-entry fallback — not a silent reset.
+- If the page was transcribed but the marked passage couldn't be located, the editor opens with **nothing selected** and says so; Save stays disabled until you pick the passage yourself. A failed match is never dressed up as a full-page "selection".
+- The confidence badge is tied to *match quality*, not just model self-assessment: only a verbatim exact match earns green.
+- Got a bad extraction? **Re-extract with edited instructions, no re-upload** — the photo is kept server-side for the session.
 
-![Book library showing covers, authors, and highlight counts](static/screenshots/library.png)
+## Extraction quality is measured, not vibes
 
-### Book Detail
+The repo ships an eval harness (`evals/`) that renders photo-realistic book pages with *actual visual highlights* — marker strokes, pen underlines, margin brackets — over known ground truth, then degrades them (perspective warp, rotation, glare, shadows, blur, desk backgrounds) and scores the full pipeline on every change:
 
-![Book detail page with reading progress timeline and highlighted passages](static/screenshots/book-detail.png)
+| Metric (48-case synthetic set) | Score |
+|---|---|
+| Highlight token F1 | **97.3%** |
+| Char-span IoU | 98.1% |
+| Verbatim rate (after repair) | 100% |
+| Hallucinations on unmarked pages | **0** |
+| Page-number accuracy | 100% |
+| p50 latency / cost | ~4s / ~$0.01 per extraction |
 
-### Chat with Your Highlights
+Three data tiers keep the numbers honest:
 
-![Chat conversation analyzing themes across a 61-book library](static/screenshots/chat.png)
+- **Synthetic + augmented** (`just eval`, `just eval-augment`): deterministic generated pages, plus phone-photo-style augmentations (±15° rotation, keystone, glare, cluttered backgrounds) that probe where the pipeline breaks.
+- **Real public-domain holdout** (`just eval-real`): labeled photographs of real book pages from Internet Archive scans, with per-image attribution (`evals/samples/real/ATTRIBUTION.md`).
+- **Your own uploads**: every photo that flows through extraction is retained (locally, flag-controlled) with a JSON sidecar of the full extraction outcome, and `scripts/promote_upload.py` turns any of them into a labeled eval case.
 
-## AI Reading Coach
+Reports land in `evals/reports/`; consequential design decisions are recorded in `docs/decisions/`.
 
-Highlight Helper proactively generates coaching cards based on your reading highlights — prompting you to revisit old passages, find cross-book connections, and reflect on what you've read. Click "Reflect in Chat" to start a Socratic coaching session where the AI draws on your actual highlights to ask thoughtful questions.
+## Beyond capture
 
-![Coaching session exploring probabilistic thinking and navigating uncertainty](static/screenshots/coaching-session.png)
+### Library
 
-## Technology Stack
+Search and add books via Google Books, with covers, reading-progress timelines, and per-book highlight lists.
 
-- **Backend**: [FastAPI](https://fastapi.tiangolo.com/) with async SQLAlchemy
-- **Database**: [SQLite](https://sqlite.org/) via [SQLAlchemy](https://www.sqlalchemy.org/) (async)
-- **Frontend**: Server-rendered HTML with [Jinja2](https://jinja.palletsprojects.com/) + [Tailwind CSS](https://tailwindcss.com/)
-- **AI**: [OpenAI Vision API](https://platform.openai.com/docs/guides/vision) via [DSPy](https://dspy.ai/)
-- **Book Data**: [Google Books API](https://developers.google.com/books)
-- **Readwise**: [readwise-plus](https://pypi.org/project/readwise-plus/) SDK
+![Book library with covers, authors, and highlight counts](static/screenshots/library.png)
 
-## Getting Started
+![Book detail with reading progress and synced highlights](static/screenshots/book-detail.png)
 
-### Prerequisites
+### Chat with your highlights
 
-- Python 3.12+
-- An OpenAI API key (for highlight extraction)
+Ask questions across your whole library; the assistant searches your actual highlights and quotes them back with sources.
 
-### Installation
+![Chat surfacing themes across a 62-book, 950-highlight library, quoting Peopleware and Bird by Bird](static/screenshots/chat.png)
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/EvanOman/highlight-helper.git
-   cd highlight-helper
-   ```
+### AI reading coach
 
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -e ".[dev]"
-   ```
+Proactively generated coaching cards resurface old passages and open Socratic sessions grounded in what you actually saved.
 
-3. Set up environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your OPENAI_API_KEY
-   ```
+![A coaching session revisiting a four-year-old Team Topologies highlight](static/screenshots/coaching-session.png)
 
-4. Run the application:
-   ```bash
-   python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
+## Limitations & security model
 
-5. Open http://localhost:8000 in your browser
+- Designed for **single-user** operation.
+- Intended deployment is over a **private Tailscale network** to your own machine.
+- It does **not** implement production-grade multi-user security (auth hardening, CSRF, per-user isolation, rate limiting). Treat it as personal software unless hardened.
+- Uploaded page photos are retained locally under `data/uploads/` for eval mining; set `STORE_UPLOADED_IMAGES=false` to disable.
+
+## Technology
+
+- **Backend**: [FastAPI](https://fastapi.tiangolo.com/) + async [SQLAlchemy](https://www.sqlalchemy.org/) on SQLite, migrations via Alembic
+- **Frontend**: server-rendered Jinja2 + [Tailwind CSS](https://tailwindcss.com/), vanilla-JS highlight editor
+- **Vision/AI**: OpenAI via [DSPy](https://dspy.ai/), with an optional Groq fallback; deterministic fake LLM (`FAKE_LLM=1`) for zero-cost full-stack tests
+- **Books**: [Google Books API](https://developers.google.com/books) · **Sync**: [readwise-plus](https://pypi.org/project/readwise-plus/)
+
+## Getting started
+
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and [just](https://github.com/casey/just).
+
+```bash
+git clone https://github.com/EvanOman/highlight-helper.git
+cd highlight-helper
+just install                 # uv sync --dev
+cp .env.example .env         # add your OPENAI_API_KEY
+just dev                     # http://localhost:18742
+```
 
 ## Development
 
-### Running Tests
-
 ```bash
-# Run all unit and integration tests
-pytest tests/unit tests/integration -v
+just fc            # format, lint, contract checks, type-check, unit+integration tests
+just test-e2e      # Playwright E2E suite (temp DB, port 8765)
+just selftest      # full-stack chat self-test in a real browser (FAKE_LLM, no API cost)
 
-# Run with coverage
-pytest tests/unit tests/integration --cov=app --cov-report=html
+just eval          # run extraction evals online against the current pipeline
+just eval-offline  # replay from cache (no API cost)
+just eval-real     # score the real-photo holdout separately
+just uploads-stats # size of the retained-upload corpus
 
-# Run E2E tests (requires Playwright)
-playwright install chromium
-pytest tests/e2e -v
+just redeploy      # rebuild Docker, restart, health-check, smoke-test
 ```
 
-### Code Quality
+`just fc && just test-e2e` matches CI. The eval harness is pluggable (`--pipeline`) so pipeline changes ship with a before/after comparison — see `docs/decisions/` for the running decision log.
 
-```bash
-# Lint with Ruff
-ruff check .
-
-# Format with Ruff
-ruff format .
-```
-
-## Project Structure
+## Project structure
 
 ```
 highlight_helper/
 ├── app/
-│   ├── api/              # API routes and HTML views
-│   │   ├── views/        # Server-rendered HTML views (package)
-│   │   ├── books.py      # Book REST API
-│   │   ├── highlights.py # Highlight REST API
-│   │   ├── readwise.py   # Readwise sync API
-│   │   ├── chat.py       # AI chat endpoints and views
-│   │   └── schemas.py    # Pydantic request/response models
-│   ├── core/             # Configuration and database setup
-│   ├── models/           # SQLAlchemy database models
-│   ├── repositories/     # Database access layer
-│   ├── services/         # External service integrations
-│   │   ├── book_lookup.py         # Google Books API
-│   │   ├── highlight_extractor.py # OpenAI Vision API via DSPy
-│   │   ├── readwise.py            # Readwise sync
-│   │   └── chat.py                # AI chat service
-│   └── templates/        # Jinja2 HTML templates
-├── tests/
-│   ├── unit/             # Unit tests
-│   ├── integration/      # Integration tests
-│   └── e2e/              # End-to-end Playwright tests
-└── static/
-    └── js/
-        └── highlight-editor.js  # Interactive highlight editor
+│   ├── api/               # REST API + server-rendered views
+│   ├── core/              # Config, DB setup, telemetry
+│   ├── models/            # SQLAlchemy models
+│   ├── repositories/      # DB access layer
+│   ├── services/          # Extraction pipeline, text matching, image prep,
+│   │                      #   upload archive, Readwise, chat, coaching
+│   └── templates/         # Jinja2 templates
+├── evals/                 # Eval harness: dataset generator, augmentation,
+│   ├── samples/           #   synthetic + augmented cases
+│   └── samples/real/      #   labeled public-domain holdout (+ attribution)
+├── docs/decisions/        # Versioned decision log
+├── alembic/               # Schema migrations
+├── scripts/               # smoke checks, upload promotion, backups
+├── static/js/highlight-editor.js   # Interactive selection editor
+└── tests/                 # unit / integration / e2e (Playwright)
 ```
 
-## API Documentation
+## API documentation
 
-When the app is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-## Contributing
-
-Contributions welcome. Feel free to open a Pull Request.
+With the app running: **Swagger UI** at `/docs`, **ReDoc** at `/redoc`.
 
 ## License
 
-This project is available under the [MIT License](LICENSE).
+[MIT](LICENSE)
