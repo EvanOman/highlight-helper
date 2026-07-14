@@ -1,0 +1,168 @@
+{% extends "layouts/base.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Capture - Highlight Helper{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+    <div class="mb-6">
+        <p class="text-sm font-semibold uppercase text-muted">Capture</p>
+        <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">Mark the page while it is still open</h1>
+    </div>
+
+    {% if books %}
+    <form id="capture-form"
+          action="{{ base_path }}/books/{{ first_book.id }}/extract"
+          method="post"
+          enctype="multipart/form-data"
+          data-action-template="{{ base_path }}/books/__BOOK_ID__/extract"
+          class="space-y-5">
+        {% call ui.card("p-4 sm:p-5") %}
+        <div class="space-y-3">
+            <div>
+                <h2 class="text-lg font-semibold text-ink">Photo of the page</h2>
+                <p class="mt-1 text-sm text-muted">Choose the image first, then attach it to the book.</p>
+            </div>
+            <label for="image" class="block rounded-lg border border-dashed border-line bg-bg p-4">
+                <span class="block text-sm font-semibold text-ink">Open camera or choose image</span>
+                <input type="file"
+                       id="image"
+                       name="image"
+                       accept="image/*"
+                       capture="environment"
+                       required
+                       class="mt-3 w-full text-sm text-muted file:mr-4 file:rounded-md file:border-0 file:bg-marker file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink hover:file:bg-marker/80">
+            </label>
+        </div>
+        {% endcall %}
+
+        {% call ui.card("p-4 sm:p-5") %}
+        <div class="space-y-4">
+            <div>
+                <h2 class="text-lg font-semibold text-ink">Which book?</h2>
+                <p class="mt-1 text-sm text-muted">Starred books appear first, followed by recent additions.</p>
+            </div>
+
+            <div>
+                <label for="book-filter" class="sr-only">Search books</label>
+                <input type="search"
+                       id="book-filter"
+                       placeholder="Search books..."
+                       autocomplete="off"
+                       class="form-field">
+            </div>
+
+            <div id="book-required-message" class="hidden rounded-md border border-red-700/20 bg-red-700/10 px-3 py-2 text-sm text-red-800 dark:text-red-300">
+                Choose a book before capturing a highlight.
+            </div>
+
+            <div id="book-options" class="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
+                {% for book in books %}
+                <label class="book-option flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-bg p-3 transition hover:border-marker hover:bg-marker/10"
+                       data-book-option
+                       data-search-text="{{ (book.title ~ ' ' ~ book.author)|lower }}">
+                    <input type="radio"
+                           name="book_id"
+                           value="{{ book.id }}"
+                           class="h-4 w-4 accent-[var(--marker)]"
+                           {% if loop.first %}checked{% endif %}>
+                    <span class="flex min-w-0 flex-1 items-center gap-3">
+                        <span class="flex h-14 w-10 shrink-0 items-center justify-center overflow-hidden rounded border border-line bg-surface text-muted">
+                            {% if book.cover_url %}
+                            <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="h-full w-full object-cover">
+                            {% else %}
+                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path d="M5 3a2 2 0 00-2 2v11.25A1.75 1.75 0 014.75 14.5H16a1 1 0 001-1V5a2 2 0 00-2-2H5z" />
+                                <path d="M4.75 16A.75.75 0 004 16.75.75.75 0 004.75 17H16a1 1 0 100-2H4.75z" />
+                            </svg>
+                            {% endif %}
+                        </span>
+                        <span class="min-w-0">
+                            <span class="block truncate font-semibold text-ink">{{ book.title }}</span>
+                            <span class="block truncate text-sm text-muted">{{ book.author }}</span>
+                        </span>
+                    </span>
+                    <span class="flex shrink-0 items-center gap-2">
+                        {% if book.is_starred %}{{ ui.badge("Starred", "marker") }}{% endif %}
+                        <span class="hidden text-xs text-muted sm:inline">{{ book.highlight_count }} highlight{% if book.highlight_count != 1 %}s{% endif %}</span>
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+
+            <p id="no-book-matches" class="hidden rounded-md border border-line bg-bg px-3 py-4 text-center text-sm text-muted">
+                No books match that search.
+            </p>
+        </div>
+        {% endcall %}
+
+        {% call ui.card("p-4 sm:p-5") %}
+        <div>
+            <label for="instructions" class="block text-sm font-semibold text-ink">What to extract</label>
+            <textarea id="instructions"
+                      name="instructions"
+                      rows="3"
+                      required
+                      class="form-field mt-2 resize-none">the highlighted text</textarea>
+        </div>
+        {% endcall %}
+
+        <div class="sticky bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-20 md:bottom-4">
+            {{ ui.button("Extract from Image", type="submit", variant="primary", extra_classes="w-full marker-stroke py-3 text-base") }}
+        </div>
+    </form>
+    {% else %}
+    {% call ui.card("p-6") %}
+    {{ ui.empty_state("No books yet", "Add a book before capturing highlights from a page.", "Add Book", base_path ~ "/books/add") }}
+    {% endcall %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function() {
+        const form = document.getElementById('capture-form');
+        if (!form) return;
+
+        const actionTemplate = form.dataset.actionTemplate;
+        const message = document.getElementById('book-required-message');
+        const radios = Array.from(form.querySelectorAll('input[name="book_id"]'));
+        const filter = document.getElementById('book-filter');
+        const options = Array.from(document.querySelectorAll('[data-book-option]'));
+        const noMatches = document.getElementById('no-book-matches');
+
+        function selectedBookId() {
+            const selected = radios.find((radio) => radio.checked);
+            return selected ? selected.value : '';
+        }
+
+        function updateAction() {
+            const bookId = selectedBookId();
+            if (!bookId) return;
+            form.action = actionTemplate.replace('__BOOK_ID__', bookId);
+            message.classList.add('hidden');
+        }
+
+        radios.forEach((radio) => radio.addEventListener('change', updateAction));
+        updateAction();
+
+        form.addEventListener('submit', function(event) {
+            if (selectedBookId()) return;
+            event.preventDefault();
+            message.classList.remove('hidden');
+        });
+
+        filter.addEventListener('input', function() {
+            const query = filter.value.trim().toLowerCase();
+            let visibleCount = 0;
+            options.forEach((option) => {
+                const visible = option.dataset.searchText.includes(query);
+                option.classList.toggle('hidden', !visible);
+                if (visible) visibleCount += 1;
+            });
+            noMatches.classList.toggle('hidden', visibleCount !== 0);
+        });
+    })();
+</script>
+{% endblock %}

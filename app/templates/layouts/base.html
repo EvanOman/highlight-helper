@@ -57,49 +57,115 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors overflow-x-hidden">
-    <!-- Header -->
-    <header class="bg-primary-600 dark:bg-gray-800 text-white sticky top-0 z-50 shadow-md">
-        <div class="mx-auto px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between">
-            <a href="{{ base_path }}/" class="text-base sm:text-xl font-bold whitespace-nowrap truncate max-w-[120px] sm:max-w-none">Highlight Helper</a>
-            <nav class="flex items-center gap-0.5 sm:gap-4">
-                <a href="{{ base_path }}/" class="px-1.5 sm:px-2 py-1 text-xs sm:text-base hover:text-primary-200 dark:hover:text-primary-400 transition">Books</a>
-                <a href="{{ base_path }}/highlights" class="px-1.5 sm:px-2 py-1 text-xs sm:text-base hover:text-primary-200 dark:hover:text-primary-400 transition whitespace-nowrap">Highlights</a>
-                <a href="{{ base_path }}/chat" class="px-1.5 sm:px-2 py-1 text-xs sm:text-base hover:text-primary-200 dark:hover:text-primary-400 transition">Chat</a>
-                <a href="{{ base_path }}/settings" class="p-1.5 sm:p-2 rounded-lg hover:bg-primary-700 dark:hover:bg-gray-700 transition" title="Settings" aria-label="Settings">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
-                    </svg>
-                </a>
-                <!-- Dark mode toggle -->
-                <button id="theme-toggle" type="button"
-                        class="p-1.5 sm:p-2 rounded-lg hover:bg-primary-700 dark:hover:bg-gray-700 transition"
-                        title="Toggle dark mode"
-                        aria-label="Toggle dark mode">
-                    <!-- Sun icon (shown in dark mode) -->
-                    <svg id="theme-icon-light" class="hidden dark:block w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
-                    </svg>
-                    <!-- Moon icon (shown in light mode) -->
-                    <svg id="theme-icon-dark" class="block dark:hidden w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
-                    </svg>
-                </button>
+{% set raw_path = request.url.path %}
+{% set root_len = base_path|length %}
+{% set app_path = (raw_path[root_len:] if base_path and raw_path.startswith(base_path) else raw_path) or "/" %}
+{% set books_active = app_path == "/" or app_path.startswith("/books") %}
+{% set highlights_active = app_path.startswith("/highlights") %}
+{% set capture_active = app_path.startswith("/capture") %}
+{% set chat_active = app_path.startswith("/chat") %}
+{% set settings_active = app_path.startswith("/settings") or app_path.startswith("/metrics") %}
+<body class="paper-grain min-h-screen overflow-x-hidden bg-bg text-ink font-ui transition-colors">
+    <header class="sticky top-0 z-50 border-b border-line bg-surface/95 backdrop-blur">
+        <div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+            <a href="{{ base_path }}/" class="font-display text-xl font-semibold tracking-normal text-ink">
+                Highlight Helper
+            </a>
+
+            <nav class="hidden items-center gap-1 md:flex" aria-label="Primary">
+                <a href="{{ base_path }}/"
+                   class="relative rounded-md px-3 py-2 text-sm font-medium transition hover:text-accent {% if books_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+                   {% if books_active %}aria-current="page"{% endif %}>Books</a>
+                <a href="{{ base_path }}/highlights"
+                   class="relative rounded-md px-3 py-2 text-sm font-medium transition hover:text-accent {% if highlights_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+                   {% if highlights_active %}aria-current="page"{% endif %}>Highlights</a>
+                <a href="{{ base_path }}/capture"
+                   class="marker-stroke ml-2 rounded-md px-4 py-2 text-sm font-semibold text-ink transition hover:text-accent"
+                   {% if capture_active %}aria-current="page"{% endif %}>Capture</a>
+                <a href="{{ base_path }}/chat"
+                   class="relative rounded-md px-3 py-2 text-sm font-medium transition hover:text-accent {% if chat_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+                   {% if chat_active %}aria-current="page"{% endif %}>Chat</a>
+                <a href="{{ base_path }}/settings"
+                   class="relative rounded-md px-3 py-2 text-sm font-medium transition hover:text-accent {% if settings_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+                   {% if settings_active %}aria-current="page"{% endif %}>Settings</a>
             </nav>
+
+            <!-- Dark mode toggle -->
+            <button id="theme-toggle" type="button"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line bg-bg text-ink transition hover:bg-marker/20"
+                    title="Toggle dark mode"
+                    aria-label="Toggle dark mode">
+                <!-- Sun icon (shown in dark mode) -->
+                <svg id="theme-icon-light" class="hidden h-5 w-5 dark:block" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+                </svg>
+                <!-- Moon icon (shown in light mode) -->
+                <svg id="theme-icon-dark" class="block h-5 w-5 dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+                </svg>
+            </button>
         </div>
     </header>
 
     <!-- Main content -->
     {% block main_content %}
-    <main class="max-w-4xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
+    <main class="mx-auto max-w-4xl px-3 py-5 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-4 sm:py-6 md:pb-8">
         {% block content %}{% endblock %}
     </main>
     {% endblock %}
 
+    <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 px-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgb(90_65_36_/_0.10)] backdrop-blur md:hidden" aria-label="Mobile primary">
+        <div class="mx-auto grid max-w-md grid-cols-5 items-end gap-1">
+            <a href="{{ base_path }}/"
+               class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium {% if books_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+               {% if books_active %}aria-current="page"{% endif %}>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M5 3a2 2 0 00-2 2v11.25A1.75 1.75 0 014.75 14.5H16a1 1 0 001-1V5a2 2 0 00-2-2H5z" />
+                    <path d="M4.75 16A.75.75 0 004 16.75.75.75 0 004.75 17H16a1 1 0 100-2H4.75z" />
+                </svg>
+                Books
+            </a>
+            <a href="{{ base_path }}/highlights"
+               class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium {% if highlights_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+               {% if highlights_active %}aria-current="page"{% endif %}>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path d="M4 3.5A1.5 1.5 0 015.5 2h9A1.5 1.5 0 0116 3.5V17l-6-3-6 3V3.5z" />
+                </svg>
+                Highlights
+            </a>
+            <a href="{{ base_path }}/capture"
+               class="marker-stroke flex min-h-16 -translate-y-2 flex-col items-center justify-center gap-1 rounded-md px-1 text-xs font-semibold text-ink"
+               {% if capture_active %}aria-current="page"{% endif %}>
+                <span class="flex h-10 w-10 items-center justify-center rounded-full bg-marker text-ink shadow-card">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2h1.586A2 2 0 019 3.586L9.414 4H14a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm6 9a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                    </svg>
+                </span>
+                Capture
+            </a>
+            <a href="{{ base_path }}/chat"
+               class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium {% if chat_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+               {% if chat_active %}aria-current="page"{% endif %}>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M18 10c0 3.314-3.582 6-8 6a9.77 9.77 0 01-3.244-.535L3 17l1.293-2.586C2.86 13.33 2 11.783 2 10c0-3.314 3.582-6 8-6s8 2.686 8 6z" clip-rule="evenodd" />
+                </svg>
+                Chat
+            </a>
+            <a href="{{ base_path }}/settings"
+               class="flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium {% if settings_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
+               {% if settings_active %}aria-current="page"{% endif %}>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                </svg>
+                Settings
+            </a>
+        </div>
+    </nav>
+
     <!-- Footer -->
     {% block footer %}
-    <footer class="bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto py-4 text-center text-gray-600 dark:text-gray-400 text-xs sm:text-sm">
-        <div class="max-w-4xl mx-auto px-2 sm:px-4">
+    <footer class="hidden border-t border-line bg-surface py-4 text-center text-xs text-muted sm:block">
+        <div class="mx-auto max-w-4xl px-4">
             Highlight Helper - Collect and organize your book highlights
         </div>
     </footer>

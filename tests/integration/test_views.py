@@ -411,6 +411,22 @@ class TestAddHighlightView:
         assert f"/books/{sample_book.id}" in response.headers["location"]
 
 
+class TestCaptureView:
+    """Tests for the capture entry page."""
+
+    async def test_capture_page_lists_books(self, client: AsyncClient, sample_book):
+        """Capture page renders the camera-first form with available books."""
+        response = await client.get("/capture")
+        assert response.status_code == 200
+        assert "Capture" in response.text
+        assert 'capture="environment"' in response.text
+        assert 'name="instructions"' in response.text
+        assert "the highlighted text" in response.text
+        assert sample_book.title in response.text
+        assert sample_book.author in response.text
+        assert f"/books/{sample_book.id}/extract" in response.text
+
+
 class TestAllHighlightsView:
     """Tests for the all highlights page."""
 
