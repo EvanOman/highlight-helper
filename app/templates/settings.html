@@ -1,218 +1,153 @@
 {% extends "layouts/base.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Settings - Highlight Helper{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Settings</h1>
+<div class="lists-shell">
+    <div class="mb-6">
+        <p class="lists-kicker">Admin</p>
+        <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">Settings</h1>
+    </div>
 
-<!-- Readwise Integration -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Readwise Integration</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Connect your Readwise account to automatically sync highlights.
-        <a href="https://readwise.io/access_token" target="_blank" rel="noopener" class="text-primary-600 dark:text-primary-400 hover:underline">Get your API token</a>
-    </p>
+    <div class="settings-list">
+        {% call ui.settings_section("Readwise", "Connect your Readwise account and choose how highlights leave this library.") %}
+        <form id="settings-form" class="space-y-5">
+            <div>
+                <label for="readwise-token" class="block text-sm font-semibold text-ink">
+                    Readwise API Token
+                </label>
+                <p class="mt-1 text-sm leading-5 text-muted">
+                    <a href="https://readwise.io/access_token" target="_blank" rel="noopener" class="font-semibold text-accent hover:text-ink">Get your API token</a>
+                </p>
+                <div class="mt-3 flex gap-2">
+                    <input type="password"
+                           id="readwise-token"
+                           name="readwise_token"
+                           placeholder="{{ '••••••••' if token_configured else 'Paste your token here' }}"
+                           class="form-field min-w-0 flex-1">
+                    <button type="button"
+                            id="validate-token-btn"
+                            class="shrink-0 rounded-md border border-line bg-bg px-4 py-2 text-sm font-semibold text-ink transition hover:bg-marker/20">
+                        Validate
+                    </button>
+                </div>
+                <p id="token-status" class="mt-2 hidden text-sm"></p>
+            </div>
 
-    <form id="settings-form" class="space-y-6">
-        <!-- API Token -->
-        <div>
-            <label for="readwise-token" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Readwise API Token
-            </label>
-            <div class="flex gap-2">
-                <input type="password"
-                       id="readwise-token"
-                       name="readwise_token"
-                       placeholder="{{ '••••••••' if token_configured else 'Paste your token here' }}"
-                       class="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
-                <button type="button"
-                        id="validate-token-btn"
-                        class="shrink-0 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                    Validate
+            <div class="settings-row">
+                {{ ui.toggle_switch("auto-sync", "Auto-sync highlights", "Automatically sync new highlights to Readwise when created", auto_sync, "toggleAutoSync()") }}
+            </div>
+
+            <div class="settings-row">
+                <button type="submit"
+                        id="save-btn"
+                        class="w-full rounded-md bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700">
+                    Save Settings
                 </button>
             </div>
-            <p id="token-status" class="text-sm mt-1 hidden"></p>
-        </div>
+        </form>
+        {% endcall %}
 
-        <!-- Auto-sync Toggle -->
-        <div class="flex items-center justify-between">
-            <div>
-                <label for="auto-sync" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Auto-sync highlights
-                </label>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                    Automatically sync new highlights to Readwise when created
-                </p>
+        {% call ui.settings_section("Appearance", "Theme preference is stored locally and follows the Reading Room paper and lamplight palettes.") %}
+        <dl class="grid gap-0 sm:grid-cols-2 sm:gap-4">
+            <div class="border-b border-line py-3 sm:border-b-0">
+                <dt class="text-xs font-semibold uppercase tracking-wide text-muted">Light</dt>
+                <dd class="mt-1 text-sm text-ink">Paper, quiet ink, marker stroke</dd>
             </div>
-            <button type="button"
-                    id="auto-sync"
-                    role="switch"
-                    aria-checked="{{ 'true' if auto_sync else 'false' }}"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 {{ 'bg-primary-600' if auto_sync else 'bg-gray-200 dark:bg-gray-600' }}"
-                    onclick="toggleAutoSync()">
-                <span class="sr-only">Auto-sync highlights</span>
-                <span aria-hidden="true"
-                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ 'translate-x-5' if auto_sync else 'translate-x-0' }}"></span>
-            </button>
-        </div>
+            <div class="py-3">
+                <dt class="text-xs font-semibold uppercase tracking-wide text-muted">Dark</dt>
+                <dd class="mt-1 text-sm text-ink">Lamplight, warm surface, muted lines</dd>
+            </div>
+        </dl>
+        {% endcall %}
 
-        <!-- Save Button -->
-        <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button type="submit"
-                    id="save-btn"
-                    class="w-full bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
-                Save Settings
-            </button>
-        </div>
-    </form>
-</div>
+        {% call ui.settings_section("Coaching", "Reading Coach can suggest reflections and connections from your highlights.") %}
+        {{ ui.toggle_switch("coaching-toggle", "Enable coaching cards", "Show coaching prompts on the home page", coaching_enabled, "toggleCoaching()") }}
+        {% endcall %}
 
-<!-- Reading Coach -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Reading Coach</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        The Reading Coach proactively suggests thought-provoking connections and reflections based on your highlights.
-    </p>
-
-    <div class="flex items-center justify-between">
-        <div>
-            <label for="coaching-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Enable coaching cards
-            </label>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-                Show coaching prompts on the home page
+        {% call ui.settings_section("Usage", "A compact view of extraction usage, with chat metrics available separately.") %}
+        <dl class="grid gap-0 sm:grid-cols-4">
+            {{ ui.metric_value("Total Extractions", api_metrics.total_extractions) }}
+            {{ ui.metric_value("Total Cost", "$" ~ "%.4f"|format(api_metrics.total_cost_usd)) }}
+            {{ ui.metric_value("Avg Cost/Extraction", "$" ~ "%.4f"|format(api_metrics.average_cost_per_extraction)) }}
+            {{ ui.metric_value("Total Tokens", "{:,}".format(api_metrics.total_tokens)) }}
+        </dl>
+        <div class="mt-4 flex flex-col gap-3 border-t border-line pt-4 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+            <p>
+                Input: {{ "{:,}".format(api_metrics.total_input_tokens) }} tokens /
+                Output: {{ "{:,}".format(api_metrics.total_output_tokens) }} tokens
             </p>
+            <a href="{{ base_path }}/metrics"
+               class="inline-flex min-h-9 items-center rounded-md border border-line bg-bg px-3 text-sm font-semibold text-ink transition hover:bg-marker/20">
+                View Chat Metrics Dashboard
+            </a>
         </div>
-        <button type="button"
-                id="coaching-toggle"
-                role="switch"
-                aria-checked="{{ 'true' if coaching_enabled else 'false' }}"
-                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 {{ 'bg-primary-600' if coaching_enabled else 'bg-gray-200 dark:bg-gray-600' }}"
-                onclick="toggleCoaching()">
-            <span class="sr-only">Enable coaching cards</span>
-            <span aria-hidden="true"
-                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ 'translate-x-5' if coaching_enabled else 'translate-x-0' }}"></span>
-        </button>
-    </div>
-</div>
+        {% endcall %}
 
-<!-- API Usage Metrics Section -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">API Usage</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Track your OpenAI API usage for highlight extraction. Costs are based on GPT-5.2 pricing.
-    </p>
+        {% call ui.settings_section("Maintenance", "Run Readwise sync jobs explicitly when you need to reconcile local and remote highlights.") %}
+        <div class="grid gap-5 lg:grid-cols-2">
+            <div class="space-y-3">
+                <h3 class="font-display text-lg font-semibold text-ink">Sync to Readwise</h3>
+                <p class="text-sm leading-6 text-muted">
+                    Sync all unsynced highlights to Readwise. This will send any highlights that haven't been synced yet.
+                </p>
 
-    <div class="grid grid-cols-2 gap-4">
-        <!-- Total Extractions -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-0">
-            <div class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-all">{{ api_metrics.total_extractions }}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">Total Extractions</div>
-        </div>
+                <div id="sync-status" class="hidden">
+                    <div class="rounded-md border border-line bg-bg p-3">
+                        <p class="text-sm text-ink" id="sync-status-text"></p>
+                    </div>
+                </div>
 
-        <!-- Total Cost -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-0">
-            <div class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-all">${{ "%.4f"|format(api_metrics.total_cost_usd) }}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">Total Cost (USD)</div>
-        </div>
-
-        <!-- Average Cost per Extraction -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-0">
-            <div class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-all">${{ "%.4f"|format(api_metrics.average_cost_per_extraction) }}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">Avg Cost/Extraction</div>
-        </div>
-
-        <!-- Total Tokens -->
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-0">
-            <div class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-all">{{ "{:,}".format(api_metrics.total_tokens) }}</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">Total Tokens</div>
-        </div>
-    </div>
-
-    <!-- Token Breakdown -->
-    <div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
-        Input: {{ "{:,}".format(api_metrics.total_input_tokens) }} tokens |
-        Output: {{ "{:,}".format(api_metrics.total_output_tokens) }} tokens
-    </div>
-</div>
-
-<!-- Chat Metrics Section -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Chat Metrics</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        View per-request performance metrics for chat conversations, including latency, token usage, and cost tracking.
-    </p>
-    <a href="{{ base_path }}/metrics"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-        </svg>
-        View Chat Metrics Dashboard
-    </a>
-</div>
-
-<!-- Sync Up Section -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sync to Readwise</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Sync all unsynced highlights to Readwise. This will send any highlights that haven't been synced yet.
-    </p>
-
-    <div id="sync-status" class="mb-4 hidden">
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <p class="text-sm text-gray-600 dark:text-gray-300" id="sync-status-text"></p>
-        </div>
-    </div>
-
-    <button type="button"
-            id="sync-all-btn"
-            onclick="syncAllHighlights()"
-            class="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition flex items-center justify-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-        </svg>
-        <span id="sync-all-btn-text">Sync All Unsynced Highlights</span>
-    </button>
-</div>
-
-<!-- Sync Down Section -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-    <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Import from Readwise</h2>
-    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Import your existing highlights from Readwise. Only book highlights will be imported. Duplicates are automatically skipped.
-    </p>
-
-    <!-- Progress display -->
-    <div id="sync-down-progress" class="mb-4 hidden">
-        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div class="flex items-center gap-2 mb-2">
-                <div id="sync-down-spinner" class="animate-spin h-4 w-4 border-2 border-primary-600 border-t-transparent rounded-full"></div>
-                <p class="text-sm font-medium text-gray-700 dark:text-gray-300" id="sync-down-message">Connecting to Readwise...</p>
+                <button type="button"
+                        id="sync-all-btn"
+                        onclick="syncAllHighlights()"
+                        class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                    </svg>
+                    <span id="sync-all-btn-text">Sync All Unsynced Highlights</span>
+                </button>
             </div>
-            <!-- Progress bar -->
-            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mb-2">
-                <div id="sync-down-bar" class="bg-primary-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+
+            <div class="space-y-3">
+                <h3 class="font-display text-lg font-semibold text-ink">Import from Readwise</h3>
+                <p class="text-sm leading-6 text-muted">
+                    Import your existing highlights from Readwise. Only book highlights will be imported. Duplicates are automatically skipped.
+                </p>
+
+                <div id="sync-down-progress" class="hidden">
+                    <div class="rounded-md border border-line bg-bg p-3">
+                        <div class="mb-2 flex items-center gap-2">
+                            <div id="sync-down-spinner" class="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent"></div>
+                            <p class="text-sm font-semibold text-ink" id="sync-down-message">Connecting to Readwise...</p>
+                        </div>
+                        <div class="mb-2 h-2 w-full rounded-full bg-line">
+                            <div id="sync-down-bar" class="h-2 rounded-full bg-marker transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <p class="text-xs text-muted" id="sync-down-stats"></p>
+                    </div>
+                </div>
+
+                <div id="sync-down-result" class="hidden">
+                    <div class="rounded-md border border-line bg-bg p-3" id="sync-down-result-box">
+                        <p class="text-sm text-ink" id="sync-down-result-text"></p>
+                    </div>
+                </div>
+
+                <button type="button"
+                        id="sync-down-btn"
+                        onclick="syncDownFromReadwise()"
+                        class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    <span id="sync-down-btn-text">Import from Readwise</span>
+                </button>
             </div>
-            <p class="text-xs text-gray-500 dark:text-gray-400" id="sync-down-stats"></p>
         </div>
+        {% endcall %}
     </div>
-
-    <!-- Result display -->
-    <div id="sync-down-result" class="mb-4 hidden">
-        <div class="rounded-lg p-4" id="sync-down-result-box">
-            <p class="text-sm text-gray-600 dark:text-gray-300" id="sync-down-result-text"></p>
-        </div>
-    </div>
-
-    <button type="button"
-            id="sync-down-btn"
-            onclick="syncDownFromReadwise()"
-            class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-        </svg>
-        <span id="sync-down-btn-text">Import from Readwise</span>
-    </button>
 </div>
 
 <script>
@@ -275,7 +210,6 @@ document.getElementById('validate-token-btn').addEventListener('click', async fu
     const statusEl = document.getElementById('token-status');
     const btn = this;
 
-    // If there's a new token, save it first
     const newToken = tokenInput.value.trim();
     if (newToken) {
         await fetch('{{ base_path }}/api/settings', {
@@ -296,17 +230,17 @@ document.getElementById('validate-token-btn').addEventListener('click', async fu
         statusEl.classList.remove('hidden');
         if (data.valid) {
             statusEl.textContent = 'Token is valid!';
-            statusEl.className = 'text-sm mt-1 text-green-600 dark:text-green-400';
+            statusEl.className = 'mt-2 text-sm text-green-700 dark:text-green-300';
             tokenInput.placeholder = '••••••••';
             tokenInput.value = '';
         } else {
             statusEl.textContent = data.error || 'Token is invalid';
-            statusEl.className = 'text-sm mt-1 text-red-600 dark:text-red-400';
+            statusEl.className = 'mt-2 text-sm text-red-700 dark:text-red-300';
         }
     } catch (error) {
         statusEl.classList.remove('hidden');
         statusEl.textContent = 'Error validating token';
-        statusEl.className = 'text-sm mt-1 text-red-600 dark:text-red-400';
+        statusEl.className = 'mt-2 text-sm text-red-700 dark:text-red-300';
     } finally {
         btn.disabled = false;
         btn.textContent = 'Validate';
@@ -348,7 +282,6 @@ document.getElementById('settings-form').addEventListener('submit', async functi
                 tokenInput.placeholder = '••••••••';
             }
 
-            // If auto-sync was just enabled, offer to sync all
             if (autoSyncEnabled) {
                 const syncStatus = document.getElementById('sync-status');
                 const syncText = document.getElementById('sync-status-text');
@@ -430,7 +363,6 @@ async function syncDownFromReadwise() {
     const resultBox = document.getElementById('sync-down-result-box');
     const resultText = document.getElementById('sync-down-result-text');
 
-    // Reset and show progress
     btn.disabled = true;
     btnText.textContent = 'Importing...';
     progressDiv.classList.remove('hidden');
@@ -462,7 +394,6 @@ async function syncDownFromReadwise() {
                     try {
                         const data = JSON.parse(line.slice(6));
 
-                        // Update progress UI
                         progressMessage.textContent = data.message;
 
                         if (data.books_total > 0) {
@@ -473,22 +404,21 @@ async function syncDownFromReadwise() {
                         progressStats.textContent = `Books: ${data.books_processed}/${data.books_total || '?'} | Imported: ${data.highlights_imported} | Skipped: ${data.highlights_skipped}`;
 
                         if (data.phase === 'complete') {
-                            // Hide progress, show result
                             spinner.classList.add('hidden');
                             progressDiv.classList.add('hidden');
                             resultDiv.classList.remove('hidden');
 
                             if (data.errors && data.errors.length > 0) {
-                                resultBox.className = 'rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/30';
+                                resultBox.className = 'rounded-md border border-line p-3 bg-yellow-50 dark:bg-yellow-900/30';
                                 resultText.textContent = `Imported ${data.highlights_imported} highlight(s), skipped ${data.highlights_skipped} (already exist). ${data.errors.length} error(s) occurred.`;
                             } else if (data.highlights_imported > 0) {
-                                resultBox.className = 'rounded-lg p-4 bg-green-50 dark:bg-green-900/30';
+                                resultBox.className = 'rounded-md border border-line p-3 bg-green-50 dark:bg-green-900/30';
                                 resultText.textContent = `Successfully imported ${data.highlights_imported} highlight(s) from ${data.books_processed} book(s). ${data.highlights_skipped} already existed.`;
                             } else if (data.highlights_skipped > 0) {
-                                resultBox.className = 'rounded-lg p-4 bg-blue-50 dark:bg-blue-900/30';
+                                resultBox.className = 'rounded-md border border-line p-3 bg-blue-50 dark:bg-blue-900/30';
                                 resultText.textContent = `All ${data.highlights_skipped} highlight(s) already exist locally. Nothing new to import.`;
                             } else {
-                                resultBox.className = 'rounded-lg p-4 bg-gray-50 dark:bg-gray-700';
+                                resultBox.className = 'rounded-md border border-line p-3 bg-bg';
                                 resultText.textContent = 'No book highlights found in Readwise.';
                             }
                         }
@@ -501,7 +431,7 @@ async function syncDownFromReadwise() {
     } catch (error) {
         progressDiv.classList.add('hidden');
         resultDiv.classList.remove('hidden');
-        resultBox.className = 'rounded-lg p-4 bg-red-50 dark:bg-red-900/30';
+        resultBox.className = 'rounded-md border border-line p-3 bg-red-50 dark:bg-red-900/30';
         resultText.textContent = 'Error importing from Readwise. Please try again.';
     } finally {
         btn.disabled = false;

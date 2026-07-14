@@ -1,99 +1,222 @@
 {% extends "layouts/base.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}All Highlights - Highlight Helper{% endblock %}
 
 {% block content %}
-<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">{% if total_highlights %}All Highlights ({{ total_highlights }}){% else %}All Highlights{% endif %}</h1>
-
-{% if highlights %}
-<div class="space-y-4">
-    {% for highlight in highlights %}
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <blockquote class="highlight-text text-gray-800 dark:text-gray-200 border-l-4 border-primary-400 dark:border-primary-500 pl-4 mb-3">
-            "{{ highlight.text }}"
-        </blockquote>
-
-        {% if highlight.note %}
-        <p class="text-sm text-gray-600 dark:text-gray-400 italic mb-3">Note: {{ highlight.note }}</p>
+<div class="lists-shell">
+    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <p class="lists-kicker">Browse</p>
+            <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">
+                {% if total_highlights %}All Highlights ({{ total_highlights }}){% else %}All Highlights{% endif %}
+            </h1>
+        </div>
+        {% if highlights and total_pages > 1 %}
+        <p class="text-sm text-muted">Page {{ current_page }} of {{ total_pages }}</p>
         {% endif %}
-
-        <div class="flex flex-wrap items-center gap-2 text-sm">
-            <a href="{{ base_path }}/books/{{ highlight.book_id }}"
-               class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
-                {{ highlight.book_title }}
-            </a>
-            <span class="text-gray-400 dark:text-gray-500">by</span>
-            <span class="text-gray-600 dark:text-gray-400">{{ highlight.book_author }}</span>
-        </div>
-
-        <div class="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-            <div class="flex items-center gap-3">
-                {% if highlight.page_number %}
-                <span>Page {{ highlight.page_number }}</span>
-                {% endif %}
-                <span>{{ highlight.created_at.strftime('%b %d, %Y') }}</span>
-            </div>
-            <div class="flex items-center gap-3">
-                {% if highlight.synced_at %}
-                <span class="inline-flex items-center gap-1 text-green-600 dark:text-green-400 px-2 py-1 bg-green-50 dark:bg-green-900/30 rounded" title="Synced to Readwise on {{ highlight.synced_at.strftime('%b %d, %Y') }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                    </svg>
-                    Synced
-                </span>
-                {% elif highlight.readwise_id %}
-                <button id="sync-btn-{{ highlight.id }}"
-                        onclick="syncHighlightToReadwise({{ highlight.id }})"
-                        class="inline-flex items-center gap-1 text-orange-700 dark:text-orange-400 px-2 py-2 bg-orange-50 dark:bg-orange-900/30 rounded hover:bg-orange-100 dark:hover:bg-orange-900/50 transition"
-                        title="Local changes not synced to Readwise. Click to re-sync.">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                    </svg>
-                    <span id="sync-btn-text-{{ highlight.id }}">Re-sync</span>
-                </button>
-                {% else %}
-                <button id="sync-btn-{{ highlight.id }}"
-                        onclick="syncHighlightToReadwise({{ highlight.id }})"
-                        class="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 px-2 py-2 bg-amber-50 dark:bg-amber-900/30 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                    <span id="sync-btn-text-{{ highlight.id }}">Sync</span>
-                </button>
-                {% endif %}
-                <a href="{{ base_path }}/books/{{ highlight.book_id }}/highlights/{{ highlight.id }}/edit"
-                   class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 inline-flex items-center min-h-[44px] px-2">
-                    Edit
-                </a>
-                <form action="{{ base_path }}/highlights/{{ highlight.id }}/delete" method="post"
-                      onsubmit="return confirm('Delete this highlight?');">
-                    <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 inline-flex items-center min-h-[44px] px-2">
-                        Delete
-                    </button>
-                </form>
-            </div>
-        </div>
     </div>
-    {% endfor %}
-</div>
-{% if total_pages > 1 %}
-{% include "partials/pagination.html" %}
-{% endif %}
-{% else %}
-<div class="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No highlights yet</h2>
-    <p class="text-gray-600 dark:text-gray-400 mb-4">Add a book and start collecting highlights.</p>
-    <a href="{{ base_path }}/books/add"
-       class="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-        </svg>
-        Add Your First Book
-    </a>
-</div>
-{% endif %}
 
+    {% if highlights %}
+    <section class="lists-toolbar mb-5 p-3 sm:p-4" aria-label="Highlight filters">
+        <div class="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_auto] lg:items-start">
+            <div>
+                <label for="highlight-search" class="sr-only">Search highlights</label>
+                <input id="highlight-search"
+                       type="search"
+                       autocomplete="off"
+                       placeholder="Search passages, notes, books, authors..."
+                       class="form-field bg-bg">
+            </div>
+
+            <div class="flex items-center justify-between gap-3 text-sm text-muted lg:justify-end">
+                <span id="highlight-visible-count">{{ highlights|length }}</span>
+                <span>shown on this page</span>
+            </div>
+        </div>
+
+        <div class="mt-3 space-y-3">
+            <div class="flex gap-2 overflow-x-auto pb-1" aria-label="Book filter">
+                <button type="button" class="filter-chip" aria-pressed="true" data-filter-kind="book" data-filter-value="all">All books</button>
+                {% set seen_books = namespace(value="|") %}
+                {% for highlight in highlights %}
+                    {% set book_key = highlight.book_title ~ " - " ~ highlight.book_author %}
+                    {% if ("|" ~ book_key ~ "|") not in seen_books.value %}
+                    <button type="button"
+                            class="filter-chip"
+                            aria-pressed="false"
+                            data-filter-kind="book"
+                            data-filter-value="{{ book_key|lower }}">
+                        {{ highlight.book_title }}
+                    </button>
+                    {% set seen_books.value = seen_books.value ~ book_key ~ "|" %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div class="flex gap-2 overflow-x-auto pb-1" aria-label="Sync state filter">
+                    <button type="button" class="filter-chip" aria-pressed="true" data-filter-kind="sync" data-filter-value="all">All sync states</button>
+                    <button type="button" class="filter-chip" aria-pressed="false" data-filter-kind="sync" data-filter-value="synced">Synced</button>
+                    <button type="button" class="filter-chip" aria-pressed="false" data-filter-kind="sync" data-filter-value="needs-resync">Needs re-sync</button>
+                    <button type="button" class="filter-chip" aria-pressed="false" data-filter-kind="sync" data-filter-value="unsynced">Unsynced</button>
+                </div>
+
+                <div class="flex gap-2 overflow-x-auto pb-1 sm:justify-end" aria-label="Type filter">
+                    <button type="button" class="filter-chip" aria-pressed="true" data-filter-kind="type" data-filter-value="all">All types</button>
+                    <button type="button" class="filter-chip" aria-pressed="false" data-filter-kind="type" data-filter-value="highlight">Highlights</button>
+                    <button type="button" class="filter-chip" aria-pressed="false" data-filter-kind="type" data-filter-value="note">Notes</button>
+                    <button type="button" class="filter-chip" aria-pressed="false" data-filter-kind="type" data-filter-value="annotated">With notes</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="reading-river" id="highlights-river">
+        {% for highlight in highlights %}
+        {% set display_text = highlight.text or highlight.note %}
+        {% set type_state = "note" if not highlight.text else "annotated" if highlight.note else "highlight" %}
+        {% set sync_state = "synced" if highlight.synced_at else "needs-resync" if highlight.readwise_id else "unsynced" %}
+        {% set book_key = highlight.book_title ~ " - " ~ highlight.book_author %}
+        <article class="highlight-river-row"
+                 data-highlight-row
+                 data-book="{{ book_key|lower }}"
+                 data-sync-state="{{ sync_state }}"
+                 data-type-state="{{ type_state }}"
+                 data-search="{{ (display_text ~ ' ' ~ (highlight.note or '') ~ ' ' ~ highlight.book_title ~ ' ' ~ highlight.book_author ~ ' ' ~ (highlight.page_number or ''))|lower }}">
+            <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                <div class="min-w-0">
+                    {% if display_text %}
+                    <blockquote class="font-passage text-[1.04rem] leading-7 text-ink sm:text-[1.1rem]">
+                        "{{ display_text }}"
+                    </blockquote>
+                    {% endif %}
+
+                    {% if highlight.note and highlight.text %}
+                    <p class="mt-2 max-w-3xl text-sm italic leading-6 text-muted">Note: {{ highlight.note }}</p>
+                    {% endif %}
+
+                    <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                        <a href="{{ base_path }}/books/{{ highlight.book_id }}"
+                           class="font-semibold text-ink hover:text-accent">
+                            {{ highlight.book_title }}
+                        </a>
+                        <span>by</span>
+                        <span>{{ highlight.book_author }}</span>
+                        {% if highlight.page_number %}
+                        <span aria-hidden="true">/</span>
+                        <span>Page {{ highlight.page_number }}</span>
+                        {% endif %}
+                        <span aria-hidden="true">/</span>
+                        <span>{{ highlight.created_at.strftime('%b %d, %Y') }}</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 md:justify-end">
+                    {% if highlight.text %}
+                        {% if highlight.synced_at %}
+                        <span class="sync-pill sync-pill--synced" title="Synced to Readwise on {{ highlight.synced_at.strftime('%b %d, %Y') }}">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                            Synced
+                        </span>
+                        {% elif highlight.readwise_id %}
+                        <button id="sync-btn-{{ highlight.id }}"
+                                onclick="syncHighlightToReadwise({{ highlight.id }})"
+                                class="sync-pill sync-pill--dirty transition hover:border-accent"
+                                title="Local changes not synced to Readwise. Click to re-sync.">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                            <span id="sync-btn-text-{{ highlight.id }}">Re-sync</span>
+                        </button>
+                        {% else %}
+                        <button id="sync-btn-{{ highlight.id }}"
+                                onclick="syncHighlightToReadwise({{ highlight.id }})"
+                                class="sync-pill sync-pill--pending transition hover:border-accent">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                            </svg>
+                            <span id="sync-btn-text-{{ highlight.id }}">Sync</span>
+                        </button>
+                        {% endif %}
+                    {% else %}
+                    {{ ui.badge("Note", "neutral") }}
+                    {% endif %}
+
+                    <a href="{{ base_path }}/books/{{ highlight.book_id }}/highlights/{{ highlight.id }}/edit"
+                       class="inline-flex min-h-9 items-center rounded-md px-2 text-sm font-semibold text-accent hover:text-ink">
+                        Edit
+                    </a>
+                    <form action="{{ base_path }}/highlights/{{ highlight.id }}/delete" method="post"
+                          onsubmit="return confirm('Delete this highlight?');">
+                        <button type="submit" class="inline-flex min-h-9 items-center rounded-md px-2 text-sm font-semibold text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200">
+                            Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+
+    <div id="no-highlight-filter-results" class="hidden">
+        {{ ui.empty_state("No matching highlights", "Adjust the search or filters to show rows on this page.") }}
+    </div>
+
+    {% if total_pages > 1 %}
+    {% include "partials/pagination.html" %}
+    {% endif %}
+    {% else %}
+    {% call ui.card("p-6") %}
+    {{ ui.empty_state("No highlights yet", "Add a book and start collecting highlights.", "Add Your First Book", base_path ~ "/books/add") }}
+    {% endcall %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function() {
+        const rows = Array.from(document.querySelectorAll('[data-highlight-row]'));
+        if (!rows.length) return;
+
+        const search = document.getElementById('highlight-search');
+        const count = document.getElementById('highlight-visible-count');
+        const empty = document.getElementById('no-highlight-filter-results');
+        const state = { book: 'all', sync: 'all', type: 'all' };
+
+        function applyFilters() {
+            const query = search.value.trim().toLowerCase();
+            let visible = 0;
+
+            rows.forEach((row) => {
+                const matchesSearch = !query || row.dataset.search.includes(query);
+                const matchesBook = state.book === 'all' || row.dataset.book === state.book;
+                const matchesSync = state.sync === 'all' || row.dataset.syncState === state.sync;
+                const matchesType = state.type === 'all' || row.dataset.typeState === state.type;
+                const show = matchesSearch && matchesBook && matchesSync && matchesType;
+                row.classList.toggle('hidden', !show);
+                if (show) visible += 1;
+            });
+
+            count.textContent = visible;
+            empty.classList.toggle('hidden', visible !== 0);
+        }
+
+        document.querySelectorAll('[data-filter-kind]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const kind = button.dataset.filterKind;
+                state[kind] = button.dataset.filterValue;
+                document.querySelectorAll('[data-filter-kind="' + kind + '"]').forEach((peer) => {
+                    peer.setAttribute('aria-pressed', peer === button ? 'true' : 'false');
+                });
+                applyFilters();
+            });
+        });
+
+        search.addEventListener('input', applyFilters);
+    })();
+</script>
 {% endblock %}
