@@ -66,3 +66,24 @@
         {% endif %}
     </div>
 {%- endmacro %}
+
+{% macro book_cover(title, cover_url=None, size="md", extra_classes="") -%}
+    {% set sizes = {
+        "sm": "h-20 w-14",
+        "md": "aspect-[2/3] w-full",
+        "lg": "h-32 w-24 sm:h-36 sm:w-28"
+    } %}
+    <div class="book-cover-shell {{ sizes.get(size, sizes["md"]) }} {{ extra_classes }}">
+        {% if cover_url %}
+        <img src="{{ cover_url }}" alt="{{ title }}" class="h-full w-full object-cover">
+        {% else %}
+        <div class="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-muted">
+            <svg class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M5 3a2 2 0 00-2 2v11.25A1.75 1.75 0 014.75 14.5H16a1 1 0 001-1V5a2 2 0 00-2-2H5z" />
+                <path d="M4.75 16A.75.75 0 004 16.75.75.75 0 004.75 17H16a1 1 0 100-2H4.75z" />
+            </svg>
+            <span class="line-clamp-3 text-xs font-semibold leading-tight">{{ title }}</span>
+        </div>
+        {% endif %}
+    </div>
+{%- endmacro %}

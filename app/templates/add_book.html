@@ -1,64 +1,133 @@
 {% extends "layouts/base.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Add Book - Highlight Helper{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <a href="{{ base_path }}/" class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1 text-sm">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+<div class="space-y-5">
+    <a href="{{ base_path }}/" class="inline-flex items-center gap-1 text-sm font-semibold text-muted transition hover:text-accent">
+        <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
         </svg>
         Back to Books
     </a>
-</div>
 
-<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Add a Book</h1>
+    <header class="library-fade-up">
+        <p class="text-sm font-semibold uppercase text-muted">Add Book</p>
+        <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">Add a Book</h1>
+        <p class="mt-2 text-sm text-muted">Find the book on your desk.</p>
+    </header>
 
-{% if error_message %}
-<div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
-    {{ error_message }}
-</div>
-{% endif %}
+    {% if error_message %}
+    <div class="rounded-md border border-red-700/20 bg-red-700/10 px-4 py-3 text-sm font-medium text-red-800 dark:text-red-300">
+        {{ error_message }}
+    </div>
+    {% endif %}
 
-<!-- Scan Cover/Barcode (collapsible) -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-    <button type="button"
-            onclick="toggleSection('scan-section', 'scan-chevron')"
-            class="w-full p-4 flex items-center justify-between text-left">
-        <div>
-            <h2 class="font-semibold text-gray-900 dark:text-white">Scan Cover or Barcode</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Take a photo of the book's barcode or cover to auto-lookup.
-            </p>
+    <section class="library-search-panel library-fade-up" style="--stagger-index: 1;">
+        <button type="button"
+                onclick="toggleSection('search-section', 'search-chevron')"
+                class="library-section-toggle">
+            <span>
+                <span class="block text-lg font-semibold text-ink">Search for a Book</span>
+                <span class="mt-1 block text-sm text-muted">Search by title, author, or ISBN.</span>
+            </span>
+            <svg id="search-chevron" class="h-5 w-5 shrink-0 text-muted transition-transform rotate-180" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </button>
+        <div id="search-section" class="mt-4">
+            <form action="{{ base_path }}/books/search" method="post" class="flex flex-col gap-3 sm:flex-row">
+                <label for="book-query" class="sr-only">Search for a Book</label>
+                <input type="text"
+                       id="book-query"
+                       name="query"
+                       value="{{ query }}"
+                       placeholder="Title, author, or ISBN..."
+                       class="form-field min-h-12 flex-1 text-base">
+                {{ ui.button("Search", type="submit", variant="primary", extra_classes="min-h-12 px-6") }}
+            </form>
         </div>
-        <svg id="scan-chevron" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform {{ 'rotate-180' if extracted_isbn else '' }}" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+    </section>
+
+    {% if search_results is not none %}
+    <section class="card-index rounded-lg p-4 library-fade-up" style="--stagger-index: 2;">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold text-ink">Search Results</h2>
+            {% if search_results %}<p class="text-xs font-semibold uppercase text-muted">{{ search_results|length }} found</p>{% endif %}
+        </div>
+
+        {% if search_results %}
+        <div class="space-y-3">
+            {% for result in search_results %}
+            <form action="{{ base_path }}/books/create" method="post" class="library-result-row">
+                <input type="hidden" name="title" value="{{ result.title }}">
+                <input type="hidden" name="author" value="{{ result.author }}">
+                <input type="hidden" name="isbn" value="{{ result.isbn or '' }}">
+                <input type="hidden" name="cover_url" value="{{ result.cover_url or '' }}">
+
+                {{ ui.book_cover(result.title, result.cover_url, "sm", "shrink-0") }}
+                <div class="min-w-0 flex-1">
+                    <h3 class="line-clamp-2 text-sm font-semibold leading-5 text-ink">{{ result.title }}</h3>
+                    <p class="mt-1 truncate text-sm text-muted">{{ result.author }}</p>
+                    {% if result.isbn %}
+                    <p class="mt-1 text-xs text-muted">ISBN {{ result.isbn }}</p>
+                    {% endif %}
+                </div>
+                {{ ui.button("Add Book", type="submit", variant="secondary", extra_classes="shrink-0") }}
+            </form>
+            {% endfor %}
+        </div>
+        {% else %}
+        {{ ui.empty_state("No books found", "Try a different search or add the book manually.", "Add Book", base_path ~ "/books/add") }}
+        {% endif %}
+    </section>
+    {% endif %}
+
+    {% if extracted_isbn %}
+    <div class="flex flex-wrap items-center gap-2 rounded-md border border-green-700/20 bg-green-700/10 px-4 py-3 text-sm font-medium text-green-800 dark:text-green-300">
+        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
         </svg>
-    </button>
-    <div id="scan-section" class="{{ 'hidden' if extracted_isbn else '' }}">
-        <div class="px-4 pb-4">
-            <form id="scan-form" action="{{ base_path }}/books/scan-isbn" method="post" enctype="multipart/form-data" class="space-y-4">
+        <span>Found ISBN: <strong>{{ extracted_isbn }}</strong></span>
+        {% if isbn_confidence %}
+        {{ ui.badge(isbn_confidence, "success") }}
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <section class="card-index rounded-lg library-fade-up" style="--stagger-index: 3;">
+        <button type="button"
+                onclick="toggleSection('scan-section', 'scan-chevron')"
+                class="library-section-toggle p-4">
+            <span>
+                <span class="block font-semibold text-ink">Scan ISBN</span>
+                <span class="mt-1 block text-sm text-muted">Scan Cover or Barcode when typing is slower.</span>
+            </span>
+            <svg id="scan-chevron" class="h-5 w-5 shrink-0 text-muted transition-transform {{ 'rotate-180' if error_message else '' }}" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </button>
+        <div id="scan-section" class="{{ '' if error_message else 'hidden' }}">
+            <form id="scan-form" action="{{ base_path }}/books/scan-isbn" method="post" enctype="multipart/form-data" class="space-y-4 border-t border-line px-4 pb-4 pt-4">
                 <div>
-                    <label for="image" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Photo of cover or barcode</label>
+                    <label for="image" class="block text-sm font-semibold text-ink">Photo of cover or barcode</label>
                     <input type="file"
                            id="image"
                            name="image"
                            accept="image/*"
                            required
-                           class="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-100 file:text-primary-700 file:cursor-pointer hover:file:bg-primary-200">
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Best results: photograph the barcode on the back cover
-                    </p>
+                           class="mt-2 w-full text-sm text-muted file:mr-4 file:rounded-md file:border-0 file:bg-marker file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink hover:file:bg-marker/80">
+                    <p class="mt-2 text-xs text-muted">Best results: photograph the barcode on the back cover.</p>
                 </div>
                 <button type="submit"
                         id="scan-btn"
-                        class="w-full bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition flex items-center justify-center gap-2">
-                    <svg id="scan-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink transition hover:bg-marker/20">
+                    <svg id="scan-icon" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2V5h1v1H5zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zm2 2v-1h1v1H5zM13 3a1 1 0 00-1 1v3a1 1 0 001 1h3a1 1 0 001-1V4a1 1 0 00-1-1h-3zm1 2v1h1V5h-1z" clip-rule="evenodd" />
                         <path d="M11 4a1 1 0 10-2 0v1a1 1 0 002 0V4zM10 7a1 1 0 011 1v1h2a1 1 0 110 2h-3a1 1 0 01-1-1V8a1 1 0 011-1zM16 9a1 1 0 100 2 1 1 0 000-2zM9 13a1 1 0 011-1h1a1 1 0 110 2v2a1 1 0 11-2 0v-3zM7 11a1 1 0 100-2H4a1 1 0 100 2h3zM17 13a1 1 0 01-1 1h-2a1 1 0 110-2h2a1 1 0 011 1zM16 17a1 1 0 100-2h-3a1 1 0 100 2h3z" />
                     </svg>
-                    <!-- Loading spinner (hidden by default) -->
-                    <svg id="scan-spinner" class="hidden animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg id="scan-spinner" class="hidden h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -66,165 +135,46 @@
                 </button>
             </form>
         </div>
-    </div>
-</div>
+    </section>
 
-{% if extracted_isbn %}
-<!-- Extracted ISBN indicator -->
-<div class="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-    </svg>
-    <span>Found ISBN: <strong>{{ extracted_isbn }}</strong></span>
-    {% if isbn_confidence %}
-    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-        {% if isbn_confidence == 'high' %}bg-green-100 dark:bg-green-800/50 text-green-800 dark:text-green-300
-        {% elif isbn_confidence == 'medium' %}bg-yellow-100 dark:bg-yellow-800/50 text-yellow-800 dark:text-yellow-300
-        {% else %}bg-red-100 dark:bg-red-800/50 text-red-800 dark:text-red-300{% endif %}">
-        {{ isbn_confidence }}
-    </span>
-    {% endif %}
-</div>
-{% endif %}
-
-<!-- Search form (collapsible) -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-    <button type="button"
-            onclick="toggleSection('search-section', 'search-chevron')"
-            class="w-full p-4 flex items-center justify-between text-left">
-        <div>
-            <h2 class="font-semibold text-gray-900 dark:text-white">Search for a Book</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Search by title, author, or ISBN.
-            </p>
-        </div>
-        <svg id="search-chevron" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform rotate-180" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-        </svg>
-    </button>
-    <div id="search-section">
-        <div class="px-4 pb-4">
-            <form action="{{ base_path }}/books/search" method="post" class="flex gap-2">
-                <input type="text"
-                       name="query"
-                       value="{{ query }}"
-                       placeholder="Search by title, author, or ISBN..."
-                       class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
-                <button type="submit"
-                        class="bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
-                    Search
-                </button>
+    <section class="card-index rounded-lg library-fade-up" style="--stagger-index: 4;">
+        <button type="button"
+                onclick="toggleSection('manual-section', 'manual-chevron')"
+                class="library-section-toggle p-4">
+            <span>
+                <span class="block font-semibold text-ink">Add Manually</span>
+                <span class="mt-1 block text-sm text-muted">Enter book details directly.</span>
+            </span>
+            <svg id="manual-chevron" class="h-5 w-5 shrink-0 text-muted transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+        </button>
+        <div id="manual-section" class="hidden">
+            <form action="{{ base_path }}/books/create" method="post" class="space-y-4 border-t border-line px-4 pb-4 pt-4">
+                <div>
+                    <label for="title" class="block text-sm font-semibold text-ink">Title *</label>
+                    <input type="text" id="title" name="title" required class="form-field mt-2">
+                </div>
+                <div>
+                    <label for="author" class="block text-sm font-semibold text-ink">Author *</label>
+                    <input type="text" id="author" name="author" required class="form-field mt-2">
+                </div>
+                <div>
+                    <label for="isbn" class="block text-sm font-semibold text-ink">ISBN (optional)</label>
+                    <input type="text" id="isbn" name="isbn" class="form-field mt-2">
+                </div>
+                <div>
+                    <label for="cover_url" class="block text-sm font-semibold text-ink">Cover Image URL (optional)</label>
+                    <input type="url" id="cover_url" name="cover_url" placeholder="https://..." class="form-field mt-2">
+                </div>
+                {{ ui.button("Add Book", type="submit", variant="primary", extra_classes="w-full min-h-11") }}
             </form>
         </div>
-    </div>
+    </section>
 </div>
+{% endblock %}
 
-{% if search_results is not none %}
-<!-- Search results -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
-    <h2 class="font-semibold text-gray-900 dark:text-white mb-3">Search Results</h2>
-    {% if search_results %}
-    <div class="space-y-3">
-        {% for result in search_results %}
-        <form action="{{ base_path }}/books/create" method="post" class="border-b border-gray-100 dark:border-gray-700 last:border-b-0 pb-3 last:pb-0">
-            <input type="hidden" name="title" value="{{ result.title }}">
-            <input type="hidden" name="author" value="{{ result.author }}">
-            <input type="hidden" name="isbn" value="{{ result.isbn or '' }}">
-            <input type="hidden" name="cover_url" value="{{ result.cover_url or '' }}">
-
-            <div class="flex gap-3">
-                <!-- Cover thumbnail -->
-                <div class="w-12 h-16 flex-shrink-0 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
-                    {% if result.cover_url %}
-                    <img src="{{ result.cover_url }}" alt="{{ result.title }}" class="w-full h-full object-cover">
-                    {% else %}
-                    <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- Book info -->
-                <div class="flex-1 min-w-0">
-                    <h3 class="font-medium text-gray-900 dark:text-white truncate">{{ result.title }}</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">{{ result.author }}</p>
-                </div>
-
-                <!-- Add button -->
-                <button type="submit"
-                        class="flex-shrink-0 bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 px-3 py-1 rounded-lg text-sm font-medium hover:bg-primary-200 dark:hover:bg-primary-900/70 transition self-center">
-                    Add
-                </button>
-            </div>
-        </form>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-gray-600 dark:text-gray-400 text-center py-4">No books found. Try a different search or add manually below.</p>
-    {% endif %}
-</div>
-{% endif %}
-
-<!-- Manual entry form (collapsible) -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-    <button type="button"
-            onclick="toggleSection('manual-section', 'manual-chevron')"
-            class="w-full p-4 flex items-center justify-between text-left">
-        <div>
-            <h2 class="font-semibold text-gray-900 dark:text-white">Add Manually</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Enter book details directly.
-            </p>
-        </div>
-        <svg id="manual-chevron" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 dark:text-gray-400 transition-transform" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-        </svg>
-    </button>
-    <div id="manual-section" class="hidden">
-        <div class="px-4 pb-4">
-            <form action="{{ base_path }}/books/create" method="post" class="space-y-4">
-                <div>
-                    <label for="title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
-                    <input type="text"
-                           id="title"
-                           name="title"
-                           required
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                </div>
-                <div>
-                    <label for="author" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Author *</label>
-                    <input type="text"
-                           id="author"
-                           name="author"
-                           required
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                </div>
-                <div>
-                    <label for="isbn" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ISBN (optional)</label>
-                    <input type="text"
-                           id="isbn"
-                           name="isbn"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                </div>
-                <div>
-                    <label for="cover_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cover Image URL (optional)</label>
-                    <input type="url"
-                           id="cover_url"
-                           name="cover_url"
-                           placeholder="https://..."
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
-                </div>
-                <button type="submit"
-                        class="w-full bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
-                    Add Book
-                </button>
-            </form>
-        </div>
-    </div>
-</div>
-
+{% block scripts %}
 <script>
 function toggleSection(sectionId, chevronId) {
     const section = document.getElementById(sectionId);
@@ -240,7 +190,6 @@ document.getElementById('scan-form').addEventListener('submit', function() {
     const spinner = document.getElementById('scan-spinner');
     const btnText = document.getElementById('scan-btn-text');
 
-    // Disable button and show loading state
     btn.disabled = true;
     btn.classList.add('opacity-75', 'cursor-not-allowed');
     icon.classList.add('hidden');

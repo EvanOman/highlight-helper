@@ -1,0 +1,115 @@
+<div id="coaching-card-container" class="mb-5 hidden"></div>
+
+<script>
+function renderCoachingCard(card) {
+    const container = document.getElementById('coaching-card-container');
+
+    const rowEl = document.createElement('div');
+    rowEl.className = 'coaching-prompt-row library-fade-up';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'coaching-prompt-label';
+    labelEl.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a6 6 0 00-3.5 10.875V15a1 1 0 001 1h5a1 1 0 001-1v-2.125A6 6 0 0010 2zm-2 16a1 1 0 001 1h2a1 1 0 001-1H8z"/></svg><span>Reading Coach</span>';
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'min-w-0 flex-1';
+
+    const titleEl = document.createElement('p');
+    titleEl.className = 'truncate text-sm font-semibold text-ink';
+    titleEl.textContent = card.title;
+    textWrap.appendChild(titleEl);
+
+    const bodyEl = document.createElement('p');
+    bodyEl.className = 'mt-0.5 line-clamp-1 text-xs leading-5 text-muted';
+    bodyEl.textContent = card.body;
+    textWrap.appendChild(bodyEl);
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'coaching-prompt-actions';
+
+    const engageBtn = document.createElement('button');
+    engageBtn.className = 'rounded-md bg-accent px-3 py-2 text-xs font-semibold text-white transition hover:bg-ink';
+    engageBtn.textContent = 'Reflect in Chat';
+    engageBtn.addEventListener('click', () => engageCard(card.id));
+    btnRow.appendChild(engageBtn);
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'rounded-md px-2 py-2 text-xs font-semibold text-muted transition hover:bg-marker/20 hover:text-ink';
+    dismissBtn.textContent = 'Not Now';
+    dismissBtn.addEventListener('click', () => dismissCard(card.id));
+    btnRow.appendChild(dismissBtn);
+
+    rowEl.appendChild(labelEl);
+    rowEl.appendChild(textWrap);
+    rowEl.appendChild(btnRow);
+
+    container.innerHTML = '';
+    container.appendChild(rowEl);
+    container.classList.remove('hidden');
+}
+
+async function pollForCard(maxAttempts) {
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+            const resp = await fetch('{{ base_path }}/api/coaching/card');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.card) {
+                renderCoachingCard(data.card);
+                return;
+            }
+            if (data.status !== 'generating') return;
+        } catch (err) {
+            console.error('Error polling for coaching card:', err);
+            return;
+        }
+    }
+}
+
+async function loadCoachingCard() {
+    try {
+        const response = await fetch('{{ base_path }}/api/coaching/card');
+        if (!response.ok) return;
+        const data = await response.json();
+
+        if (data.status === 'generating') {
+            await pollForCard(15);
+            return;
+        }
+
+        if (!data.card) return;
+        renderCoachingCard(data.card);
+    } catch (error) {
+        console.error('Failed to load coaching card:', error);
+    }
+}
+
+async function engageCard(cardId) {
+    try {
+        const response = await fetch(`{{ base_path }}/api/coaching/card/${cardId}/engage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        window.location.href = `{{ base_path }}/chat?thread=${data.thread_id}`;
+    } catch (error) {
+        console.error('Failed to engage card:', error);
+    }
+}
+
+async function dismissCard(cardId) {
+    try {
+        await fetch(`{{ base_path }}/api/coaching/card/${cardId}/dismiss`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        document.getElementById('coaching-card-container').classList.add('hidden');
+    } catch (error) {
+        console.error('Failed to dismiss card:', error);
+    }
+}
+
+loadCoachingCard();
+</script>

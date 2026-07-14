@@ -190,3 +190,306 @@
         transition-duration: .01ms !important;
     }
 }
+
+/* --- library surface --- */
+@layer components {
+    .book-cover-shell {
+        position: relative;
+        overflow: hidden;
+        border-radius: .45rem .2rem .2rem .45rem;
+        border: 1px solid color-mix(in srgb, var(--line) 88%, var(--ink) 12%);
+        background:
+            linear-gradient(90deg, rgb(0 0 0 / .14), transparent 13%),
+            linear-gradient(135deg, var(--surface), var(--bg));
+        box-shadow: 0 12px 22px rgb(67 43 22 / .12);
+    }
+
+    .book-cover-shell::after {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 10%;
+        width: 1px;
+        background: rgb(255 255 255 / .28);
+        pointer-events: none;
+    }
+
+    .library-search-panel {
+        border: 1px solid var(--line);
+        border-radius: .75rem;
+        background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+        padding: 1rem;
+        box-shadow: 0 10px 30px rgb(90 65 36 / .07);
+    }
+
+    .library-book-card {
+        position: relative;
+        min-width: 0;
+        border-radius: .6rem;
+        border: 1px solid transparent;
+        padding: .45rem;
+        transition: border-color 150ms ease-out, background-color 150ms ease-out, transform 150ms ease-out;
+    }
+
+    .library-book-card:hover {
+        border-color: var(--line);
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
+        transform: translateY(-2px);
+    }
+
+    .library-star-button {
+        position: absolute;
+        right: .7rem;
+        top: .7rem;
+        z-index: 10;
+        display: inline-flex;
+        height: 2.5rem;
+        width: 2.5rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: .5rem;
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--surface) 88%, transparent);
+        color: var(--ink-muted);
+        box-shadow: 0 8px 18px rgb(48 32 18 / .12);
+        backdrop-filter: blur(6px);
+        transition: background-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
+    }
+
+    .library-star-button:hover {
+        background: var(--marker);
+        color: var(--ink);
+        transform: translateY(-1px);
+    }
+
+    .coaching-prompt-row {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        border: 1px solid color-mix(in srgb, var(--marker) 48%, var(--line));
+        border-radius: .75rem;
+        background: color-mix(in srgb, var(--marker-stroke) 34%, var(--surface));
+        padding: .75rem;
+    }
+
+    .coaching-prompt-label {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: .35rem;
+        border-radius: 999px;
+        background: var(--surface);
+        padding: .35rem .55rem;
+        color: var(--ink);
+        font-size: .7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .coaching-prompt-actions {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: .25rem;
+    }
+
+    .book-detail-hero {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 1rem;
+    }
+
+    .action-tray {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .5rem;
+        border: 1px solid var(--line);
+        border-radius: .75rem;
+        background: var(--surface);
+        padding: .5rem;
+        box-shadow: 0 10px 30px rgb(90 65 36 / .07);
+    }
+
+    .action-tray-item {
+        display: inline-flex;
+        min-height: 3rem;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        border-radius: .5rem;
+        padding: .5rem;
+        color: var(--ink);
+        font-size: .8rem;
+        font-weight: 700;
+        line-height: 1.1;
+        transition: background-color 150ms ease-out, color 150ms ease-out;
+    }
+
+    .action-tray-item:hover {
+        background: color-mix(in srgb, var(--marker) 18%, transparent);
+    }
+
+    .action-tray-primary {
+        background: var(--marker);
+        color: var(--ink);
+    }
+
+    .library-overflow-menu {
+        position: relative;
+        min-width: 0;
+    }
+
+    .library-overflow-menu > summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .library-overflow-panel {
+        position: absolute;
+        right: 0;
+        top: calc(100% + .4rem);
+        z-index: 30;
+        min-width: 11rem;
+        border: 1px solid var(--line);
+        border-radius: .5rem;
+        background: var(--surface);
+        padding: .35rem;
+        box-shadow: 0 18px 36px rgb(42 28 16 / .18);
+    }
+
+    .reading-progress-panel {
+        border: 1px solid var(--line);
+        border-radius: .75rem;
+        background: color-mix(in srgb, var(--surface) 82%, transparent);
+        padding: .9rem;
+    }
+
+    .reading-progress-dot {
+        position: absolute;
+        top: calc(50% - var(--dot-offset, 0px));
+        width: .85rem;
+        height: .85rem;
+        transform: translate(-50%, -50%);
+        border-radius: 999px;
+        border: 2px solid var(--surface);
+        background: var(--marker);
+        box-shadow: 0 0 0 1px var(--line), 0 5px 12px rgb(50 35 18 / .16);
+        transition: transform 150ms ease-out;
+    }
+
+    .reading-progress-dot:hover {
+        transform: translate(-50%, -50%) scale(1.18);
+    }
+
+    .reading-progress-note {
+        background: var(--accent);
+    }
+
+    .reading-river {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .reading-river-item {
+        border-left: 1px solid var(--line);
+        padding: .25rem 0 .25rem 1rem;
+    }
+
+    .reading-river-meta {
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        color: var(--ink-muted);
+        font-size: .78rem;
+    }
+
+    .reading-river-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .2rem;
+    }
+
+    .library-section-toggle {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        text-align: left;
+    }
+
+    .library-result-row {
+        display: flex;
+        align-items: center;
+        gap: .85rem;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: .75rem;
+    }
+
+    .library-result-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .library-fade-up {
+        animation: library-fade-up 360ms ease-out both;
+        animation-delay: calc(min(var(--stagger-index, 0), 12) * 48ms);
+    }
+}
+
+@keyframes library-fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(.65rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 520px) {
+    .reading-river-meta {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .reading-river-actions {
+        justify-content: flex-start;
+    }
+
+    .coaching-prompt-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: .5rem .65rem;
+        padding: .65rem;
+    }
+
+    .coaching-prompt-label {
+        grid-row: span 2;
+        align-self: start;
+        padding: .35rem;
+    }
+
+    .coaching-prompt-label span {
+        display: none;
+    }
+
+    .coaching-prompt-actions {
+        justify-content: flex-start;
+    }
+
+    .action-tray {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .book-detail-hero {
+        align-items: flex-start;
+    }
+}
