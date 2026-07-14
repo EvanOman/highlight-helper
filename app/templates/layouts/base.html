@@ -80,7 +80,7 @@
                    class="relative rounded-md px-3 py-2 text-sm font-medium transition hover:text-accent {% if highlights_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
                    {% if highlights_active %}aria-current="page"{% endif %}>Highlights</a>
                 <a href="{{ base_path }}/capture"
-                   class="marker-stroke ml-2 rounded-md px-4 py-2 text-sm font-semibold text-ink transition hover:text-accent"
+                   class="ml-2 inline-flex items-center rounded-full bg-marker px-4 py-2 text-sm font-semibold text-ink shadow-card transition hover:-translate-y-0.5"
                    {% if capture_active %}aria-current="page"{% endif %}>Capture</a>
                 <a href="{{ base_path }}/chat"
                    class="relative rounded-md px-3 py-2 text-sm font-medium transition hover:text-accent {% if chat_active %}marker-stroke text-ink{% else %}text-muted{% endif %}"
@@ -134,7 +134,7 @@
                 Highlights
             </a>
             <a href="{{ base_path }}/capture"
-               class="marker-stroke flex min-h-16 -translate-y-2 flex-col items-center justify-center gap-1 rounded-md px-1 text-xs font-semibold text-ink"
+               class="flex min-h-16 -translate-y-2 flex-col items-center justify-center gap-1 rounded-md px-1 text-xs font-semibold text-ink {% if capture_active %}marker-stroke{% endif %}"
                {% if capture_active %}aria-current="page"{% endif %}>
                 <span class="flex h-10 w-10 items-center justify-center rounded-full bg-marker text-ink shadow-card">
                     <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -164,7 +164,7 @@
 
     <!-- Footer -->
     {% block footer %}
-    <footer class="hidden border-t border-line bg-surface py-4 text-center text-xs text-muted sm:block">
+    <footer class="hidden border-t border-line bg-surface py-4 text-center text-xs text-muted md:block">
         <div class="mx-auto max-w-4xl px-4">
             Highlight Helper - Collect and organize your book highlights
         </div>

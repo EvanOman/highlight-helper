@@ -107,7 +107,6 @@
     <section aria-labelledby="highlights-heading">
         <div class="mb-4 flex items-end justify-between gap-3">
             <div>
-                <p class="text-xs font-semibold uppercase text-muted">Reading river</p>
                 <h2 id="highlights-heading" class="text-2xl font-semibold text-ink">Highlights & Notes ({{ highlights|length }})</h2>
             </div>
         </div>
@@ -124,7 +123,7 @@
                 </div>
                 <p class="text-base leading-7 text-ink">{{ highlight.note }}</p>
                 {% if highlight.text %}
-                <blockquote class="mt-4 border-l-4 border-accent/40 pl-4 font-passage text-lg leading-8 text-muted italic">
+                <blockquote class="mt-4 border-l-4 border-accent/40 pl-4 font-passage text-lg leading-8 text-ink italic">
                     "{{ highlight.text }}"
                 </blockquote>
                 {% endif %}

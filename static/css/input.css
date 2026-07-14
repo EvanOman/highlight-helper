@@ -212,6 +212,7 @@
     --ck-border-error: #e8b2a7;
     --ck-border-status: rgb(var(--color-marker) / .44);
     --ck-accent: var(--accent);
+    --ck-accent-2: #A6612F;
     --ck-accent-hover: var(--ink);
     --ck-accent-soft: rgb(var(--color-accent) / .08);
     --ck-accent-glow: rgb(var(--color-marker) / .18);
@@ -254,6 +255,7 @@
     --ck-border-error: #704034;
     --ck-border-status: rgb(var(--color-marker) / .34);
     --ck-accent: var(--accent);
+    --ck-accent-2: #8F4636;
     --ck-accent-hover: #e2a08e;
     --ck-accent-soft: rgb(var(--color-accent) / .12);
     --ck-accent-glow: rgb(var(--color-marker) / .14);
@@ -654,15 +656,26 @@
     }
 
     .capture-status-badge-caution,
-    .capture-match-pill {
+    .capture-match-pill-approx {
         border-color: rgb(180 83 9 / .24);
         background: rgb(180 83 9 / .1);
         color: rgb(146 64 14);
     }
 
     .dark .capture-status-badge-caution,
-    .dark .capture-match-pill {
+    .dark .capture-match-pill-approx {
         color: rgb(252 211 77);
+    }
+
+    /* Honesty semantics: an exact match is a calm success state, not a caution. */
+    .capture-match-pill-exact {
+        border-color: rgb(21 128 61 / .22);
+        background: rgb(21 128 61 / .1);
+        color: rgb(22 101 52);
+    }
+
+    .dark .capture-match-pill-exact {
+        color: rgb(134 239 172);
     }
 
     .capture-status-badge-danger {
@@ -971,6 +984,12 @@
             right: .75rem;
             bottom: calc(5.75rem + env(safe-area-inset-bottom));
             left: .75rem;
+        }
+
+        /* The fixed save bar above sits on top of the flow; give editor pages
+           enough tail room that the last content clears both it and the nav. */
+        .capture-editor-shell {
+            padding-bottom: 4.5rem;
         }
     }
 
@@ -1322,6 +1341,12 @@
     .reading-river-item {
         border-left: 1px solid var(--line);
         padding: .25rem 0 .25rem 1rem;
+    }
+
+    /* Passages read like book pages: full ink, never muted (metadata stays muted). */
+    .reading-river-item blockquote,
+    .highlight-river-row blockquote {
+        color: var(--ink);
     }
 
     .reading-river-meta {
