@@ -5,41 +5,19 @@
 {% block footer %}{% endblock %}
 
 {% block main_content %}
-<style>
-    @media (pointer: coarse) {
-        .thread-item .delete-btn { opacity: 1; }
-    }
-    /* Tool call card styling */
-    .tool-card { transition: all 0.2s ease; }
-    .tool-card .tool-spinner { animation: spin 1s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    /* Ensure chatkit components inherit full height */
-    ck-app { display: flex; flex: 1; min-height: 0; }
-</style>
 <link rel="stylesheet" href="{{ base_path }}/static/chatkit/theme/chatkit.css">
-<style>
-    /* Override chatkit dark mode colors to match Tailwind gray palette */
-    :root {
-        --ck-bg: #030712;           /* gray-950 — matches sidebar bg */
-        --ck-bg-surface: #111827;   /* gray-900 */
-        --ck-bg-surface-hover: #1f2937; /* gray-800 */
-        --ck-bg-user-msg: #111827;  /* gray-900 */
-        --ck-bg-input: #111827;     /* gray-900 */
-        --ck-border: #1f2937;       /* gray-800 */
-    }
-</style>
 
-<div class="flex" style="height: calc(100vh - 3.5rem)">
+<div class="hh-chat-shell flex">
 
     <!-- Mobile backdrop -->
-    <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/50 z-30 md:hidden"></div>
+    <div id="sidebar-backdrop" class="hidden fixed inset-0 z-30 bg-ink/55 md:hidden"></div>
 
     <!-- Custom sidebar (not using ck-sidebar — need book picker, model picker, coaching icons) -->
-    <aside id="sidebar" class="fixed top-[3.5rem] bottom-0 left-0 w-72 z-40 flex flex-col bg-gray-100 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform -translate-x-full transition-transform duration-200 ease-in-out md:static md:translate-x-0 md:z-0 md:shrink-0">
+    <aside id="sidebar" class="hh-chat-sidebar fixed bottom-0 left-0 top-[3.5rem] z-40 flex w-72 -translate-x-full transform flex-col transition-transform duration-200 ease-in-out md:static md:z-0 md:shrink-0 md:translate-x-0">
         <!-- New Chat button -->
-        <div class="p-3 border-b border-gray-200 dark:border-gray-800">
+        <div class="hh-chat-sidebar-section">
             <button id="new-chat-btn"
-                    class="w-full px-3 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition font-medium flex items-center justify-center gap-2">
+                    class="hh-chat-new-chat marker-stroke flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                 </svg>
@@ -50,45 +28,45 @@
         <!-- Scope indicator -->
         {% if book %}
         <a href="{{ base_path }}/chat"
-           class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary-600 dark:text-primary-400 hover:bg-gray-200 dark:hover:bg-gray-800 border-b border-gray-200 dark:border-gray-800 transition">
+           class="hh-chat-scope flex items-center gap-1.5 px-3 py-2 text-xs transition">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
             </svg>
-            "{{ book.title }}" &mdash; tap to view all
+            <span class="truncate">"{{ book.title }}" &mdash; tap to view all</span>
         </a>
         {% else %}
-        <div class="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
+        <div class="hh-chat-scope px-3 py-2 text-xs">
             All conversations
         </div>
         {% endif %}
 
         <!-- Book search -->
-        <div class="px-3 pt-2 pb-1 relative">
+        <div class="relative px-3 pb-2 pt-3">
             <div class="relative">
-                <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 dark:text-gray-500 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
                 </svg>
                 <input type="text"
                        id="book-search-input"
                        placeholder="Search books..."
                        autocomplete="off"
-                       class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 focus:outline-none">
+                       class="hh-chat-search w-full rounded-md py-2 pl-8 pr-3 text-xs">
             </div>
-            <div id="book-search-results" class="hidden absolute left-3 right-3 top-full z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"></div>
+            <div id="book-search-results" class="hidden absolute left-3 right-3 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-md"></div>
         </div>
 
         <!-- Thread list -->
-        <div id="thread-list" class="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <div id="thread-list" class="flex-1 space-y-1 overflow-y-auto p-2">
             {% for thread in threads %}
-            <div class="thread-item group flex items-center gap-1 px-3 py-2 text-sm rounded-lg cursor-pointer text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition"
+            <div class="thread-item group flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition"
                  data-thread-id="{{ thread.id }}"
                  data-coaching="{{ 'true' if thread.coaching_card_id else 'false' }}"
                  title="{{ thread.title }}">
                 {% if thread.coaching_card_id %}
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0 text-amber-500" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0 text-accent" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
                 {% endif %}
                 <span class="flex-1 truncate">{{ thread.title }}</span>
-                <button class="delete-btn shrink-0 p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition opacity-0 group-hover:opacity-100"
+                <button class="delete-btn shrink-0 rounded p-1 opacity-0 transition group-hover:opacity-100"
                         data-delete-thread="{{ thread.id }}"
                         title="Delete thread">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -98,7 +76,7 @@
             </div>
             {% endfor %}
             {% if not threads %}
-            <div id="thread-list-empty" class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            <div id="thread-list-empty" class="px-3 py-5 text-center text-sm">
                 <p>No conversations yet.</p>
                 <p class="mt-1 text-xs">Click "New Chat" to start one.</p>
             </div>
@@ -106,10 +84,10 @@
         </div>
 
         <!-- Model picker -->
-        <div class="p-3 border-t border-gray-200 dark:border-gray-800">
-            <label for="model-select" class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Model</label>
+        <div class="hh-chat-sidebar-section">
+            <label for="model-select" class="mb-1 block text-xs font-semibold uppercase text-muted">Model</label>
             <select id="model-select"
-                    class="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500">
+                    class="hh-chat-select w-full rounded-md px-2 py-2 text-xs">
                 {% for model_id, model_name in chat_models %}
                 <option value="{{ model_id }}" {{ 'selected' if model_id == chat_model else '' }}>{{ model_name }}</option>
                 {% endfor %}
@@ -117,9 +95,9 @@
         </div>
 
         <!-- Context info footer -->
-        <div class="p-3 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
+        <div class="hh-chat-context px-3 py-3 text-xs">
             {% if book %}
-                <a href="{{ base_path }}/books/{{ book.id }}" class="text-primary-600 dark:text-primary-400 hover:underline">{{ book.title }}</a>
+                <a href="{{ base_path }}/books/{{ book.id }}" class="font-medium text-accent hover:underline">{{ book.title }}</a>
                 <span class="block mt-0.5">{{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %}</span>
             {% else %}
                 {{ book_count }} book{% if book_count != 1 %}s{% endif %}, {{ highlight_count }} highlight{% if highlight_count != 1 %}s{% endif %}
@@ -128,20 +106,20 @@
     </aside>
 
     <!-- Main chat area: chatkit components -->
-    <div class="flex-1 flex flex-col min-w-0">
+    <div class="hh-chat-main flex min-w-0 flex-1 flex-col">
         <!-- Chat header -->
-        <div class="shrink-0 flex items-center gap-3 px-4 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <button id="sidebar-toggle" class="md:hidden flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-600 dark:text-gray-300" aria-label="Toggle sidebar">
+        <div class="hh-chat-header flex shrink-0 items-center gap-3 px-4 py-3">
+            <button id="sidebar-toggle" class="hh-chat-sidebar-toggle flex items-center gap-1.5 rounded-md px-2 py-1.5 transition md:hidden" aria-label="Toggle sidebar">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
                 </svg>
                 <span class="text-sm font-medium">Chats{% if threads %} ({{ threads|length }}){% endif %}</span>
             </button>
-            <h1 id="chat-header-title" class="min-w-0 flex-1 text-base font-semibold text-gray-900 dark:text-white truncate flex items-center gap-2">Chat with Your Highlights</h1>
+            <h1 id="chat-header-title" class="flex min-w-0 flex-1 items-center gap-2 truncate font-display text-lg font-semibold text-ink">Chat with Your Highlights</h1>
         </div>
 
         <!-- Coaching context banner (populated by JS when loading a coaching thread) -->
-        <div id="coaching-banner"></div>
+        <div id="coaching-banner" class="hh-chat-coaching"></div>
 
         <!-- Chatkit app (no sidebar slot — we use our custom sidebar) -->
         <ck-app id="ck-app" api-base="{{ base_path }}/api/chat" style="flex:1;min-height:0;">
