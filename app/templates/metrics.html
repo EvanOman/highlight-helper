@@ -1,131 +1,108 @@
 {% extends "layouts/base.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Chat Metrics - Highlight Helper{% endblock %}
 
 {% block content %}
-<!-- Header -->
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Chat Metrics</h1>
-    <div class="flex items-center gap-2">
-        <button onclick="refreshMetrics()"
-                id="refresh-btn"
-                class="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-            Refresh
-        </button>
-        <a href="{{ base_path }}/jaeger-mobile/search?service=highlight-helper"
-           target="_blank" rel="noopener"
-           class="px-3 py-1.5 text-sm bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-800 transition">
-            View in Jaeger
-        </a>
-    </div>
-</div>
-
-<!-- Summary Cards -->
-<div id="summary-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-requests" class="text-2xl font-bold text-gray-900 dark:text-white">{{ summary.total_requests }}</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Total Requests</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-cost" class="text-2xl font-bold text-gray-900 dark:text-white">${{ "%.4f"|format(summary.total_cost) }}</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-ttft" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "%.0f"|format(summary.avg_ttft_ms) }}ms</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Avg TTFT</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-latency" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "%.0f"|format(summary.avg_latency_ms) }}ms</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Avg Latency</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-tps" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "%.1f"|format(summary.avg_tokens_per_sec) }}</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Avg Tok/s</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-tokens" class="text-2xl font-bold text-gray-900 dark:text-white">{{ "{:,}".format(summary.total_tokens) }}</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Total Tokens</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-avg-cost" class="text-2xl font-bold text-gray-900 dark:text-white">${{ "%.4f"|format(summary.avg_cost_per_request) }}</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Avg Cost/Req</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div id="stat-io-tokens" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-            In: {{ "{:,}".format(summary.total_input_tokens) }}<br>
-            Out: {{ "{:,}".format(summary.total_output_tokens) }}
+<div class="lists-shell">
+    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <p class="lists-kicker">Usage</p>
+            <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">Chat Metrics</h1>
         </div>
-        <div class="text-sm text-gray-500 dark:text-gray-400">Token Breakdown</div>
-    </div>
-</div>
-
-<!-- Trace Table -->
-<div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-    {% if metrics %}
-    <!-- Desktop table (hidden on small screens) -->
-    <div class="hidden md:block overflow-x-auto">
-        <table class="w-full text-sm text-left" id="metrics-table">
-            <thead class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                <tr>
-                    <th class="px-3 py-2">Time</th>
-                    <th class="px-3 py-2">Thread</th>
-                    <th class="px-3 py-2">Model</th>
-                    <th class="px-3 py-2 text-right">TTFT</th>
-                    <th class="px-3 py-2 text-right">Latency</th>
-                    <th class="px-3 py-2 text-right">Tok/s</th>
-                    <th class="px-3 py-2 text-right">In/Out</th>
-                    <th class="px-3 py-2 text-right">Cost</th>
-                    <th class="px-3 py-2">Stop</th>
-                    <th class="px-3 py-2 text-right">Ctx%</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700" id="metrics-tbody">
-                {% for m in metrics %}
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td class="px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ m.timestamp.strftime('%m/%d %H:%M') if m.timestamp else '-' }}</td>
-                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ m.thread_id or '-' }}</td>
-                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ m.model.split('-')[1] if '-' in m.model else m.model }}</td>
-                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.0f"|format(m.ttft_ms) if m.ttft_ms else '-' }}ms</td>
-                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.1f"|format(m.total_latency_ms / 1000) if m.total_latency_ms else '-' }}s</td>
-                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.1f"|format(m.tokens_per_sec) if m.tokens_per_sec else '-' }}</td>
-                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ "{:,}".format(m.input_tokens) }}/{{ "{:,}".format(m.output_tokens) }}</td>
-                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">${{ "%.4f"|format(m.cost_usd) }}</td>
-                    <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ m.stop_reason or '-' }}</td>
-                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{{ "%.1f"|format(m.context_utilization_pct) if m.context_utilization_pct else '-' }}%</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <!-- Mobile card list (hidden on md and up) -->
-    <div class="md:hidden divide-y divide-gray-200 dark:divide-gray-700" id="metrics-mobile">
-        {% for m in metrics %}
-        <div class="p-3 text-sm">
-            <div class="flex justify-between items-start mb-1">
-                <span class="text-gray-600 dark:text-gray-400">{{ m.timestamp.strftime('%m/%d %H:%M') if m.timestamp else '-' }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">${{ "%.4f"|format(m.cost_usd) }}</span>
-            </div>
-            <div class="text-gray-700 dark:text-gray-300 mb-1">
-                <span class="font-medium">{{ m.model.split('-')[1] if '-' in m.model else m.model }}</span>
-                {% if m.thread_id %}<span class="text-gray-400 dark:text-gray-500 ml-2 text-xs">{{ m.thread_id }}</span>{% endif %}
-            </div>
-            <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-                <span>TTFT: {{ "%.0f"|format(m.ttft_ms) if m.ttft_ms else '-' }}ms</span>
-                <span>Latency: {{ "%.1f"|format(m.total_latency_ms / 1000) if m.total_latency_ms else '-' }}s</span>
-                <span>Tok/s: {{ "%.1f"|format(m.tokens_per_sec) if m.tokens_per_sec else '-' }}</span>
-                <span>Ctx: {{ "%.1f"|format(m.context_utilization_pct) if m.context_utilization_pct else '-' }}%</span>
-                <span>In/Out: {{ "{:,}".format(m.input_tokens) }}/{{ "{:,}".format(m.output_tokens) }}</span>
-                <span>Stop: {{ m.stop_reason or '-' }}</span>
-            </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="refreshMetrics()"
+                    id="refresh-btn"
+                    class="inline-flex min-h-9 items-center rounded-md border border-line bg-surface px-3 text-sm font-semibold text-ink transition hover:bg-marker/20">
+                Refresh
+            </button>
+            <a href="{{ base_path }}/jaeger-mobile/search?service=highlight-helper"
+               target="_blank" rel="noopener"
+               class="inline-flex min-h-9 items-center rounded-md bg-accent px-3 text-sm font-semibold text-white transition hover:bg-ink">
+                View in Jaeger
+            </a>
         </div>
-        {% endfor %}
     </div>
-    {% else %}
-    <div class="p-8 text-center text-gray-500 dark:text-gray-400" id="empty-state">
-        <p class="text-lg font-medium mb-1">No chat metrics yet</p>
-        <p class="text-sm">Send a message in <a href="{{ base_path }}/chat" class="text-primary-600 dark:text-primary-400 hover:underline">Chat</a> to start collecting metrics.</p>
-    </div>
-    {% endif %}
+
+    <section class="card-index mb-5 rounded-lg p-4" aria-label="Chat metrics summary">
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 lg:grid-cols-8">
+            {{ ui.metric_value("Total Requests", summary.total_requests, "stat-requests") }}
+            {{ ui.metric_value("Total Cost", "$" ~ "%.4f"|format(summary.total_cost), "stat-cost") }}
+            {{ ui.metric_value("Avg TTFT", "%.0f"|format(summary.avg_ttft_ms) ~ "ms", "stat-ttft") }}
+            {{ ui.metric_value("Avg Latency", "%.0f"|format(summary.avg_latency_ms) ~ "ms", "stat-latency") }}
+            {{ ui.metric_value("Avg Tok/s", "%.1f"|format(summary.avg_tokens_per_sec), "stat-tps") }}
+            {{ ui.metric_value("Total Tokens", "{:,}".format(summary.total_tokens), "stat-tokens") }}
+            {{ ui.metric_value("Avg Cost/Req", "$" ~ "%.4f"|format(summary.avg_cost_per_request), "stat-avg-cost") }}
+            {{ ui.metric_value("Token Breakdown", "In: " ~ "{:,}".format(summary.total_input_tokens) ~ " / Out: " ~ "{:,}".format(summary.total_output_tokens), "stat-io-tokens") }}
+        </dl>
+    </section>
+
+    <section class="card-index overflow-hidden rounded-lg" aria-label="Recent chat metric records">
+        {% if metrics %}
+        <div class="hidden overflow-x-auto md:block">
+            <table class="compact-table" id="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Thread</th>
+                        <th>Model</th>
+                        <th class="text-right">TTFT</th>
+                        <th class="text-right">Latency</th>
+                        <th class="text-right">Tok/s</th>
+                        <th class="text-right">In/Out</th>
+                        <th class="text-right">Cost</th>
+                        <th>Stop</th>
+                        <th class="text-right">Ctx%</th>
+                    </tr>
+                </thead>
+                <tbody id="metrics-tbody">
+                    {% for m in metrics %}
+                    <tr class="hover:bg-marker/10">
+                        <td class="whitespace-nowrap text-muted">{{ m.timestamp.strftime('%m/%d %H:%M') if m.timestamp else '-' }}</td>
+                        <td>{{ m.thread_id or '-' }}</td>
+                        <td class="whitespace-nowrap">{{ m.model.split('-')[1] if '-' in m.model else m.model }}</td>
+                        <td class="text-right">{{ "%.0f"|format(m.ttft_ms) if m.ttft_ms else '-' }}ms</td>
+                        <td class="text-right">{{ "%.1f"|format(m.total_latency_ms / 1000) if m.total_latency_ms else '-' }}s</td>
+                        <td class="text-right">{{ "%.1f"|format(m.tokens_per_sec) if m.tokens_per_sec else '-' }}</td>
+                        <td class="whitespace-nowrap text-right">{{ "{:,}".format(m.input_tokens) }}/{{ "{:,}".format(m.output_tokens) }}</td>
+                        <td class="text-right">${{ "%.4f"|format(m.cost_usd) }}</td>
+                        <td class="text-muted">{{ m.stop_reason or '-' }}</td>
+                        <td class="text-right">{{ "%.1f"|format(m.context_utilization_pct) if m.context_utilization_pct else '-' }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="divide-y divide-line md:hidden" id="metrics-mobile">
+            {% for m in metrics %}
+            <div class="p-3 text-sm">
+                <div class="flex items-start justify-between gap-3">
+                    <span class="text-muted">{{ m.timestamp.strftime('%m/%d %H:%M') if m.timestamp else '-' }}</span>
+                    <span class="font-semibold text-ink">${{ "%.4f"|format(m.cost_usd) }}</span>
+                </div>
+                <div class="mt-1 text-ink">
+                    <span class="font-semibold">{{ m.model.split('-')[1] if '-' in m.model else m.model }}</span>
+                    {% if m.thread_id %}<span class="ml-2 text-xs text-muted">{{ m.thread_id }}</span>{% endif %}
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted">
+                    <span>TTFT: {{ "%.0f"|format(m.ttft_ms) if m.ttft_ms else '-' }}ms</span>
+                    <span>Latency: {{ "%.1f"|format(m.total_latency_ms / 1000) if m.total_latency_ms else '-' }}s</span>
+                    <span>Tok/s: {{ "%.1f"|format(m.tokens_per_sec) if m.tokens_per_sec else '-' }}</span>
+                    <span>Ctx: {{ "%.1f"|format(m.context_utilization_pct) if m.context_utilization_pct else '-' }}%</span>
+                    <span>In/Out: {{ "{:,}".format(m.input_tokens) }}/{{ "{:,}".format(m.output_tokens) }}</span>
+                    <span>Stop: {{ m.stop_reason or '-' }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="p-8 text-center" id="empty-state">
+            <p class="font-display text-lg font-semibold text-ink">No chat metrics yet</p>
+            <p class="mt-2 text-sm text-muted">Send a message in <a href="{{ base_path }}/chat" class="font-semibold text-accent hover:text-ink">Chat</a> to start collecting metrics.</p>
+        </div>
+        {% endif %}
+    </section>
 </div>
 
 <script>
@@ -146,10 +123,9 @@ async function refreshMetrics() {
         document.getElementById('stat-tps').textContent = s.avg_tokens_per_sec.toFixed(1);
         document.getElementById('stat-tokens').textContent = s.total_tokens.toLocaleString();
         document.getElementById('stat-avg-cost').textContent = '$' + s.avg_cost_per_request.toFixed(4);
-        document.getElementById('stat-io-tokens').innerHTML =
-            'In: ' + s.total_input_tokens.toLocaleString() + '<br>Out: ' + s.total_output_tokens.toLocaleString();
+        document.getElementById('stat-io-tokens').textContent =
+            'In: ' + s.total_input_tokens.toLocaleString() + ' / Out: ' + s.total_output_tokens.toLocaleString();
 
-        // Rebuild table and mobile cards
         const emptyState = document.getElementById('empty-state');
         if (data.metrics.length === 0) {
             if (emptyState) emptyState.style.display = '';
@@ -164,23 +140,22 @@ async function refreshMetrics() {
 
         let tbody = document.getElementById('metrics-tbody');
         if (!tbody) {
-            // Table didn't exist yet (was empty state), rebuild
             location.reload();
             return;
         }
 
         tbody.replaceChildren();
         const cellDefs = [
-            { cls: 'px-3 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap', align: '' },
-            { cls: 'px-3 py-2 text-gray-700 dark:text-gray-300', align: '' },
-            { cls: 'px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap', align: '' },
-            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
-            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
-            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
-            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap', align: '' },
-            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
-            { cls: 'px-3 py-2 text-gray-600 dark:text-gray-400', align: '' },
-            { cls: 'px-3 py-2 text-right text-gray-700 dark:text-gray-300', align: '' },
+            { cls: 'whitespace-nowrap text-muted' },
+            { cls: '' },
+            { cls: 'whitespace-nowrap' },
+            { cls: 'text-right' },
+            { cls: 'text-right' },
+            { cls: 'text-right' },
+            { cls: 'whitespace-nowrap text-right' },
+            { cls: 'text-right' },
+            { cls: 'text-muted' },
+            { cls: 'text-right' },
         ];
         for (const m of data.metrics) {
             const ts = m.timestamp ? new Date(m.timestamp) : null;
@@ -203,7 +178,7 @@ async function refreshMetrics() {
                 ctx,
             ];
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
+            tr.className = 'hover:bg-marker/10';
             for (let i = 0; i < cellDefs.length; i++) {
                 const td = document.createElement('td');
                 td.className = cellDefs[i].cls;
@@ -213,7 +188,6 @@ async function refreshMetrics() {
             tbody.appendChild(tr);
         }
 
-        // Rebuild mobile cards
         const mobileList = document.getElementById('metrics-mobile');
         if (mobileList) {
             mobileList.innerHTML = data.metrics.map(function(m) {
@@ -224,16 +198,16 @@ async function refreshMetrics() {
                 const mLatency = m.total_latency_ms != null ? (m.total_latency_ms / 1000).toFixed(1) + 's' : '-';
                 const mTps = m.tokens_per_sec != null ? m.tokens_per_sec.toFixed(1) : '-';
                 const mCtx = m.context_utilization_pct != null ? m.context_utilization_pct.toFixed(1) + '%' : '-';
-                const mThread = m.thread_id ? '<span class="text-gray-400 dark:text-gray-500 ml-2 text-xs">' + m.thread_id + '</span>' : '';
+                const mThread = m.thread_id ? '<span class="ml-2 text-xs text-muted">' + m.thread_id + '</span>' : '';
                 return '<div class="p-3 text-sm">' +
-                    '<div class="flex justify-between items-start mb-1">' +
-                        '<span class="text-gray-600 dark:text-gray-400">' + mTimeStr + '</span>' +
-                        '<span class="font-medium text-gray-900 dark:text-white">$' + m.cost_usd.toFixed(4) + '</span>' +
+                    '<div class="flex items-start justify-between gap-3">' +
+                        '<span class="text-muted">' + mTimeStr + '</span>' +
+                        '<span class="font-semibold text-ink">$' + m.cost_usd.toFixed(4) + '</span>' +
                     '</div>' +
-                    '<div class="text-gray-700 dark:text-gray-300 mb-1">' +
-                        '<span class="font-medium">' + mModel + '</span>' + mThread +
+                    '<div class="mt-1 text-ink">' +
+                        '<span class="font-semibold">' + mModel + '</span>' + mThread +
                     '</div>' +
-                    '<div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">' +
+                    '<div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted">' +
                         '<span>TTFT: ' + mTtft + '</span>' +
                         '<span>Latency: ' + mLatency + '</span>' +
                         '<span>Tok/s: ' + mTps + '</span>' +
