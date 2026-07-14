@@ -1,201 +1,126 @@
 {% extends "layouts/base.html" %}
+{% import "components/ui.html" as ui %}
 
-{% block title %}My Books - Highlight Helper{% endblock %}
+{% block title %}Books - Highlight Helper{% endblock %}
 
 {% block content %}
-<div class="mb-6 flex items-center justify-between">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{% if total_books %}My Books ({{ total_books }}){% else %}My Books{% endif %}</h1>
-    <a href="{{ base_path }}/books/add"
-       class="bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-        </svg>
-        Add Book
-    </a>
-</div>
+<div class="space-y-5">
+    <section class="library-search-panel library-fade-up">
+        <div>
+            <div>
+                <p class="text-sm font-semibold uppercase text-muted">Books</p>
+                <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">Your reading room</h1>
+                <p class="mt-2 text-sm text-muted">
+                    {% if total_books %}{{ total_books }} book{% if total_books != 1 %}s{% endif %}, starred and recent first.{% else %}Start with one book, then capture the lines worth keeping.{% endif %}
+                </p>
+            </div>
+        </div>
 
-<!-- Coaching Card Container -->
-<div id="coaching-card-container" class="mb-6 hidden">
-</div>
+        <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+            <div class="relative min-w-0 flex-1">
+                <label for="library-search" class="sr-only">Search books</label>
+                <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 103.473 9.764l2.381 2.382a.75.75 0 101.061-1.061l-2.382-2.381A5.5 5.5 0 009 3.5zM5 9a4 4 0 118 0 4 4 0 01-8 0z" clip-rule="evenodd" />
+                </svg>
+                <input type="search"
+                       id="library-search"
+                       autocomplete="off"
+                       placeholder="Search by title or author..."
+                       class="form-field pl-10 text-base">
+            </div>
+            {{ ui.button("Add Book", href=base_path ~ "/books/add", variant="secondary", extra_classes="shrink-0") }}
+        </div>
+    </section>
 
-{% if books %}
-<div class="grid gap-4 sm:grid-cols-2">
-    {% for book in books %}
-    <div class="book-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition flex relative">
-        <a href="{{ base_path }}/books/{{ book.id }}" class="flex flex-1 min-w-0">
-            <!-- Book cover -->
-            <div class="w-20 h-28 sm:w-24 sm:h-32 flex-shrink-0 bg-gray-200 dark:bg-gray-700">
-                {% if book.cover_url %}
-                <img src="{{ book.cover_url }}" alt="{{ book.title }}" class="w-full h-full object-cover">
-                {% else %}
-                <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    {% include "partials/coaching_prompt.html" %}
+
+    {% if books %}
+    <section aria-labelledby="library-heading">
+        <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 id="library-heading" class="text-lg font-semibold text-ink">Starred & recent</h2>
+            <p id="library-result-count" class="text-xs font-semibold uppercase text-muted">{{ books|length }} shown</p>
+        </div>
+
+        <div id="library-grid" class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+            {% for book in books %}
+            <article class="book-card library-book-card library-fade-up"
+                     style="--stagger-index: {{ loop.index0 }};"
+                     data-book-card
+                     data-search-text="{{ (book.title ~ ' ' ~ book.author)|lower }}">
+                <a href="{{ base_path }}/books/{{ book.id }}" class="block min-w-0">
+                    {{ ui.book_cover(book.title, book.cover_url, "md") }}
+                    <div class="min-w-0 px-1 pb-1 pt-3">
+                        <h3 class="line-clamp-2 text-sm font-semibold leading-5 text-ink sm:text-base">{{ book.title }}</h3>
+                        <p class="mt-1 truncate text-xs text-muted sm:text-sm">{{ book.author }}</p>
+                        <div class="mt-3 flex items-center justify-between gap-2">
+                            <span class="text-xs font-semibold text-muted">{{ book.highlight_count }} highlight{% if book.highlight_count != 1 %}s{% endif %}</span>
+                            {% if book.is_starred %}{{ ui.badge("Starred", "marker", "px-2 py-0.5") }}{% endif %}
+                        </div>
+                    </div>
+                </a>
+                <button onclick="toggleStar({{ book.id }}, this, event, 'h-5 w-5')"
+                        class="star-btn library-star-button"
+                        title="{% if book.is_starred %}Unstar{% else %}Star{% endif %} this book"
+                        data-starred="{{ 'true' if book.is_starred else 'false' }}">
+                    {% if book.is_starred %}
+                    <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
-                </div>
-                {% endif %}
-            </div>
-            <!-- Book info -->
-            <div class="flex-1 p-3 flex flex-col justify-between min-w-0">
-                <div>
-                    <h2 class="font-semibold text-gray-900 dark:text-white truncate pr-8">{{ book.title }}</h2>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate">{{ book.author }}</p>
-                </div>
-                <div class="mt-2">
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200">
-                        {{ book.highlight_count }} highlight{% if book.highlight_count != 1 %}s{% endif %}
-                    </span>
-                </div>
-            </div>
-        </a>
-        <!-- Star button -->
-        <button onclick="toggleStar({{ book.id }}, this, event, 'h-5 w-5')"
-                class="star-btn absolute top-2 right-2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition z-10"
-                title="{% if book.is_starred %}Unstar{% else %}Star{% endif %} this book"
-                data-starred="{{ 'true' if book.is_starred else 'false' }}">
-            {% if book.is_starred %}
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-            {% else %}
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
-            {% endif %}
-        </button>
-    </div>
-    {% endfor %}
-</div>
-{% if total_pages > 1 %}
-{% include "partials/pagination.html" %}
-{% endif %}
-{% else %}
-<div class="text-center py-12">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-    </svg>
-    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No books yet</h2>
-    <p class="text-gray-600 dark:text-gray-400 mb-4">Add your first book to start collecting highlights.</p>
-    <a href="{{ base_path }}/books/add"
-       class="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-700 transition">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-        </svg>
-        Add Your First Book
-    </a>
-</div>
-{% endif %}
+                    {% else %}
+                    <svg class="h-5 w-5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                    {% endif %}
+                </button>
+            </article>
+            {% endfor %}
+        </div>
 
+        <div id="library-no-matches" class="hidden">
+            {{ ui.empty_state("No matching books", "Try a different title or author.", "Add Book", base_path ~ "/books/add") }}
+        </div>
+
+        {% if total_pages > 1 %}
+        <div class="mt-6">
+            {% include "partials/pagination.html" %}
+        </div>
+        {% endif %}
+    </section>
+    {% else %}
+    {% call ui.card("p-6 library-fade-up") %}
+    {{ ui.empty_state("No books yet", "Add your first book to start collecting highlights.", "Add Book", base_path ~ "/books/add") }}
+    {% endcall %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-function renderCoachingCard(card) {
-    const container = document.getElementById('coaching-card-container');
+(function() {
+    const search = document.getElementById('library-search');
+    const cards = Array.from(document.querySelectorAll('[data-book-card]'));
+    const noMatches = document.getElementById('library-no-matches');
+    const resultCount = document.getElementById('library-result-count');
+    const pagination = document.querySelector('[aria-label=Pagination]') || document.querySelector('.pagination');
 
-    const cardEl = document.createElement('div');
-    cardEl.className = 'relative bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-5 shadow-sm';
+    if (!search || !cards.length) return;
 
-    const headerEl = document.createElement('div');
-    headerEl.className = 'flex items-center gap-2 mb-2';
-    headerEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>';
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400';
-    labelSpan.textContent = 'Reading Coach';
-    headerEl.appendChild(labelSpan);
-    cardEl.appendChild(headerEl);
+    function updateLibraryFilter() {
+        const query = search.value.trim().toLowerCase();
+        let visibleCount = 0;
 
-    const titleEl = document.createElement('h3');
-    titleEl.className = 'text-lg font-bold text-gray-900 dark:text-white mb-1';
-    titleEl.textContent = card.title;
-    cardEl.appendChild(titleEl);
-
-    const bodyEl = document.createElement('p');
-    bodyEl.className = 'text-sm text-gray-700 dark:text-gray-300 mb-4';
-    bodyEl.textContent = card.body;
-    cardEl.appendChild(bodyEl);
-
-    const btnRow = document.createElement('div');
-    btnRow.className = 'flex items-center gap-3';
-
-    const engageBtn = document.createElement('button');
-    engageBtn.className = 'px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition';
-    engageBtn.textContent = 'Reflect in Chat';
-    engageBtn.addEventListener('click', () => engageCard(card.id));
-    btnRow.appendChild(engageBtn);
-
-    const dismissBtn = document.createElement('button');
-    dismissBtn.className = 'px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm font-medium transition';
-    dismissBtn.textContent = 'Not Now';
-    dismissBtn.addEventListener('click', () => dismissCard(card.id));
-    btnRow.appendChild(dismissBtn);
-
-    cardEl.appendChild(btnRow);
-    container.innerHTML = '';
-    container.appendChild(cardEl);
-    container.classList.remove('hidden');
-}
-
-async function pollForCard(maxAttempts) {
-    for (let i = 0; i < maxAttempts; i++) {
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-            const resp = await fetch('{{ base_path }}/api/coaching/card');
-            if (!resp.ok) return;
-            const data = await resp.json();
-            if (data.card) {
-                renderCoachingCard(data.card);
-                return;
-            }
-            if (data.status !== 'generating') return;
-        } catch (err) {
-            console.error('Error polling for coaching card:', err);
-            return;
-        }
-    }
-}
-
-async function loadCoachingCard() {
-    try {
-        const response = await fetch('{{ base_path }}/api/coaching/card');
-        if (!response.ok) return;
-        const data = await response.json();
-
-        if (data.status === 'generating') {
-            await pollForCard(15);
-            return;
-        }
-
-        if (!data.card) return;
-        renderCoachingCard(data.card);
-    } catch (error) {
-        console.error('Failed to load coaching card:', error);
-    }
-}
-
-async function engageCard(cardId) {
-    try {
-        const response = await fetch(`{{ base_path }}/api/coaching/card/${cardId}/engage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        cards.forEach((card) => {
+            const visible = card.dataset.searchText.includes(query);
+            card.classList.toggle('hidden', !visible);
+            if (visible) visibleCount += 1;
         });
-        if (!response.ok) return;
-        const data = await response.json();
-        window.location.href = `{{ base_path }}/chat?thread=${data.thread_id}`;
-    } catch (error) {
-        console.error('Failed to engage card:', error);
-    }
-}
 
-async function dismissCard(cardId) {
-    try {
-        await fetch(`{{ base_path }}/api/coaching/card/${cardId}/dismiss`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        document.getElementById('coaching-card-container').classList.add('hidden');
-    } catch (error) {
-        console.error('Failed to dismiss card:', error);
+        if (noMatches) noMatches.classList.toggle('hidden', visibleCount !== 0);
+        if (resultCount) resultCount.textContent = visibleCount + ' shown';
+        if (pagination) pagination.classList.toggle('hidden', query.length > 0);
     }
-}
 
-loadCoachingCard();
+    search.addEventListener('input', updateLibraryFilter);
+})();
 </script>
 {% endblock %}
