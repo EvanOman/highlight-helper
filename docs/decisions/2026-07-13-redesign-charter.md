@@ -119,3 +119,12 @@ Implement as Jinja2 macros/partials in `app/templates/components/` where repetit
    metrics + pagination; (d) chat wrapper.
 3. **Polish**: cross-surface consistency sweep, motion, empty states, screenshot review in
    both themes at 390px and 1280px.
+
+## Status: shipped 2026-07-14
+
+Deployed to production after phases 1-3 + polish; all gates green (492 unit/integration,
+27 E2E incl. deliberate `# redesign:` test updates, selftest). Chatkit gained a themable
+user-bubble gradient (`--ck-accent-2`, chatkit commit 9040f49, re-vendored). Known
+leftovers, deliberately unshipped: redundant uppercase eyebrows on edit_highlight.html /
+add_book.html (same pattern as the fixed add_highlight one); "PHASE 1" appears in both
+the pill and the card eyebrow on add_highlight. Cosmetic only.

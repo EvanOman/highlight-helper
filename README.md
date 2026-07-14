@@ -7,9 +7,13 @@ Photograph a marked-up book page; get the exact highlighted passage back, verbat
 
 Highlight Helper is a mobile-first web app for capturing highlights from physical books. Take a photo of a page you've marked with a highlighter or pen, and a vision model transcribes the page, finds the marked passage, and drops you into an editor where the selection is already made — adjusting it is usually a confirmation, not a repair job.
 
-![The interactive editor: extracted page text with the highlighted passage pre-selected, drag handles, honest confidence badge, auto-detected page number, and one-click re-extraction](static/screenshots/highlight-editor.png)
+![The interactive editor: extracted page text with the marked passage pre-selected as real marker strokes, drag handles, honest confidence and match chips, and a sticky save bar](static/screenshots/highlight-editor.png)
 
 ## The core loop
+
+Capture is one thumb-tap from anywhere: the mobile bottom bar's center button opens a photo-first flow — pick the page while the book is still open, then tell it which book.
+
+![The capture page: photo first, book second, with starred and recent books up top](static/screenshots/capture.png)
 
 1. **Snap a photo** of the page (photos are downscaled client-side before upload, so it's fast on a phone).
 2. **The vision pipeline** (OpenAI via DSPy) transcribes the full page, identifies the highlighted/underlined/marked portion — or follows a natural-language instruction like *"the sentence about trade-offs"* — and locates its exact character span in the page text.
