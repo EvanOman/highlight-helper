@@ -1,3 +1,192 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@font-face {
+    font-family: "Fraunces";
+    src: url("../fonts/fraunces-v38-latin-600.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Fraunces";
+    src: url("../fonts/fraunces-v38-latin-700.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Literata";
+    src: url("../fonts/literata-v40-latin-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Literata";
+    src: url("../fonts/literata-v40-latin-italic.woff2") format("woff2");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Literata";
+    src: url("../fonts/literata-v40-latin-500.woff2") format("woff2");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Libre Franklin";
+    src: url("../fonts/libre-franklin-v20-latin-regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Libre Franklin";
+    src: url("../fonts/libre-franklin-v20-latin-500.woff2") format("woff2");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Libre Franklin";
+    src: url("../fonts/libre-franklin-v20-latin-600.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+
+@layer base {
+    :root {
+        --bg: #FAF6EE;
+        --surface: #FFFDF7;
+        --ink: #1F1B16;
+        --ink-muted: #6B6257;
+        --line: #E5DCCB;
+        --marker: #FFD84D;
+        --marker-stroke: rgba(255, 216, 77, .55);
+        --accent: #8C3B2E;
+        --color-bg: 250 246 238;
+        --color-surface: 255 253 247;
+        --color-ink: 31 27 22;
+        --color-ink-muted: 107 98 87;
+        --color-line: 229 220 203;
+        --color-marker: 255 216 77;
+        --color-accent: 140 59 46;
+    }
+
+    .dark {
+        --bg: #16130F;
+        --surface: #211C15;
+        --ink: #EAE3D5;
+        --ink-muted: #A89B87;
+        --line: #383025;
+        --marker: #E2C043;
+        --marker-stroke: rgba(226, 192, 67, .38);
+        --accent: #C4674F;
+        --color-bg: 22 19 15;
+        --color-surface: 33 28 21;
+        --color-ink: 234 227 213;
+        --color-ink-muted: 168 155 135;
+        --color-line: 56 48 37;
+        --color-marker: 226 192 67;
+        --color-accent: 196 103 79;
+    }
+
+    html {
+        font-family: "Libre Franklin", ui-sans-serif, system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+    }
+
+    body {
+        min-height: 100vh;
+        color: var(--ink);
+        background-color: var(--bg);
+    }
+
+    h1,
+    h2,
+    h3,
+    .font-display {
+        font-family: "Fraunces", Georgia, serif;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--marker);
+        outline-offset: 2px;
+    }
+}
+
+@layer components {
+    .paper-grain {
+        background-image:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+        background-repeat: repeat;
+    }
+
+    .marker-stroke {
+        position: relative;
+        isolation: isolate;
+    }
+
+    .marker-stroke::before {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        left: -.18em;
+        right: -.18em;
+        bottom: .08em;
+        height: .62em;
+        border-radius: .18em .36em .14em .42em;
+        background: var(--marker-stroke);
+        transform: rotate(var(--marker-rotate, -1.5deg)) scaleX(1);
+        transform-origin: left center;
+        animation: marker-draw 300ms ease-out both;
+    }
+
+    .card-index {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        box-shadow: 0 10px 30px rgb(90 65 36 / .08);
+    }
+
+    .form-field {
+        width: 100%;
+        border-radius: .5rem;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        padding: .625rem .75rem;
+    }
+
+    .form-field::placeholder {
+        color: var(--ink-muted);
+    }
+
+    .form-field:focus {
+        outline: 2px solid var(--marker);
+        outline-offset: 2px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+    }
+}

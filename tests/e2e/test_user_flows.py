@@ -161,13 +161,13 @@ class TestHomePageFlow:
         page.goto(server)
         page.wait_for_load_state("networkidle")
 
-        # Navigate to Highlights
-        page.click("text=Highlights")
+        # Navigate to Highlights (nav exists at two breakpoints; click the visible one)
+        page.locator("nav >> text=Highlights >> visible=true").first.click()
         page.wait_for_load_state("networkidle")
         assert "/highlights" in page.url
 
         # Navigate back to Books
-        page.click("header >> text=Books")
+        page.locator("nav >> text=Books >> visible=true").first.click()
         page.wait_for_load_state("networkidle")
         assert page.url.endswith("/") or page.url.endswith(":8765")
 

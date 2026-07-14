@@ -1,0 +1,68 @@
+{% macro button(label, href=None, type="button", variant="primary", icon="", disabled=False, loading=False, pressed=False, extra_classes="") -%}
+    {% set base = "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marker disabled:pointer-events-none disabled:opacity-50" %}
+    {% set variants = {
+        "primary": "bg-accent text-white hover:bg-ink",
+        "secondary": "border border-line bg-surface text-ink hover:bg-marker/20",
+        "ghost": "bg-transparent text-ink hover:bg-marker/20",
+        "destructive": "bg-red-700 text-white hover:bg-red-800",
+        "icon": "h-10 w-10 rounded-md border border-line bg-surface p-0 text-ink hover:bg-marker/20"
+    } %}
+    {% set state = "shadow-inner translate-y-px" if pressed else "" %}
+    {% set classes = base ~ " " ~ variants.get(variant, variants["primary"]) ~ " " ~ state ~ " " ~ extra_classes %}
+    {% if href and not disabled %}
+        <a href="{{ href }}" class="{{ classes }}" {% if pressed %}aria-pressed="true"{% endif %}>
+            {% if loading %}
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true"></span>
+            {% elif icon %}
+            {{ icon|safe }}
+            {% endif %}
+            {% if variant != "icon" %}<span>{{ label }}</span>{% endif %}
+        </a>
+    {% else %}
+        <button type="{{ type }}" class="{{ classes }}" {% if disabled %}disabled aria-disabled="true"{% endif %} {% if pressed %}aria-pressed="true"{% endif %} {% if variant == "icon" %}aria-label="{{ label }}"{% endif %}>
+            {% if loading %}
+            <span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true"></span>
+            {% elif icon %}
+            {{ icon|safe }}
+            {% endif %}
+            {% if variant != "icon" %}<span>{{ label }}</span>{% endif %}
+        </button>
+    {% endif %}
+{%- endmacro %}
+
+{% macro card(extra_classes="") -%}
+    <div class="card-index rounded-lg {{ extra_classes }}">
+        {{ caller() }}
+    </div>
+{%- endmacro %}
+
+{% macro badge(label, tone="neutral", extra_classes="") -%}
+    {% set tones = {
+        "neutral": "border-line bg-surface text-muted",
+        "success": "border-green-700/20 bg-green-700/10 text-green-800 dark:text-green-300",
+        "caution": "border-amber-700/20 bg-amber-700/10 text-amber-800 dark:text-amber-300",
+        "danger": "border-red-700/20 bg-red-700/10 text-red-800 dark:text-red-300",
+        "marker": "border-marker/40 bg-marker/25 text-ink"
+    } %}
+    <span class="inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold {{ tones.get(tone, tones["neutral"]) }} {{ extra_classes }}">
+        {{ label }}
+    </span>
+{%- endmacro %}
+
+{% macro empty_state(title, body, action_label=None, action_href=None, extra_classes="") -%}
+    <div class="mx-auto max-w-md py-12 text-center {{ extra_classes }}">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg border border-line bg-surface text-muted">
+            <svg class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M5 3a2 2 0 00-2 2v11.25A1.75 1.75 0 014.75 14.5H16a1 1 0 001-1V5a2 2 0 00-2-2H5z" />
+                <path d="M4.75 16A.75.75 0 004 16.75.75.75 0 004.75 17H16a1 1 0 100-2H4.75z" />
+            </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-ink">{{ title }}</h2>
+        <p class="mt-2 text-sm leading-6 text-muted">{{ body }}</p>
+        {% if action_label and action_href %}
+        <div class="mt-5">
+            {{ button(action_label, href=action_href) }}
+        </div>
+        {% endif %}
+    </div>
+{%- endmacro %}
