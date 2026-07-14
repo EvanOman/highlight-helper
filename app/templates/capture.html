@@ -4,10 +4,11 @@
 {% block title %}Capture - Highlight Helper{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-3xl">
-    <div class="mb-6">
-        <p class="text-sm font-semibold uppercase text-muted">Capture</p>
-        <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold text-ink">Mark the page while it is still open</h1>
+<div class="capture-shell mx-auto max-w-3xl">
+    <div class="capture-heading mb-6">
+        <p class="text-sm font-semibold uppercase tracking-[0.18em] text-muted">Capture</p>
+        <h1 class="marker-stroke mt-1 inline-block text-3xl font-semibold leading-tight text-ink sm:text-4xl">Mark the page while it is still open</h1>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-muted">Photo first, book second. The extraction starts from the page in front of you.</p>
     </div>
 
     {% if books %}
@@ -16,31 +17,51 @@
           method="post"
           enctype="multipart/form-data"
           data-action-template="{{ base_path }}/books/__BOOK_ID__/extract"
-          class="space-y-5">
-        {% call ui.card("p-4 sm:p-5") %}
-        <div class="space-y-3">
+          class="capture-flow space-y-5">
+        {% call ui.card("capture-photo-card p-4 sm:p-5") %}
+        <div class="space-y-4">
             <div>
-                <h2 class="text-lg font-semibold text-ink">Photo of the page</h2>
-                <p class="mt-1 text-sm text-muted">Choose the image first, then attach it to the book.</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Step 1</p>
+                <h2 class="mt-1 text-xl font-semibold text-ink">Photo of the page</h2>
+                <p class="mt-1 text-sm leading-6 text-muted">Open the camera or choose the image before picking a book.</p>
             </div>
-            <label for="image" class="block rounded-lg border border-dashed border-line bg-bg p-4">
-                <span class="block text-sm font-semibold text-ink">Open camera or choose image</span>
+            <label for="image" class="capture-file-target">
                 <input type="file"
                        id="image"
                        name="image"
                        accept="image/*"
                        capture="environment"
                        required
-                       class="mt-3 w-full text-sm text-muted file:mr-4 file:rounded-md file:border-0 file:bg-marker file:px-4 file:py-2 file:text-sm file:font-semibold file:text-ink hover:file:bg-marker/80">
+                       class="capture-file-input">
+                <span class="capture-camera-icon" aria-hidden="true">
+                    <svg class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 5a2 2 0 012-2h1.586A2 2 0 019 3.586L9.414 4H14a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm6 9a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                    </svg>
+                </span>
+                <span class="block text-base font-semibold text-ink">Open camera or choose image</span>
+                <span class="mt-1 block text-sm leading-6 text-muted">A clear, flat photo works best. The native file picker stays hidden until you tap here.</span>
             </label>
+        </div>
+        {% endcall %}
+
+        {% call ui.card("p-4 sm:p-5") %}
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Step 2</p>
+            <label for="instructions" class="mt-1 block text-xl font-semibold font-display text-ink">What to extract</label>
+            <textarea id="instructions"
+                      name="instructions"
+                      rows="3"
+                      required
+                      class="form-field mt-3 min-h-24 resize-none text-base leading-7">the highlighted text</textarea>
         </div>
         {% endcall %}
 
         {% call ui.card("p-4 sm:p-5") %}
         <div class="space-y-4">
             <div>
-                <h2 class="text-lg font-semibold text-ink">Which book?</h2>
-                <p class="mt-1 text-sm text-muted">Starred books appear first, followed by recent additions.</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Step 3</p>
+                <h2 class="mt-1 text-xl font-semibold text-ink">Which book?</h2>
+                <p class="mt-1 text-sm leading-6 text-muted">Starred books appear first, followed by recent additions.</p>
             </div>
 
             <div>
@@ -56,7 +77,7 @@
                 Choose a book before capturing a highlight.
             </div>
 
-            <div id="book-options" class="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
+            <div id="book-options" class="capture-book-options space-y-2 overflow-y-auto pr-1">
                 {% for book in books %}
                 <label class="book-option flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-bg p-3 transition hover:border-marker hover:bg-marker/10"
                        data-book-option
@@ -96,19 +117,8 @@
         </div>
         {% endcall %}
 
-        {% call ui.card("p-4 sm:p-5") %}
-        <div>
-            <label for="instructions" class="block text-sm font-semibold text-ink">What to extract</label>
-            <textarea id="instructions"
-                      name="instructions"
-                      rows="3"
-                      required
-                      class="form-field mt-2 resize-none">the highlighted text</textarea>
-        </div>
-        {% endcall %}
-
-        <div class="sticky bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-20 md:bottom-4">
-            {{ ui.button("Extract from Image", type="submit", variant="primary", extra_classes="w-full marker-stroke py-3 text-base") }}
+        <div class="capture-extract-bar">
+            {{ ui.button("Extract from Image", type="submit", variant="primary", extra_classes="w-full py-3 text-base") }}
         </div>
     </form>
     {% else %}
