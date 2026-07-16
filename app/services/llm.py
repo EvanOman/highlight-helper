@@ -11,6 +11,7 @@ Exports
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -24,6 +25,22 @@ from app.core.model_registry import calculate_cost, normalize_model_id
 from app.core.telemetry import get_tracer
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Optional LLM gateway routing
+# ---------------------------------------------------------------------------
+# When BOTH LLM_GATEWAY_BASE_URL and LLM_GATEWAY_API_KEY are set, every
+# litellm call in this module is routed through the gateway (enabling
+# per-project spend attribution). When either is unset, calls go directly
+# to the provider with no change to existing behavior.
+_GATEWAY_BASE_URL = os.environ.get("LLM_GATEWAY_BASE_URL")
+_GATEWAY_API_KEY = os.environ.get("LLM_GATEWAY_API_KEY")
+_GATEWAY_KWARGS: dict[str, Any] = (
+    {"api_base": _GATEWAY_BASE_URL, "api_key": _GATEWAY_API_KEY}
+    if _GATEWAY_BASE_URL and _GATEWAY_API_KEY
+    else {}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +145,7 @@ async def complete(
                 model=model,
                 max_tokens=max_tokens,
                 messages=messages,
+                **_GATEWAY_KWARGS,
                 **kwargs,
             )
             text = response.choices[0].message.content or ""
@@ -206,6 +224,7 @@ async def stream(
                 "messages": messages,
                 "stream": True,
                 "stream_options": {"include_usage": True},
+                **_GATEWAY_KWARGS,
                 **kwargs,
             }
             if tools:
