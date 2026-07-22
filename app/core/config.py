@@ -27,14 +27,20 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
 
     # Model configuration
-    vision_model: str = "openai/gpt-5.4"
+    # Vision calls need a vision-capable backing model, so this stays a
+    # concrete provider/model id (not a gateway tier alias) even when routed
+    # through the gateway.
+    vision_model: str = "gemini/gemini-2.5-flash"
     vision_fallback_model: str = "groq/meta-llama/llama-4-scout-17b-16e-instruct"
     # Output-token cap for a single vision extraction. A dense book page's
     # full_text plus the model's chain-of-thought reasoning can exceed 2000
     # tokens and truncate the JSON result, so the cap is generous by default.
     vision_max_tokens: int = 4000
-    chat_model: str = "anthropic/claude-opus-4-6"
-    coaching_model: str = "anthropic/claude-sonnet-4-5-20250929"
+    # Chat/coaching go through app/services/llm.py, which calls the litellm
+    # client directly -- gateway tier aliases need the openai/ mirror prefix
+    # there for client-side model-string validation.
+    chat_model: str = "openai/tier-smart"
+    coaching_model: str = "openai/tier-fast"
 
     # Readwise (optional)
     readwise_api_token: str | None = None

@@ -1,6 +1,7 @@
 """Highlight extraction service using DSPy with OpenAI Vision API."""
 
 import logging
+import os
 
 import dspy
 from pydantic import BaseModel, Field
@@ -13,6 +14,39 @@ from app.services.image_utils import prepare_image_for_vision
 from app.services.text_matching import MatchResult, MatchStatus, locate_highlight
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Optional LLM gateway routing (mirrors app/services/llm.py's _GATEWAY_KWARGS)
+# ---------------------------------------------------------------------------
+# When BOTH LLM_GATEWAY_BASE_URL and LLM_GATEWAY_API_KEY are set, dspy.LM
+# instances built here route through the gateway instead of straight to the
+# provider, enabling per-project spend attribution.
+_GATEWAY_BASE_URL = os.environ.get("LLM_GATEWAY_BASE_URL")
+_GATEWAY_API_KEY = os.environ.get("LLM_GATEWAY_API_KEY")
+_GATEWAY_KWARGS: dict = (
+    {"api_base": _GATEWAY_BASE_URL, "api_key": _GATEWAY_API_KEY}
+    if _GATEWAY_BASE_URL and _GATEWAY_API_KEY
+    else {}
+)
+
+
+def _gateway_lm_model(model: str) -> str:
+    """Model string to actually hand to ``dspy.LM`` when routing is active.
+
+    litellm's client picks request/response handling code from the model's
+    provider prefix, independent of ``api_base``. Native prefixes (``gemini/``,
+    ``groq/``) build provider-native requests our OpenAI-compatible gateway
+    doesn't serve (confirmed: ``gemini/gemini-2.5-flash`` 405s against the
+    gateway; the gateway's model_name registry entry only answers on its
+    generic ``openai/`` mirror). Only the ``openai/`` prefix routes as a
+    generic OpenAI-compatible call, matching what the gateway expects.
+    ``self._model_name`` (used for usage/cost tracking) keeps the plain
+    canonical form regardless -- this only affects the wire call.
+    """
+    if _GATEWAY_KWARGS and not model.startswith("openai/"):
+        return f"openai/{model}"
+    return model
 
 
 class TokenUsage(BaseModel):
@@ -120,13 +154,14 @@ class HighlightExtractorModule(dspy.Module):
 def _build_fallback_lm(max_tokens: int, cache: bool) -> dspy.LM | None:
     """Build a fallback LM using Groq, if configured."""
     settings = get_settings()
-    if not settings.groq_api_key:
+    if not _GATEWAY_KWARGS and not settings.groq_api_key:
         return None
+    lm_kwargs = _GATEWAY_KWARGS or {"api_key": settings.groq_api_key}
     return dspy.LM(
-        settings.vision_fallback_model,
-        api_key=settings.groq_api_key,
+        _gateway_lm_model(settings.vision_fallback_model),
         max_tokens=max_tokens,
         cache=cache,
+        **lm_kwargs,
     )
 
 
@@ -178,11 +213,12 @@ class HighlightExtractorService:
         self._model_name = settings.vision_model
         max_tokens = settings.vision_max_tokens
         if lm is None:
+            lm_kwargs = _GATEWAY_KWARGS or {"api_key": settings.openai_api_key}
             lm = dspy.LM(
-                self._model_name,
-                api_key=settings.openai_api_key,
+                _gateway_lm_model(self._model_name),
                 max_tokens=max_tokens,
                 cache=enable_cache,
+                **lm_kwargs,
             )
         self._lm = lm
         self._fallback_lm = _build_fallback_lm(max_tokens, enable_cache)
